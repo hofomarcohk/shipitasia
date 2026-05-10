@@ -26,13 +26,15 @@ export async function getParam(req: NextRequest): Promise<any> {
       });
       break;
     case "POST":
-      params = await req.json();
-      break;
     case "PUT":
-      params = await req.json();
-      break;
+    case "PATCH":
     case "DELETE":
-      params = await req.json();
+      try {
+        params = await req.json();
+      } catch {
+        // Some clients send DELETE / PATCH without a body — treat as empty.
+        params = {};
+      }
       break;
     default:
   }
