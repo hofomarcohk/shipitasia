@@ -15,6 +15,13 @@ export async function connectToDatabase() {
   return cachedDb;
 }
 
+// Exposed for services that need to start a transaction session — the
+// underlying singleton client owns connection pooling. Do NOT instantiate
+// a second MongoClient elsewhere.
+export function getMongoClient(): MongoClient {
+  return client;
+}
+
 export async function disconnectDatabase(): Promise<void> {
   if (client) {
     await client.close();
