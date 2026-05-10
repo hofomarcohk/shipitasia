@@ -51,7 +51,6 @@
     "startUse": "开始",
     "knowMore": "了解更多"
   },
-
   "api": {
     "success": "成功",
     "updateSuccess": "更新成功",
@@ -444,5 +443,125 @@
   },
   "error": {
     "INTERNAL_SERVER_ERROR": "内部伺服器错误"
+  },
+  "auth": {
+    "register": {
+      "title": "注册新账户",
+      "description": "已经有账户？",
+      "login_link": "立即登录",
+      "submit": "注册",
+      "submitting": "注册中…",
+      "email": "电子邮件",
+      "password": "密码",
+      "password_hint": "至少 8 位，含字母与数字",
+      "client_type": "账户类型",
+      "type_business": "公司客户",
+      "type_end_user": "个人客户",
+      "display_name": "显示名称",
+      "display_name_business_hint": "公司名称",
+      "display_name_end_user_hint": "您的姓名",
+      "phone": "联系电话",
+      "company_info_title": "公司资讯",
+      "company_tax_id": "营业执照 / 统编",
+      "company_invoice_title": "发票抬头",
+      "company_invoice_address": "发票地址",
+      "terms": "我已阅读并同意",
+      "terms_link": "服务条款",
+      "and": "与",
+      "privacy_link": "隐私政策",
+      "success_title": "请至邮箱完成验证",
+      "success_body": "我们已寄出验证邮件至 {email}，请点邮件中的链接激活账户。",
+      "resend": "重新寄送验证邮件",
+      "resend_success": "若账号存在，验证邮件已重新寄出"
+    },
+    "verify": {
+      "title": "验证电子邮件",
+      "verifying": "验证中…",
+      "success": "已验证！正在登录…",
+      "expired": "链接已过期",
+      "invalid": "链接无效或已使用",
+      "go_login": "返回登录"
+    },
+    "forgot": {
+      "title": "忘记密码",
+      "description": "输入您的电子邮件，我们将寄出重设链接。",
+      "email": "电子邮件",
+      "submit": "寄出重设链接",
+      "back_to_login": "返回登录",
+      "success": "若账号存在，重设邮件已寄出"
+    },
+    "reset": {
+      "title": "设定新密码",
+      "description": "输入新密码以完成重设。",
+      "new_password": "新密码",
+      "confirm_password": "确认新密码",
+      "submit": "完成重设并登录",
+      "success": "已完成重设，正在登录…",
+      "no_token": "缺少有效链接，请重新申请忘记密码。",
+      "mismatch": "两次密码不一致"
+    },
+    "google_btn": "使用 Google 登录",
+    "google_unavailable": "Google 登录即将推出，敬请期待"
+  },
+  "profile": {
+    "title": "个人资料",
+    "subtitle": "管理您的账户资讯",
+    "edit": "编辑",
+    "save": "保存",
+    "cancel": "取消",
+    "fields": {
+      "email": "电子邮件",
+      "email_locked": "(无法修改)",
+      "client_type": "账户类型",
+      "client_type_locked": "(无法修改)",
+      "display_name": "显示名称",
+      "phone": "联系电话",
+      "company_info": "公司资讯",
+      "company_tax_id": "营业执照",
+      "company_invoice_title": "发票抬头",
+      "company_invoice_address": "发票地址",
+      "status": "账户状态",
+      "balance": "钱包余额",
+      "created_at": "注册时间",
+      "updated_at": "最后更新"
+    },
+    "status": {
+      "pending_verification": "待验证",
+      "active": "已启用",
+      "disabled": "已停用",
+      "inactive": "未启用",
+      "locked": "锁定",
+      "deleted": "已删除"
+    },
+    "client_type": {
+      "business": "公司",
+      "end_user": "个人"
+    },
+    "password": {
+      "title": "密码",
+      "change": "变更密码",
+      "set_local": "设定本地密码",
+      "set_local_hint": "您透过 Google 注册，未设定本地密码。设定后也可使用 Email + 密码登录。",
+      "current": "目前密码",
+      "new": "新密码",
+      "confirm": "确认新密码",
+      "submit": "更新密码",
+      "success": "密码已更新",
+      "set_success": "本地密码已设定"
+    },
+    "google": {
+      "title": "Google 账户",
+      "linked": "已连结",
+      "not_linked": "未连结",
+      "link": "连结 Google 账户",
+      "link_unavailable": "Google 连结功能即将推出"
+    }
+  },
+  "common": {
+    "back": "返回",
+    "loading": "载入中…",
+    "save_success": "已保存",
+    "save_failed": "保存失败",
+    "required": "必填"
   }
 }

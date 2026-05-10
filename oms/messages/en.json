@@ -51,7 +51,6 @@
     "startUse": "Start",
     "knowMore": "Know More"
   },
-
   "api": {
     "success": "Success",
     "updateSuccess": "Update Success",
@@ -103,7 +102,6 @@
     "collapse": "Collapse",
     "select": "Select"
   },
-
   "menu": {
     "home": "Home",
     "dashboard": "Dashboard",
@@ -150,7 +148,6 @@
     "thxMsg": "Thank you for using our service, see you next time.",
     "backToHome": "Back to Home"
   },
-
   "category": {
     "page": {
       "title": "Item Category",
@@ -268,7 +265,6 @@
       "isDefaultAddressDescription": "Set as default address"
     }
   },
-
   "outbound": {
     "page": {
       "title": "Outbound Order",
@@ -336,7 +332,6 @@
       "emptyBox": "Empty Box"
     }
   },
-
   "inbound": {
     "page": {
       "title": "Inbound Order",
@@ -448,5 +443,125 @@
   },
   "error": {
     "INTERNAL_SERVER_ERROR": "Internal Server Error"
+  },
+  "auth": {
+    "register": {
+      "title": "Create your account",
+      "description": "Already have an account?",
+      "login_link": "Log in",
+      "submit": "Sign up",
+      "submitting": "Signing up…",
+      "email": "Email",
+      "password": "Password",
+      "password_hint": "At least 8 characters, with a letter and a digit",
+      "client_type": "Account type",
+      "type_business": "Business",
+      "type_end_user": "Individual",
+      "display_name": "Display name",
+      "display_name_business_hint": "Company name",
+      "display_name_end_user_hint": "Your name",
+      "phone": "Phone",
+      "company_info_title": "Company info",
+      "company_tax_id": "Business registration / Tax ID",
+      "company_invoice_title": "Invoice title",
+      "company_invoice_address": "Invoice address",
+      "terms": "I have read and agree to the",
+      "terms_link": "Terms of Service",
+      "and": "and",
+      "privacy_link": "Privacy Policy",
+      "success_title": "Check your email",
+      "success_body": "We sent a verification link to {email}. Click it to activate your account.",
+      "resend": "Resend verification email",
+      "resend_success": "If the account exists, the verification email was resent"
+    },
+    "verify": {
+      "title": "Verifying email",
+      "verifying": "Verifying…",
+      "success": "Verified! Signing you in…",
+      "expired": "This link has expired",
+      "invalid": "This link is invalid or has already been used",
+      "go_login": "Back to login"
+    },
+    "forgot": {
+      "title": "Forgot password",
+      "description": "Enter your email and we'll send a reset link.",
+      "email": "Email",
+      "submit": "Send reset link",
+      "back_to_login": "Back to login",
+      "success": "If the account exists, a reset email was sent"
+    },
+    "reset": {
+      "title": "Set new password",
+      "description": "Enter your new password to complete the reset.",
+      "new_password": "New password",
+      "confirm_password": "Confirm new password",
+      "submit": "Reset and sign in",
+      "success": "Password reset. Signing you in…",
+      "no_token": "Missing reset link. Please request forgot-password again.",
+      "mismatch": "Passwords don't match"
+    },
+    "google_btn": "Continue with Google",
+    "google_unavailable": "Google sign-in is coming soon"
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Manage your account information",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "fields": {
+      "email": "Email",
+      "email_locked": "(read-only)",
+      "client_type": "Account type",
+      "client_type_locked": "(read-only)",
+      "display_name": "Display name",
+      "phone": "Phone",
+      "company_info": "Company info",
+      "company_tax_id": "Business registration",
+      "company_invoice_title": "Invoice title",
+      "company_invoice_address": "Invoice address",
+      "status": "Status",
+      "balance": "Wallet balance",
+      "created_at": "Registered",
+      "updated_at": "Last updated"
+    },
+    "status": {
+      "pending_verification": "Pending verification",
+      "active": "Active",
+      "disabled": "Disabled",
+      "inactive": "Inactive",
+      "locked": "Locked",
+      "deleted": "Deleted"
+    },
+    "client_type": {
+      "business": "Business",
+      "end_user": "Individual"
+    },
+    "password": {
+      "title": "Password",
+      "change": "Change password",
+      "set_local": "Set local password",
+      "set_local_hint": "You registered via Google. Setting a local password also lets you log in with email + password.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Confirm new password",
+      "submit": "Update password",
+      "success": "Password updated",
+      "set_success": "Local password set"
+    },
+    "google": {
+      "title": "Google account",
+      "linked": "Linked",
+      "not_linked": "Not linked",
+      "link": "Link Google account",
+      "link_unavailable": "Google linking is coming soon"
+    }
+  },
+  "common": {
+    "back": "Back",
+    "loading": "Loading…",
+    "save_success": "Saved",
+    "save_failed": "Save failed",
+    "required": "Required"
   }
 }

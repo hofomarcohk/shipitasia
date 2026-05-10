@@ -51,7 +51,6 @@
     "startUse": "開始使用",
     "knowMore": "了解更多"
   },
-
   "api": {
     "success": "成功",
     "updateSuccess": "更新成功",
@@ -444,5 +443,125 @@
   },
   "error": {
     "INTERNAL_SERVER_ERROR": "內部伺服器錯誤"
+  },
+  "auth": {
+    "register": {
+      "title": "註冊新帳戶",
+      "description": "已經有帳戶？",
+      "login_link": "立即登入",
+      "submit": "註冊",
+      "submitting": "註冊中…",
+      "email": "電子郵件",
+      "password": "密碼",
+      "password_hint": "至少 8 位，含字母與數字",
+      "client_type": "帳戶類型",
+      "type_business": "公司客戶",
+      "type_end_user": "個人客戶",
+      "display_name": "顯示名稱",
+      "display_name_business_hint": "公司名稱",
+      "display_name_end_user_hint": "您的姓名",
+      "phone": "聯絡電話",
+      "company_info_title": "公司資訊",
+      "company_tax_id": "商業登記證 / 統編",
+      "company_invoice_title": "發票抬頭",
+      "company_invoice_address": "發票地址",
+      "terms": "我已閱讀並同意",
+      "terms_link": "服務條款",
+      "and": "與",
+      "privacy_link": "隱私政策",
+      "success_title": "請至信箱完成驗證",
+      "success_body": "我們已寄出驗證信至 {email}，請點信中連結啟用帳戶。",
+      "resend": "重新寄送驗證信",
+      "resend_success": "若帳號存在，驗證信已重新寄出"
+    },
+    "verify": {
+      "title": "驗證電子郵件",
+      "verifying": "驗證中…",
+      "success": "已驗證！正在登入…",
+      "expired": "連結已過期",
+      "invalid": "連結無效或已使用",
+      "go_login": "返回登入"
+    },
+    "forgot": {
+      "title": "忘記密碼",
+      "description": "輸入您的電子郵件，我們將寄出重設連結。",
+      "email": "電子郵件",
+      "submit": "寄出重設連結",
+      "back_to_login": "返回登入",
+      "success": "若帳號存在，重設信已寄出"
+    },
+    "reset": {
+      "title": "設定新密碼",
+      "description": "輸入新密碼以完成重設。",
+      "new_password": "新密碼",
+      "confirm_password": "確認新密碼",
+      "submit": "完成重設並登入",
+      "success": "已完成重設，正在登入…",
+      "no_token": "缺少有效連結，請重新申請忘記密碼。",
+      "mismatch": "兩次密碼不一致"
+    },
+    "google_btn": "使用 Google 登入",
+    "google_unavailable": "Google 登入即將推出，敬請期待"
+  },
+  "profile": {
+    "title": "個人資料",
+    "subtitle": "管理您的帳戶資訊",
+    "edit": "編輯",
+    "save": "儲存",
+    "cancel": "取消",
+    "fields": {
+      "email": "電子郵件",
+      "email_locked": "(無法修改)",
+      "client_type": "帳戶類型",
+      "client_type_locked": "(無法修改)",
+      "display_name": "顯示名稱",
+      "phone": "聯絡電話",
+      "company_info": "公司資訊",
+      "company_tax_id": "商業登記證",
+      "company_invoice_title": "發票抬頭",
+      "company_invoice_address": "發票地址",
+      "status": "帳戶狀態",
+      "balance": "錢包餘額",
+      "created_at": "註冊時間",
+      "updated_at": "最後更新"
+    },
+    "status": {
+      "pending_verification": "待驗證",
+      "active": "已啟用",
+      "disabled": "已停用",
+      "inactive": "未啟用",
+      "locked": "鎖定",
+      "deleted": "已刪除"
+    },
+    "client_type": {
+      "business": "公司",
+      "end_user": "個人"
+    },
+    "password": {
+      "title": "密碼",
+      "change": "變更密碼",
+      "set_local": "設定本地密碼",
+      "set_local_hint": "您透過 Google 註冊，未設定本地密碼。設定後也可使用 Email + 密碼登入。",
+      "current": "目前密碼",
+      "new": "新密碼",
+      "confirm": "確認新密碼",
+      "submit": "更新密碼",
+      "success": "密碼已更新",
+      "set_success": "本地密碼已設定"
+    },
+    "google": {
+      "title": "Google 帳戶",
+      "linked": "已連結",
+      "not_linked": "未連結",
+      "link": "連結 Google 帳戶",
+      "link_unavailable": "Google 連結功能即將推出"
+    }
+  },
+  "common": {
+    "back": "返回",
+    "loading": "載入中…",
+    "save_success": "已儲存",
+    "save_failed": "儲存失敗",
+    "required": "必填"
   }
 }
