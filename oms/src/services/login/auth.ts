@@ -1,29 +1,104 @@
 import { ApiError } from "@/app/api/api-error";
 import { collections } from "@/cst/collections";
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ACTOR_TYPES,
+  AUDIT_TARGET_TYPES,
+} from "@/constants/auditActions";
 import { Client } from "@/types/Client";
 import bcrypt from "bcrypt";
 import { createHmac, randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import { decrypt, encrypt } from "@/lib/cryptoService";
+import { logAudit } from "@/services/audit/log";
 import { mongoEdit, mongoGet } from "../utils/mongodb";
 import { redisGet, redisSet } from "../utils/redis";
 
-export async function login(username: string, password: string) {
-  const user = await mongoGet(collections.CLIENT, { username });
+export interface LoginContext {
+  ip_address?: string;
+  user_agent?: string;
+}
+
+/**
+ * Email-primary login (P1 §1.3, AC-1.4). The `identifier` parameter accepts
+ * either email (the new canonical handle) or legacy `username` so any old
+ * inherited UI that still posts `username` keeps working.
+ */
+export async function login(
+  identifier: string,
+  password: string,
+  ctx: LoginContext = {}
+) {
+  const lookup = identifier.includes("@")
+    ? { email: identifier.toLowerCase().trim() }
+    : { username: identifier };
+
+  const user = await mongoGet(collections.CLIENT, lookup);
+  const failAudit = async (reason: string) => {
+    await logAudit({
+      action: AUDIT_ACTIONS.client_login_failed,
+      actor_type: AUDIT_ACTOR_TYPES.anonymous,
+      actor_id: user ? String(user._id) : null,
+      target_type: AUDIT_TARGET_TYPES.client,
+      target_id: user ? String(user._id) : "unknown",
+      details: { identifier, reason },
+      ip_address: ctx.ip_address,
+      user_agent: ctx.user_agent,
+    });
+  };
+
   if (!user) {
+    await failAudit("user_not_found");
     throw new ApiError("INVALID_CREDENTIALS");
   }
+  if (!user.password) {
+    // Google-OAuth-only client trying to log in with a password
+    await failAudit("password_not_set");
+    throw new ApiError("PASSWORD_NOT_SET");
+  }
+
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
+    await failAudit("password_mismatch");
     throw new ApiError("INVALID_CREDENTIALS");
   }
+
+  // Status gating (AC-1.4)
+  if (user.status === "pending_verification") {
+    await failAudit("email_not_verified");
+    throw new ApiError("EMAIL_NOT_VERIFIED");
+  }
+  if (user.status === "disabled") {
+    await failAudit("account_disabled");
+    throw new ApiError("ACCOUNT_DISABLED");
+  }
+
   const expireIn = process.env.CMS_JWT_EXPIRES_IN || "1h";
   const secret = process.env.CMS_SECRET || "";
-  const token = jwt.sign({ username: user.username }, secret, {
-    expiresIn: expireIn,
+  const cacheKey = user.email ?? user.username ?? String(user._id);
+  const token = jwt.sign(
+    {
+      clientId: String(user._id),
+      email: user.email ?? null,
+      username: cacheKey, // legacy session lookup key
+      client_type: user.client_type ?? null,
+    },
+    secret,
+    { expiresIn: expireIn } as jwt.SignOptions
+  );
+  await redisSet("client.user", cacheKey, user);
+
+  await logAudit({
+    action: AUDIT_ACTIONS.client_logged_in,
+    actor_type: AUDIT_ACTOR_TYPES.client,
+    actor_id: String(user._id),
+    target_type: AUDIT_TARGET_TYPES.client,
+    target_id: String(user._id),
+    details: { email: user.email ?? null },
+    ip_address: ctx.ip_address,
+    user_agent: ctx.user_agent,
   });
-  const key = "client.user";
-  await redisSet(key, username, user);
+
   return token;
 }
 

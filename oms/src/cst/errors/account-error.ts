@@ -42,14 +42,10 @@ export const ACCOUNT_ERROR = {
     zh_cn: "邮箱已被注册",
     en: "Email already registered",
   },
-  INVALID_CREDENTIALS: {
-    status: 400,
-    sys_code: "1000011",
-    message: "Invalid email or password",
-    zh_hk: "電郵或密碼錯誤",
-    zh_cn: "邮箱或密码错误",
-    en: "Invalid email or password",
-  },
+  // INVALID_CREDENTIALS is intentionally not redefined here — see
+  // common-error.ts (sys_code 9900002, status 401). Account-domain login
+  // failures bubble up as that generic error to avoid revealing whether
+  // the email exists.
   EMAIL_NOT_VERIFIED: {
     status: 400,
     sys_code: "1000012",

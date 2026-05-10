@@ -1,25 +1,22 @@
 import { getParam } from "@/app/api/api-helper";
 import { cmsMiddleware } from "@/app/api/cms/cms-middleware";
-import { login } from "@/services/login/auth";
+import { resetPassword } from "@/services/auth/do_reset_password";
 import { ApiReturn } from "@/types/Api";
 import { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
   const body = await getParam(request);
-  // Accept either `email` (canonical) or legacy `username`. Strip the password
-  // before logging so we never persist it through the access log surface.
-  const identifier: string = body.email ?? body.username;
-  const password: string = body.password;
-  delete body.password;
-  return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
-    const token = await login(identifier, password, {
+  // Don't echo the new_password back to access logs.
+  const sanitized = { ...body, new_password: "[redacted]" };
+  return cmsMiddleware(request, sanitized, async (): Promise<ApiReturn> => {
+    const result = await resetPassword(body, {
       ip_address: extractIp(request),
       user_agent: request.headers.get("user-agent") ?? undefined,
     });
     return {
       status: 200,
-      message: "Success",
-      data: { token },
+      message: "Password reset",
+      data: { email: result.email, token: result.token },
     };
   });
 }

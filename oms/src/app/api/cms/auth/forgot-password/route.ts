@@ -1,26 +1,17 @@
 import { getParam } from "@/app/api/api-helper";
 import { cmsMiddleware } from "@/app/api/cms/cms-middleware";
-import { login } from "@/services/login/auth";
+import { forgotPassword } from "@/services/auth/do_forgot_password";
 import { ApiReturn } from "@/types/Api";
 import { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
   const body = await getParam(request);
-  // Accept either `email` (canonical) or legacy `username`. Strip the password
-  // before logging so we never persist it through the access log surface.
-  const identifier: string = body.email ?? body.username;
-  const password: string = body.password;
-  delete body.password;
   return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
-    const token = await login(identifier, password, {
+    const result = await forgotPassword(body, {
       ip_address: extractIp(request),
       user_agent: request.headers.get("user-agent") ?? undefined,
     });
-    return {
-      status: 200,
-      message: "Success",
-      data: { token },
-    };
+    return { status: 200, message: result.message };
   });
 }
 
