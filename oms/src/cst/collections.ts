@@ -26,6 +26,9 @@ export const collections = {
   OUTBOUND_LOG: "outbound_logs",
   CLIENT_LOG: "client_logs",
   CRONJOB_LOG: "cronjob_logs",
+
+  // P1 — append-only structured audit log (review §6.1)
+  AUDIT_LOG: "audit_logs",
 };
 
 export const ID_Prefix: {
