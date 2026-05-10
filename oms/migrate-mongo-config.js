@@ -1,12 +1,10 @@
-// In this file you can configure migrate-mongo
+// migrate-mongo config — reads MONGODB_URI / MONGODB_NAME from .env via dotenv
+require("dotenv").config();
 
 const config = {
   mongodb: {
-    // TODO Change (or review) the url to your MongoDB:
-    url: "mongodb://admin:12345678@localhost:27017",
-
-    // TODO Change this to your database name:
-    databaseName: "vw_sms",
+    url: process.env.MONGODB_URI || "mongodb://localhost:27017/?replicaSet=rs0&directConnection=true",
+    databaseName: process.env.MONGODB_NAME || "vw_sms",
 
     options: {
       // useNewUrlParser: true, // removes a deprecation warning when connecting
