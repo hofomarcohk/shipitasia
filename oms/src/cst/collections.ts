@@ -35,6 +35,10 @@ export const collections = {
   CLIENT_CARRIER_ACCOUNT: "client_carrier_accounts",
   // P2 — cross-service sync failure log (per review §6.3, schema_def_phase=2)
   SYNC_FAILED_LOG: "sync_failed_logs",
+
+  // P3 — wallet (append-only transactions + topup requests + clients.balance)
+  WALLET_TRANSACTION: "wallet_transactions",
+  TOPUP_REQUEST: "topup_requests",
 };
 
 export const ID_Prefix: {

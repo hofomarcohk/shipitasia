@@ -37,6 +37,15 @@ export const AUDIT_ACTIONS = {
   client_carrier_oauth_failed: "client_carrier_oauth_failed",
   admin_carrier_reauth_link_sent: "admin_carrier_reauth_link_sent",
   cross_service_sync_failed: "cross_service_sync_failed",
+
+  // ── Phase 3 — wallet ─────────────────────────────────────────
+  wallet_topup_requested: "wallet_topup_requested",
+  wallet_topup_approved: "wallet_topup_approved",
+  wallet_topup_rejected: "wallet_topup_rejected",
+  wallet_charged: "wallet_charged",
+  wallet_refunded: "wallet_refunded",
+  wallet_adjusted: "wallet_adjusted",
+  wallet_balance_rebuilt: "wallet_balance_rebuilt",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
