@@ -4,7 +4,7 @@ import { Client } from "@/types/Client";
 import bcrypt from "bcrypt";
 import { createHmac, randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
-import { decrypt, encrypt } from "../utils/crypto";
+import { decrypt, encrypt } from "@/lib/cryptoService";
 import { mongoEdit, mongoGet } from "../utils/mongodb";
 import { redisGet, redisSet } from "../utils/redis";
 
