@@ -1,5 +1,6 @@
 import { INBOUND_ERROR } from "@/cst/errors/inbound-error";
 import { ACCOUNT_ERROR } from "./errors/account-error";
+import { CARRIER_ERROR } from "./errors/carrier-error";
 import { COMMON_ERROR } from "./errors/common-error";
 import { OUTBOUND_ERROR } from "./errors/outbound-error";
 
@@ -9,5 +10,5 @@ export const ApiErrorList = {
   ...INBOUND_ERROR, // 11
   ...OUTBOUND_ERROR, // 12
   // BILL // 13
-  // TOOL // 14
+  ...CARRIER_ERROR, // 14
 };

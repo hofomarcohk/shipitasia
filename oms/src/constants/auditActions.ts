@@ -21,6 +21,22 @@ export const AUDIT_ACTIONS = {
   admin_client_status_toggled: "admin_client_status_toggled",
   admin_client_password_reset_link_generated:
     "admin_client_password_reset_link_generated",
+
+  // ── Phase 2 — carrier master + client carrier binding ────────
+  admin_carrier_created: "admin_carrier_created",
+  admin_carrier_updated: "admin_carrier_updated",
+  admin_carrier_status_toggled: "admin_carrier_status_toggled",
+  client_carrier_account_created: "client_carrier_account_created",
+  client_carrier_account_updated: "client_carrier_account_updated",
+  client_carrier_account_set_default: "client_carrier_account_set_default",
+  client_carrier_account_disabled: "client_carrier_account_disabled",
+  client_carrier_account_enabled: "client_carrier_account_enabled",
+  client_carrier_account_deleted: "client_carrier_account_deleted",
+  client_carrier_oauth_started: "client_carrier_oauth_started",
+  client_carrier_oauth_completed: "client_carrier_oauth_completed",
+  client_carrier_oauth_failed: "client_carrier_oauth_failed",
+  admin_carrier_reauth_link_sent: "admin_carrier_reauth_link_sent",
+  cross_service_sync_failed: "cross_service_sync_failed",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

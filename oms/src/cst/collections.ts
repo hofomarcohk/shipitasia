@@ -29,6 +29,12 @@ export const collections = {
 
   // P1 — append-only structured audit log (review §6.1)
   AUDIT_LOG: "audit_logs",
+
+  // P2 — carrier master + client carrier bindings
+  CARRIER: "carriers",
+  CLIENT_CARRIER_ACCOUNT: "client_carrier_accounts",
+  // P2 — cross-service sync failure log (per review §6.3, schema_def_phase=2)
+  SYNC_FAILED_LOG: "sync_failed_logs",
 };
 
 export const ID_Prefix: {
