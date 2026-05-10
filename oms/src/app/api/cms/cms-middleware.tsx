@@ -63,8 +63,15 @@ export const cmsMiddleware = async (
   }
 
   let token = "";
-  if (apiUrl.includes("/api/cms/login") || apiUrl.includes("/api/cms/token")) {
-    token = returnData.data?.token;
+  if (
+    apiUrl.includes("/api/cms/login") ||
+    apiUrl.includes("/api/cms/token") ||
+    apiUrl.includes("/api/cms/auth/verify-email") ||
+    apiUrl.includes("/api/cms/auth/reset-password")
+  ) {
+    // returnData.data may be missing entirely on error paths; guard so a
+    // failed verify-email/login doesn't 500 inside the middleware itself.
+    token = returnData.data?.token ?? "";
   }
 
   if (apiUrl.includes("/api/cms/logout")) {
