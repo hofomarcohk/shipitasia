@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing / coverage
+coverage/
+
+# Build artifacts
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env files — exclude everything except templates
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Misc
+.DS_Store
+*.pem
+.vercel
+.turbo
+
+# Uploads (runtime data, never commit)
+uploads/
+
+# IDE
+.idea/
+.vscode/
+
+# Claude Code workspace state
+.claude/local/
+.claude/cache/
+.claude/state/
+.claude/worktrees/

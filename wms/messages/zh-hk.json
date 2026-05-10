@@ -1,0 +1,631 @@
+{
+  "utils": {
+    "appName": "ShipItAsia",
+    "company": "公司",
+    "email": "電子郵件",
+    "contacts": "聯繫人",
+    "contactPerson": "聯絡人",
+    "mobile": "手機",
+    "warehouse": "倉庫",
+    "warehouseCode": "倉庫",
+    "addressId": "地址ID",
+    "address": "地址",
+    "country": "國家",
+    "city": "城市",
+    "region": "地區",
+    "district": "區域",
+    "state": "州",
+    "zip": "郵遞區號",
+    "isDefaultAddress": "預設地址",
+    "isDefaultAddressDescription": "設為預設地址",
+    "basic": "基本資訊",
+    "name": "名稱",
+    "title": "標題",
+    "description": "描述",
+    "status": "狀態",
+    "isActive": "啟用",
+    "remarks": "備註",
+    "timestamp": "時間戳",
+    "yes": "是",
+    "no": "否",
+    "id": "編號",
+    "systemKey": "系統鍵",
+    "system_error": "系統錯誤",
+    "langCode": "語言",
+    "langText": "繁中",
+    "createdAt": "創建時間",
+    "updatedAt": "更新時間",
+    "createdBy": "創建者",
+    "updatedBy": "更新者",
+    "cancelledAt": "取消時間",
+    "expiredAt": "過期時間",
+    "more": "更多",
+    "login": "登入",
+    "logout": "登出",
+    "copyright": "版權©",
+    "allRightReserved": "保留所有權利",
+    "done": "完成"
+  },
+  "index": {
+    "logout": "登出",
+    "slogan": "為你託運並節省更多",
+    "faq": "常見問題",
+    "startUse": "開始使用",
+    "knowMore": "了解更多"
+  },
+
+  "api": {
+    "success": "成功",
+    "updateSuccess": "更新成功",
+    "deleteSuccess": "刪除成功",
+    "createSuccess": "創建成功",
+    "done": "完成",
+    "unauthorizedDesc": "請先登入系統"
+  },
+  "button": {
+    "create": "創建",
+    "done": "完成",
+    "edit": "編輯",
+    "update": "更新",
+    "confirm": "確認",
+    "cancel": "取消",
+    "close": "關閉",
+    "add": "添加",
+    "delete": "刪除",
+    "more": "更多",
+    "moveTop": "移到頂部",
+    "moveBottom": "移到底部",
+    "moveUp": "向上移",
+    "moveDown": "向下移",
+    "upload": "上傳",
+    "pay": "支付",
+    "search": "搜索",
+    "retry": "重試",
+    "next": "下一步",
+    "print": "列印"
+  },
+  "table": {
+    "search": "搜索",
+    "reset": "重置",
+    "item_selected": "已選項目",
+    "item_per_page": "每頁項目數",
+    "page": "頁面",
+    "first_page": "前往首頁",
+    "previous_page": "前往上一頁",
+    "next_page": "前往下一頁",
+    "last_page": "前往末頁",
+    "no_data": "無數據",
+    "total": "總計",
+    "items": "項目",
+    "add_row": "添加行",
+    "deleteRow": "刪除",
+    "showAll": "顯示全部",
+    "expand": "展開",
+    "collapse": "收起",
+    "select": "選擇"
+  },
+  "menu": {
+    "home": "首頁",
+    "inbound": "入庫",
+    "inbound_request": "入庫請求",
+    "outbound": "出庫",
+    "outbound_request": "出庫請求",
+    "outbound_pack": "打包",
+    "warehouse": "倉庫",
+    "warehouse_management": "倉庫管理",
+    "location_management": "位置管理",
+    "category": "項目類別",
+    "restriction": "限制標籤",
+    "system": "系統",
+    "account": "帳戶",
+    "others": "其他",
+    "pda": "PDA",
+    "country": "國家/地區"
+  },
+  "menu_pda": {
+    "home": "首頁",
+    "inbound": "入庫",
+    "outbound": "出庫",
+    "warehouse": "倉庫",
+    "setting": "設置",
+    "arrive": "到達",
+    "receive": "接收",
+    "pick": "揀貨",
+    "palletize": "棧板化",
+    "departure": "出發",
+    "inventory_check": "庫存檢查",
+    "inventory_take": "揀貨",
+    "inventory_put": "放置",
+    "location_check": "位置檢查",
+    "warehouse_select": "選擇倉庫",
+    "logout": "登出"
+  },
+  "login": {
+    "login": "登入",
+    "login_desc": "在下方輸入您的電子郵件以登入您的帳戶",
+    "username": "用戶名",
+    "password": "密碼",
+    "forgot_password": "忘記密碼？",
+    "dont_have_account": "沒有帳戶？",
+    "signup": "註冊"
+  },
+  "logout": {
+    "logoutSuccess": "您已成功登出！",
+    "logoutFailed": "登出失敗！",
+    "thxMsg": "感謝您使用我們的服務，下次見。",
+    "confirm": "你確定要登出嗎？",
+    "backToHome": "返回首頁"
+  },
+  "admin": {
+    "page": {
+      "title": "管理員管理",
+      "description": "管理管理員資料"
+    },
+    "modal": {
+      "create": {
+        "title": "建立管理員",
+        "description": "請填寫下方表格以建立新的管理員。"
+      },
+      "edit": {
+        "title": "編輯管理員",
+        "description": "請填寫下方表格以編輯管理員。"
+      }
+    },
+    "fields": {
+      "username": "用戶名稱",
+      "password": "密碼",
+      "role": "角色",
+      "firstName": "名字",
+      "lastName": "姓氏"
+    },
+    "status": {
+      "active": "已啟用",
+      "inactive": "未啟用"
+    },
+    "role": {
+      "admin": "管理員"
+    }
+  },
+
+  "category": {
+    "page": {
+      "title": "項目類別",
+      "description": "管理項目類別"
+    },
+    "modal": {
+      "create": {
+        "title": "創建項目類別數據",
+        "description": "請填寫下方表格以創建新的項目類別數據。"
+      },
+      "edit": {
+        "title": "編輯項目類別數據",
+        "description": "請填寫下方表格以編輯項目類別數據。"
+      }
+    },
+    "fields": {
+      "categoryKey": "系統鍵",
+      "categoryNameEn": "類別名稱（英文）",
+      "categoryNameZhHk": "類別名稱（繁中）",
+      "categoryNameZhCn": "類別名稱（簡中）"
+    }
+  },
+  "country": {
+    "page": {
+      "title": "國家/地區",
+      "description": "管理國家/地區列表"
+    },
+    "modal": {
+      "create": {
+        "title": "創建國家/地區數據",
+        "description": "請填寫下方表格以創建新的國家/地區數據"
+      },
+      "edit": {
+        "title": "編輯國家/地區數據",
+        "description": "請填寫下方表格以編輯國家/地區數據"
+      }
+    },
+    "fields": {
+      "countryNameEn": "國家/地區名稱（英文）",
+      "countryNameZhHk": "國家/地區名稱（繁中）",
+      "countryNameZhCn": "國家/地區名稱（簡中）"
+    },
+    "list": {
+      "hong_kong": "中國香港",
+      "japan": "日本"
+    }
+  },
+  "warehouse": {
+    "page": {
+      "title": "倉庫管理",
+      "description": "管理倉庫數據"
+    },
+    "modal": {
+      "create": {
+        "title": "創建倉庫數據",
+        "description": "請填寫下方表格以創建新的倉庫數據。"
+      },
+      "edit": {
+        "title": "編輯倉庫數據",
+        "description": "請填寫下方表格以編輯倉庫數據。"
+      }
+    },
+    "fields": {
+      "warehouseCode": "倉庫編碼",
+      "name": "名稱"
+    }
+  },
+  "restriction": {
+    "page": {
+      "title": "限制標籤",
+      "description": "管理限制列表"
+    },
+    "modal": {
+      "create": {
+        "title": "創建限制標籤數據",
+        "description": "請填寫下方表格以創建新的限制標籤數據。"
+      },
+      "edit": {
+        "title": "編輯限制標籤數據",
+        "description": "請填寫下方表格以編輯限制標籤數據。"
+      }
+    },
+    "fields": {
+      "restrictionNameEn": "限制標籤（英文）",
+      "restrictionNameZhHk": "限制標籤（繁中）",
+      "restrictionNameZhCn": "限制標籤（簡中）"
+    }
+  },
+  "location": {
+    "page": {
+      "title": "位置管理",
+      "description": "管理位置數據"
+    },
+    "modal": {
+      "create": {
+        "title": "創建位置數據",
+        "description": "請填寫下方表格以創建新的位置數據。"
+      },
+      "edit": {
+        "title": "編輯位置數據",
+        "description": "請填寫下方表格以編輯位置數據。"
+      }
+    },
+    "fields": {
+      "warehouseCode": "倉庫",
+      "locationCode": "位置",
+      "name": "名稱",
+      "address": "地址",
+      "city": "城市",
+      "region": "地區",
+      "district": "區域",
+      "state": "州",
+      "zip": "郵遞區號",
+      "isDefaultAddress": "預設地址",
+      "isDefaultAddressDescription": "設為預設地址"
+    }
+  },
+  "outbound": {
+    "page": {
+      "title": "出庫訂單",
+      "description": "管理出庫訂單"
+    },
+    "modal": {
+      "create": {
+        "title": "創建出庫請求",
+        "description": "請填寫下方表格以創建新的出庫請求。"
+      },
+      "edit": {
+        "title": "編輯出庫請求",
+        "description": "請填寫下方表格以編輯出庫請求。"
+      }
+    },
+    "status": {
+      "pending": "待處理",
+      "allocated": "已分配",
+      "picking": "提貨中",
+      "picked": "已提貨",
+      "packing": "打包中",
+      "packed": "已打包",
+      "palletized": "已上板",
+      "departed": "已出發",
+      "hold": "暫停",
+      "cancelled": "已取消"
+    },
+    "fields": {
+      "orderId": "編號",
+      "warehouse": "倉庫",
+      "category": "類別",
+      "restrictionTags": "限制標籤",
+      "trackingNo": "追蹤號碼",
+      "logisticParty": "物流方",
+      "logisticService": "物流服務",
+      "referenceNo": "參考號碼",
+      "dimension": "尺寸",
+      "width": "寬度",
+      "height": "高度",
+      "length": "長度",
+      "weight": "重量",
+      "declaredValue": "申報價值",
+      "from_address": "發貨地",
+      "to_address": "收貨地",
+      "inboundIds": "入庫請求",
+      "willArrivedAt": "預計到達時間",
+      "timestamp": "時間戳",
+      "inboundingAt": "入庫時間",
+      "inboundedAt": "已入庫時間",
+      "cancelledAt": "取消時間",
+      "outboundingAt": "出庫時間",
+      "outboundedAt": "已出庫時間",
+      "remarks": "備註"
+    }
+  },
+  "pack": {
+    "page": {
+      "title": "打包",
+      "description": "出庫訂單打包",
+      "scanCode": "掃描項目/箱子條碼",
+      "selectedOrder": "已選訂單",
+      "selectOrder": "選擇訂單",
+      "confirm_emptyBox": "確認清空箱子？（此操作無法撤銷）",
+      "maxBox": "最多箱子數量為: {maxBoxNo}",
+      "boxNo": "箱子編號",
+      "boxDetail": "箱子詳情",
+      "orderItems": "訂單項目",
+      "scannedItems": "已掃描項目",
+      "selectBox": "選擇箱子",
+      "printBox": "列印箱子",
+      "newBox": "新箱子",
+      "emptyBox": "清空箱子",
+      "scanned": "已掃描"
+    },
+    "modal": {
+      "print": {
+        "title": "打印物流箱標籤",
+        "description": "請選擇要打印的箱子以打印物流箱標籤。"
+      }
+    }
+  },
+  "inbound": {
+    "page": {
+      "title": "入庫訂單",
+      "description": "管理入庫訂單"
+    },
+    "modal": {
+      "create": {
+        "title": "創建入庫請求",
+        "description": "請填寫下方表格以創建新的入庫請求。"
+      },
+      "edit": {
+        "title": "編輯入庫請求",
+        "description": "請填寫下方表格以編輯入庫請求。"
+      }
+    },
+    "status": {
+      "pending": "待處理",
+      "arrived": "已到達",
+      "received": "已接收",
+      "scheduled": "已安排",
+      "outbounding": "出庫中",
+      "picking": "提貨中",
+      "picked": "已提貨",
+      "packed": "已打包",
+      "palletized": "已上板",
+      "departed": "已出庫",
+      "cancelled": "已取消"
+    },
+    "fields": {
+      "orderId": "編號",
+      "warehouse": "倉庫",
+      "category": "類別",
+      "restrictionTags": "限制標籤",
+      "trackingNo": "追蹤號碼",
+      "logisticParty": "物流方",
+      "logisticService": "物流服務",
+      "referenceNo": "參考號碼",
+      "dimension": "尺寸",
+      "width": "寬度",
+      "height": "高度",
+      "length": "長度",
+      "weight": "重量",
+      "declaredValue": "申報價值",
+      "from_address": "發貨地",
+      "to_address": "收貨地",
+      "outboundIds": "出庫請求",
+      "timestamp": "時間戳",
+      "arrivedAt": "到達時間",
+      "receivedAt": "接收時間",
+      "outboundingAt": "出庫時間",
+      "outboundedAt": "已出庫時間",
+      "cancelledAt": "取消時間",
+      "willArrivedAt": "預計到達時間",
+      "inboundingAt": "入庫時間",
+      "inboundedAt": "已入庫時間",
+      "remarks": "備註"
+    }
+  },
+  "pda": {
+    "staff": "員工",
+    "warehouse": "倉庫",
+    "inbound": {
+      "arrive": {
+        "select_item": "選擇貨品",
+        "success": "成功完成到貨登記",
+        "fail": "到貨登記失敗",
+        "steps": {
+          "searchItem": {
+            "title": "搜索包裹",
+            "desc": "請掃描包裹編號:"
+          },
+          "listResult": {
+            "title": "確認包裹",
+            "desc": "請選擇包裹:"
+          }
+        }
+      },
+      "receive": {
+        "pls_select_item": "請選擇貨品",
+        "selected_item": "已選擇的貨品",
+        "success": "成功完成貨物入庫",
+        "fail": "貨物入庫失敗",
+        "steps": {
+          "scanLocation": {
+            "title": "選擇倉庫",
+            "desc": "請掃描倉庫編號:"
+          },
+          "scanItem": {
+            "title": "選擇包裹",
+            "desc": "請掃描包裹編號:"
+          }
+        }
+      },
+      "unknownInbound": {
+        "insertAddressId": "輸入地址ID",
+        "success": "成功完成到貨登記",
+        "fail": "到貨登記失敗",
+        "steps": {
+          "provideDetails": {
+            "title": "輸入包裹資料",
+            "desc": "請輸入包裹資料:"
+          }
+        }
+      }
+    },
+    "outbound": {
+      "pick": {
+        "success": "成功完成出貨提取",
+        "already_picked": "已完成出貨提取",
+        "fail": "出貨提取失敗",
+        "itemNotFound": "找不到貨品",
+        "picked": "成功",
+        "steps": {
+          "selectTask": { "title": "選擇任務", "desc": "請選擇出貨任務:" },
+          "scanLocation": { "title": "掃描倉庫", "desc": "請掃描倉庫編號:" },
+          "scanItem": { "title": "選擇包裹", "desc": "請選擇包裹:" }
+        },
+        "selectTaskFailed": "選擇出貨任務失敗",
+        "deselectTaskFailed": "取消任務失敗",
+        "locationNotInclude": "所選的出貨任務內不包含此倉庫的貨品"
+      },
+      "palletize": {
+        "success": "成功完成出貨置板",
+        "fail": "出貨置板失敗",
+        "steps": {
+          "scanPallet": { "title": "掃描卡板", "desc": "請掃描卡板編號:" },
+          "scanBox": { "title": "掃描物流箱", "desc": "請掃描物流箱編號:" }
+        }
+      },
+      "departure": {
+        "success": "成功完成出貨離倉",
+        "fail": "出貨離倉失敗"
+      }
+    },
+    "inventory": {
+      "put": {
+        "steps": {
+          "scanLocation": {
+            "title": "輸入倉庫",
+            "desc": "請輸入倉庫編號:"
+          },
+          "scanItem": {
+            "title": "輸入條碼",
+            "desc": "請輸入條碼:"
+          },
+          "listResult": {
+            "title": "確認貨品",
+            "desc": "搜尋結果:"
+          },
+          "confirmItem": {
+            "title": "確認貨品",
+            "desc": "請選擇貨品:"
+          }
+        },
+        "success": "成功放置貨品",
+        "fail": "放置貨品失敗"
+      },
+      "get": {
+        "steps": {
+          "scanLocation": {
+            "title": "輸入倉庫",
+            "desc": "請輸入倉庫編號:"
+          },
+          "scanItem": {
+            "title": "輸入條碼",
+            "desc": "請輸入條碼:"
+          },
+          "listResult": {
+            "title": "確認貨品",
+            "desc": "搜尋結果:"
+          },
+          "confirmItem": {
+            "title": "確認貨品",
+            "desc": "請選擇貨品:"
+          }
+        },
+        "success": "成功提取貨品",
+        "fail": "提取貨品失敗"
+      },
+      "check": {
+        "steps": {
+          "scanItem": {
+            "title": "輸入條碼",
+            "desc": "請輸入條碼:"
+          },
+          "listResult": {
+            "title": "確認貨品",
+            "desc": "搜尋結果:"
+          }
+        },
+        "fail": "無庫存",
+        "no_result": "沒有找到任何匹配項目"
+      }
+    },
+    "location": {
+      "check": {
+        "steps": {
+          "scanLocation": {
+            "title": "輸入倉庫",
+            "desc": "請輸入倉庫編號:"
+          },
+          "listResult": {
+            "title": "確認倉庫",
+            "desc": "搜尋結果:"
+          }
+        }
+      }
+    },
+    "common": {
+      "sysError": "系統錯誤",
+      "noWarehouse": "請選擇倉庫",
+      "search_item_code": "輸入條碼",
+      "no_item_found": "無條碼",
+      "search_location_code": "輸入倉庫編號",
+      "no_location": "無倉庫",
+      "search_pallet_code": "輸入卡板編號",
+      "search_box_code": "輸入物流箱編號",
+      "no_more_data": "沒有更多資料"
+    },
+    "select_warehouse": {
+      "title": "選擇倉庫",
+      "desc": "請選擇倉庫"
+    }
+  },
+
+  "pdaMenu": {
+    "inbound": "入庫",
+    "outbound": "出庫",
+    "warehouse": "倉庫",
+    "setting": "設定",
+    "arrive": "到貨登記",
+    "receive": "貨物入庫",
+    "createUnknownInbound": "登記未知入庫",
+    "pick": "出庫揀貨",
+    "palletize": "出庫置板",
+    "departure": "出庫離倉",
+    "inventory_check": "庫存查詢",
+    "inventory_take": "庫存提取",
+    "inventory_put": "庫存存放",
+    "location_check": "庫位查詢",
+    "warehouse_select": "選擇倉庫",
+    "logout": "登出"
+  }
+}

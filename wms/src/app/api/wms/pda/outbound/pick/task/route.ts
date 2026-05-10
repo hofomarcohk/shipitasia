@@ -1,0 +1,26 @@
+import { getParam } from "@/app/api/api-helper";
+import { auth, cmsMiddleware, getUser } from "@/app/api/wms/cms-middleware";
+import { getOutboundPickList } from "@/services/outbound-order/get_outbound_order_list";
+import { ApiReturn } from "@/types/Api";
+import { NextRequest } from "next/server";
+
+export async function GET(request: NextRequest) {
+  const body = await getParam(request);
+  return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
+    auth(request);
+    const user = await getUser(request);
+    const { pageNo } = body;
+    // validate role
+
+    return {
+      status: 200,
+      message: "Success",
+      data: {
+        results: (await getOutboundPickList(pageNo)).map((item: any) => ({
+          ...item,
+          isPic: item.staffs?.includes(user.username),
+        })),
+      },
+    };
+  });
+}

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打印标签</title>
+    <style>
+        .print-area {
+            display: none; /* 隐藏打印区域 */
+        }
+        @media print {
+            body * {
+                display: none; /* 隐藏所有内容 */
+            }
+            .print-area, .print-area * {
+                display: block; /* 仅显示打印区域 */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>打印标签示例</h1>
+
+    <div>
+        <label for="recipient">收件人：</label>
+        <input type="text" id="recipient" placeholder="姓名 (电话)">
+    </div>
+    <div>
+        <label for="address">地址：</label>
+        <input type="text" id="address" placeholder="地址">
+    </div>
+    <div>
+        <label for="boxNo">箱号：</label>
+        <input type="text" id="boxNo" placeholder="箱号">
+    </div>
+    <button onclick="printLabel()">打印标签</button>
+
+    <div class="print-area" id="printArea">
+        <h2>标签内容</h2>
+        <p>收件人：<span id="printRecipient"></span></p>
+        <p>地址：<span id="printAddress"></span></p>
+        <p>箱号：<span id="printBoxNo"></span></p>
+        <div id="barcode"></div>
+    </div>
+
+    <script>
+        function printLabel() {
+            // 获取输入值
+            const recipient = document.getElementById('recipient').value;
+            const address = document.getElementById('address').value;
+            const boxNo = document.getElementById('boxNo').value;
+
+            // 更新打印区域内容
+            document.getElementById('printRecipient').innerText = recipient;
+            document.getElementById('printAddress').innerText = address;
+            document.getElementById('printBoxNo').innerText = boxNo;
+
+            // 生成条形码（这里使用简单的文本表示，建议使用条形码库）
+            document.getElementById('barcode').innerText = `条形码: ${boxNo}`;
+
+            // 打印
+            window.print();
+        }
+    </script>
+</body>
+</html>

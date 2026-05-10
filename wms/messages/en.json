@@ -1,0 +1,646 @@
+{
+  "utils": {
+    "appName": "ShipItAsia",
+    "company": "Company",
+    "email": "Email",
+    "contacts": "Contacts",
+    "contactPerson": "Contact Person",
+    "mobile": "Mobile",
+    "warehouseCode": "Warehouse",
+    "addressId": "Address ID",
+    "address": "Address",
+    "country": "Country",
+    "region": "Region",
+    "state": "State",
+    "city": "City",
+    "district": "District",
+    "zip": "Zip",
+    "isDefaultAddress": "Default Address",
+    "isDefaultAddressDescription": "Set as default address",
+    "basic": "Basic Information",
+    "name": "Name",
+    "title": "Title",
+    "description": "Description",
+    "status": "Status",
+    "isActive": "Active",
+    "remarks": "Remarks",
+    "timestamp": "Timestamp",
+    "yes": "Yes",
+    "no": "No",
+    "id": "ID",
+    "systemKey": "System Key",
+    "system_error": "System Error",
+    "langCode": "Language",
+    "langText": "EN",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "createdBy": "Created By",
+    "updatedBy": "Updated By",
+    "cancelledAt": "Cancelled At",
+    "expiredAt": "Expired At",
+    "more": "More",
+    "login": "Login",
+    "logout": "Logout",
+    "copyright": "Copyright©",
+    "allRightReserved": "All Rights Reserved",
+    "done": "Done"
+  },
+  "index": {
+    "logout": "Logout",
+    "slogan": "Ship it and save more",
+    "faq": "Frequently Asked Questions",
+    "startUse": "Start",
+    "knowMore": "Know More"
+  },
+
+  "api": {
+    "success": "Success",
+    "updateSuccess": "Update Success",
+    "deleteSuccess": "Delete Success",
+    "createSuccess": "Create Success",
+    "done": "Done",
+    "unauthorizedDesc": "Please login the system first"
+  },
+  "button": {
+    "create": "Create",
+    "done": "Done",
+    "edit": "Edit",
+    "update": "Update",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "close": "Close",
+    "add": "Add",
+    "delete": "Delete",
+    "more": "More",
+    "moveTop": "Move to Top",
+    "moveBottom": "Move to Bottom",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down",
+    "upload": "Upload",
+    "pay": "Pay",
+    "search": "Search",
+    "retry": "Retry",
+    "next": "Next",
+    "print": "Print"
+  },
+  "table": {
+    "search": "Search",
+    "reset": "Reset",
+    "item_selected": "items selected",
+    "item_per_page": "Item per page",
+    "page": "Page",
+    "first_page": "Go to first page",
+    "previous_page": "Go to previous page",
+    "next_page": "Go to next page",
+    "last_page": "Go to last page",
+    "no_data": "No Data",
+    "total": "Total",
+    "items": "items",
+    "add_row": "Add Row",
+    "deleteRow": "Delete",
+    "showAll": "Show All",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "select": "Select"
+  },
+
+  "menu": {
+    "home": "Home",
+    "inbound": "Inbound",
+    "inbound_request": "Inbound Request",
+    "outbound": "Outbound",
+    "outbound_request": "Outbound Request",
+    "outbound_pack": "Pack",
+    "warehouse": "Warehouse",
+    "warehouse_management": "Warehouse Management",
+    "location_management": "Location Management",
+    "category": "Item Category",
+    "restriction": "Restriction Tag",
+    "system": "System",
+    "account": "Account",
+    "others": "Others",
+    "pda": "PDA",
+    "country": "Country/Region"
+  },
+  "menu_pda": {
+    "home": "Home",
+    "inbound": "Inbound",
+    "outbound": "Outbound",
+    "warehouse": "Warehouse",
+    "setting": "Setting",
+    "arrive": "Arrive",
+    "receive": "Receive",
+    "pick": "Pick",
+    "palletize": "Palletize",
+    "departure": "Departure",
+    "inventory_check": "Inventory",
+    "inventory_take": "Pick",
+    "inventory_put": "Put",
+    "location_check": "Location",
+    "warehouse_select": "Warehouse Select",
+    "logout": "Logout"
+  },
+  "login": {
+    "login": "Login",
+    "login_desc": "Enter your email below to login to your account",
+    "username": "Username",
+    "password": "Password",
+    "forgot_password": "Forgot password?",
+    "dont_have_account": "Don't have an account?",
+    "signup": "Sign up"
+  },
+  "logout": {
+    "logoutSuccess": "You have successfully logged out!",
+    "logoutFailed": "Failed to logout!",
+    "thxMsg": "Thank you for using our service, see you next time.",
+    "confirm": "Are you sure you want to log out?",
+    "backToHome": "Back to Home"
+  },
+  "admin": {
+    "page": {
+      "title": "Admin Management",
+      "description": "Manage Admin Data"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Admin",
+        "description": "Fill in the form below to create a new admin."
+      },
+      "edit": {
+        "title": "Edit Admin",
+        "description": "Fill in the form below to edit the admin."
+      }
+    },
+    "fields": {
+      "username": "Username",
+      "password": "Password",
+      "role": "Role",
+      "firstName": "First Name",
+      "lastName": "Last Name"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "role": {
+      "admin": "Admin"
+    }
+  },
+
+  "category": {
+    "page": {
+      "title": "Item Category",
+      "description": "Manage Item Category"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Item Category Data",
+        "description": "Fill in the form below to create a new Item Category data."
+      },
+      "edit": {
+        "title": "Edit Item Category Data",
+        "description": "Fill in the form below to edit the Item Category data."
+      }
+    },
+    "fields": {
+      "categoryKey": "System Key",
+      "categoryNameEn": "Category Name (English)",
+      "categoryNameZhHk": "Category Name (TC)",
+      "categoryNameZhCn": "Category Name (SC)"
+    }
+  },
+  "country": {
+    "page": {
+      "title": "Country/Region",
+      "description": "Manage Country/Region List"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Country/Region Data",
+        "description": "Fill in the form below to create a new Country/Region data"
+      },
+      "edit": {
+        "title": "Edit Country/Region Data",
+        "description": "Fill in the form below to edit Country/Region data"
+      }
+    },
+    "fields": {
+      "countryNameEn": "Country/Region Name (English)",
+      "countryNameZhHk": "Country/Region Name (TC)",
+      "countryNameZhCn": "Country/Region Name (SC)"
+    },
+    "list": {
+      "hong_kong": "China Hong Kong",
+      "japan": "Japan"
+    }
+  },
+  "warehouse": {
+    "page": {
+      "title": "Warehouse Management",
+      "description": "Manage Warehouse Data"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Warehouse Data",
+        "description": "Fill in the form below to create a new warehouse data."
+      },
+      "edit": {
+        "title": "Edit Warehouse Data",
+        "description": "Fill in the form below to edit the warehouse data."
+      }
+    },
+    "fields": {
+      "warehouseCode": "Warehouse Code",
+      "name": "Name"
+    }
+  },
+  "restriction": {
+    "page": {
+      "title": "Restriction Tags",
+      "description": "Manage Restriction List"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Restriction Tag Data",
+        "description": "Fill in the form below to create a new Restriction Tag data."
+      },
+      "edit": {
+        "title": "Edit Restriction Tag Data",
+        "description": "Fill in the form below to edit the Restriction Tag data."
+      }
+    },
+    "fields": {
+      "restrictionNameEn": "Restriction Tag (English)",
+      "restrictionNameZhHk": "Restriction Tag (TC)",
+      "restrictionNameZhCn": "Restriction Tag (SC)"
+    }
+  },
+  "location": {
+    "page": {
+      "title": "Location Management",
+      "description": "Manage Location Data"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Location Data",
+        "description": "Fill in the form below to create a new Location data."
+      },
+      "edit": {
+        "title": "Edit Location Data",
+        "description": "Fill in the form below to edit the Location data."
+      }
+    },
+    "fields": {
+      "warehouseCode": "Warehouse",
+      "locationCode": "Location",
+      "name": "Name",
+      "address": "Address",
+      "region": "Region",
+      "state": "State",
+      "city": "City",
+      "district": "District",
+      "zip": "Zip",
+      "isDefaultAddress": "Default Address",
+      "isDefaultAddressDescription": "Set as default address"
+    }
+  },
+
+  "outbound": {
+    "page": {
+      "title": "Outbound Order",
+      "description": "Manage Outbound Order"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Outbound Request",
+        "description": "Fill in the form below to create a new Outbound Request."
+      },
+      "edit": {
+        "title": "Edit Outbound Request",
+        "description": "Fill in the form below to edit the Outbound Request."
+      }
+    },
+    "status": {
+      "pending": "Pending",
+      "allocated": "Allocated",
+      "picking": "Picking",
+      "picked": "Picked",
+      "packing": "Packing",
+      "packed": "Packed",
+      "palletized": "Palletized",
+      "departed": "Departed",
+      "hold": "Hold",
+      "cancelled": "Cancelled"
+    },
+    "fields": {
+      "orderId": "ID",
+      "warehouse": "Warehouse",
+      "category": "Category",
+      "restrictionTags": "Restriction Tags",
+      "trackingNo": "Tracking No",
+      "logisticParty": "Logistic Party",
+      "logisticService": "Logistic Service",
+      "referenceNo": "Reference No",
+      "dimension": "Dimension",
+      "width": "Width",
+      "height": "Height",
+      "length": "Length",
+      "weight": "Weight",
+      "declaredValue": "Declared Value",
+      "from_address": "Shipping Origin",
+      "to_address": "Shipping Destination",
+      "inboundIds": "Inbound Requests",
+      "willArrivedAt": "Will Arrived At",
+      "timestamp": "Timestamp",
+      "inboundingAt": "Inbounding At",
+      "inboundedAt": "Inbounded At",
+      "cancelledAt": "Cancelled At",
+      "outboundingAt": "Outbounding At",
+      "outboundedAt": "Outbounded At",
+      "remarks": "Remarks"
+    }
+  },
+  "pack": {
+    "page": {
+      "title": "Pack",
+      "description": "Outbound Order Packing",
+      "scanCode": "Scan Item/Box Barcode",
+      "selectedOrder": "Selected Order",
+      "selectOrder": "Select Order",
+      "confirm_emptyBox": "Confirm to Empty Box? (Action cannot be undone)",
+      "maxBox": "Max Box count: {maxBoxNo}",
+      "boxNo": "Box No",
+      "boxDetail": "Box Detail",
+      "orderItems": "Order Item",
+      "scannedItems": "Scanned Items",
+      "selectBox": "Select Box",
+      "printBox": "Print Box",
+      "newBox": "New Box",
+      "emptyBox": "Empty Box",
+      "scanned": "Scanned"
+    },
+    "modal": {
+      "print": {
+        "title": "Print Box Label",
+        "description": "Select the box to print label."
+      }
+    }
+  },
+
+  "inbound": {
+    "page": {
+      "title": "Inbound Order",
+      "description": "Manage Inbound Order"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Inbound Request",
+        "description": "Fill in the form below to create a new Inbound Request."
+      },
+      "edit": {
+        "title": "Edit Inbound Request",
+        "description": "Fill in the form below to edit the Inbound Request."
+      }
+    },
+    "status": {
+      "pending": "Pending",
+      "arrived": "Arrived",
+      "received": "Received",
+      "scheduled": "Scheduled",
+      "outbounding": "Outbounding",
+      "picking": "Picking",
+      "picked": "Picked",
+      "packed": "Packed",
+      "palletized": "Palletized",
+      "departed": "Departed",
+      "cancelled": "Cancelled"
+    },
+    "fields": {
+      "orderId": "ID",
+      "warehouse": "Warehouse",
+      "category": "Category",
+      "restrictionTags": "Restriction Tags",
+      "trackingNo": "Tracking No",
+      "logisticParty": "Logistic Party",
+      "logisticService": "Logistic Service",
+      "referenceNo": "Reference No",
+      "dimension": "Dimension",
+      "width": "Width",
+      "height": "Height",
+      "length": "Length",
+      "weight": "Weight",
+      "declaredValue": "Declared Value",
+      "from_address": "Shipping Origin",
+      "to_address": "Shipping Destination",
+      "outboundIds": "Outbound Requests",
+      "timestamp": "Timestamp",
+      "arrivedAt": "Arrived At",
+      "receivedAt": "Received At",
+      "outboundingAt": "Outbounding At",
+      "outboundedAt": "Outbounded At",
+      "cancelledAt": "Cancelled At",
+      "willArrivedAt": "Will Arrived At",
+      "inboundingAt": "Inbounding At",
+      "inboundedAt": "Inbounded At",
+      "remarks": "Remarks"
+    }
+  },
+
+  "inventory": {
+    "put": {
+      "steps": {
+        "scanLocation": {
+          "desc": "Please enter the location code:"
+        },
+        "scanItem": {
+          "desc": "Please scan the item code"
+        }
+      }
+    }
+  },
+
+  "pda": {
+    "staff": "Staff",
+    "warehouse": "Warehouse",
+    "inbound": {
+      "arrive": {
+        "select_item": "Select Item",
+        "success": "Arrive Record Success",
+        "fail": "Arrive Record Failed",
+        "steps": {
+          "searchItem": {
+            "title": "Search Package",
+            "desc": "Please scan package barcode:"
+          },
+          "listResult": {
+            "title": "Confirm Package",
+            "desc": "Please select package:"
+          }
+        }
+      },
+      "receive": {
+        "pls_select_item": "Please select item",
+        "selected_item": "Selected Item",
+        "success": "Receive Record Success",
+        "fail": "Receive Record Failed",
+        "steps": {
+          "scanLocation": {
+            "title": "Select Location",
+            "desc": "Please scan location barcode:"
+          },
+          "scanItem": {
+            "title": "Select Package",
+            "desc": "Please scan package barcode:"
+          }
+        }
+      }
+    },
+    "outbound": {
+      "pick": {
+        "success": "Pick Record Success",
+        "already_picked": "Already Picked",
+        "fail": "Pick Record Failed",
+        "itemNotFound": "Item Not Found",
+        "picked": "Picked",
+        "steps": {
+          "selectTask": {
+            "title": "Select Task",
+            "desc": "Please select outbound task:"
+          },
+          "scanLocation": {
+            "title": "Scan Location",
+            "desc": "Please scan location barcode:"
+          },
+          "scanItem": {
+            "title": "Select Package",
+            "desc": "Please select package:"
+          }
+        },
+        "selectTaskFailed": "Select Task Failed",
+        "deselectTaskFailed": "Deselect Task Failed",
+        "locationNotInclude": "Selected task not include this location's item"
+      },
+      "palletize": {
+        "success": "Palletize Record Success",
+        "fail": "Palletize Record Failed",
+        "steps": {
+          "scanPallet": {
+            "title": "Scan Pallet",
+            "desc": "Please scan pallet barcode:"
+          },
+          "scanBox": { "title": "Scan Box", "desc": "Please scan box barcode:" }
+        }
+      },
+      "departure": {
+        "success": "Departure Record Success",
+        "fail": "Departure Record Failed"
+      }
+    },
+    "inventory": {
+      "put": {
+        "steps": {
+          "scanLocation": {
+            "title": "Input Location",
+            "desc": "Please input location barcode:"
+          },
+          "scanItem": {
+            "title": "Input Barcode",
+            "desc": "Please input item barcode:"
+          },
+          "listResult": {
+            "title": "Confirm Item",
+            "desc": "Search Result:"
+          },
+          "confirmItem": {
+            "title": "Confirm Item",
+            "desc": "Please select item:"
+          }
+        },
+        "success": "Put Record Success"
+      },
+      "get": {
+        "steps": {
+          "scanLocation": {
+            "title": "Input Location",
+            "desc": "Please input location barcode:"
+          },
+          "scanItem": {
+            "title": "Input Barcode",
+            "desc": "Please input item barcode:"
+          },
+          "listResult": {
+            "title": "Confirm Item",
+            "desc": "Search Result:"
+          },
+          "confirmItem": {
+            "title": "Confirm Item",
+            "desc": "Please select item:"
+          }
+        },
+        "success": "Get Record Success"
+      },
+      "check": {
+        "steps": {
+          "scanItem": {
+            "title": "Input Barcode",
+            "desc": "Please input item barcode:"
+          },
+          "listResult": {
+            "title": "Confirm Item",
+            "desc": "Search Result:"
+          }
+        },
+        "fail": "No Stock Found",
+        "no_result": "No Matching Item Found"
+      }
+    },
+    "location": {
+      "check": {
+        "steps": {
+          "scanLocation": {
+            "title": "Input Location",
+            "desc": "Please input location barcode:"
+          },
+          "listResult": {
+            "title": "Confirm Location",
+            "desc": "Search Result:"
+          }
+        }
+      }
+    },
+    "common": {
+      "sysError": "System Error",
+      "noWarehouse": "Please select warehouse",
+      "search_item_code": "Input Item Barcode",
+      "no_item_found": "No Item Found",
+      "search_location_code": "Input Location Barcode",
+      "no_location": "Location Not Found",
+      "search_pallet_code": "Input Pallet Barcode",
+      "search_box_code": "Input Box Barcode",
+      "no_more_data": "No More Data"
+    },
+    "select_warehouse": {
+      "title": "Select Warehouse",
+      "desc": "Please select warehouse"
+    }
+  },
+
+  "pdaMenu": {
+    "inbound": "Inbound",
+    "outbound": "Outbound",
+    "warehouse": "Warehouse",
+    "setting": "Setting",
+    "arrive": "Arrive",
+    "receive": "Receive",
+    "createUnknownInbound": "Unkown Inbound",
+    "pick": "Pick",
+    "palletize": "Palletize",
+    "departure": "Departure",
+    "inventory_check": "Inventory",
+    "inventory_take": "Take",
+    "inventory_put": "Put",
+    "location_check": "Location",
+    "warehouse_select": "Warehouse Select",
+    "logout": "Logout"
+  }
+}

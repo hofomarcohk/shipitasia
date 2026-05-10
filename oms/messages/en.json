@@ -1,0 +1,452 @@
+{
+  "utils": {
+    "appName": "ShipItAsia",
+    "company": "Company",
+    "email": "Email",
+    "contacts": "Contacts",
+    "contactPerson": "Contact Person",
+    "mobile": "Mobile",
+    "warehouseCode": "Warehouse",
+    "address": "Address",
+    "addressID": "Address ID",
+    "country": "Country",
+    "city": "City",
+    "region": "Region",
+    "district": "District",
+    "state": "State",
+    "zip": "Zip",
+    "isDefaultAddress": "Default Address",
+    "isDefaultAddressDescription": "Set as default address",
+    "basic": "Basic Information",
+    "name": "Name",
+    "title": "Title",
+    "description": "Description",
+    "status": "Status",
+    "isActive": "Active",
+    "remarks": "Remarks",
+    "timestamp": "Timestamp",
+    "yes": "Yes",
+    "no": "No",
+    "id": "ID",
+    "systemKey": "System Key",
+    "system_error": "System Error",
+    "langCode": "Language",
+    "langText": "EN",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "createdBy": "Created By",
+    "updatedBy": "Updated By",
+    "cancelledAt": "Cancelled At",
+    "expiredAt": "Expired At",
+    "more": "More",
+    "login": "Login",
+    "logout": "Logout",
+    "copyright": "Copyright©",
+    "allRightReserved": "All Rights Reserved"
+  },
+  "index": {
+    "logout": "Logout",
+    "slogan": "Ship it and save more",
+    "faq": "Frequently Asked Questions",
+    "startUse": "Start",
+    "knowMore": "Know More"
+  },
+
+  "api": {
+    "success": "Success",
+    "updateSuccess": "Update Success",
+    "deleteSuccess": "Delete Success",
+    "createSuccess": "Create Success",
+    "done": "Done",
+    "unauthorizedDesc": "Please login the system first"
+  },
+  "button": {
+    "create": "Create",
+    "done": "Done",
+    "edit": "Edit",
+    "update": "Update",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "close": "Close",
+    "add": "Add",
+    "delete": "Delete",
+    "more": "More",
+    "moveTop": "Move to Top",
+    "moveBottom": "Move to Bottom",
+    "moveUp": "Move Up",
+    "moveDown": "Move Down",
+    "upload": "Upload",
+    "pay": "Pay",
+    "search": "Search",
+    "retry": "Retry",
+    "next": "Next",
+    "print": "Print",
+    "view": "View"
+  },
+  "table": {
+    "search": "Search",
+    "reset": "Reset",
+    "item_selected": "items selected",
+    "item_per_page": "Item per page",
+    "page": "Page",
+    "first_page": "Go to first page",
+    "previous_page": "Go to previous page",
+    "next_page": "Go to next page",
+    "last_page": "Go to last page",
+    "no_data": "No Data",
+    "total": "Total",
+    "items": "items",
+    "add_row": "Add Row",
+    "deleteRow": "Delete",
+    "showAll": "Show All",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "select": "Select"
+  },
+
+  "menu": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "inbound": "Inbound",
+    "inbound_request": "Inbound Request",
+    "outbound": "Outbound",
+    "outbound_request": "Outbound Request",
+    "tools": "Tools",
+    "auto_outbound": "Auto Outbound Setting",
+    "account": "Account",
+    "profile": "Profile",
+    "billing": "Billing"
+  },
+  "menu_pda": {
+    "home": "Home",
+    "inbound": "Inbound",
+    "outbound": "Outbound",
+    "warehouse": "Warehouse",
+    "setting": "Setting",
+    "arrive": "Arrive",
+    "receive": "Receive",
+    "pick": "Pick",
+    "palletize": "Palletize",
+    "departure": "Departure",
+    "inventory_check": "Inventory",
+    "inventory_take": "Pick",
+    "inventory_put": "Put",
+    "location_check": "Location",
+    "warehouse_select": "Warehouse Select",
+    "logout": "Logout"
+  },
+  "login": {
+    "login": "Login",
+    "login_desc": "Enter your email below to login to your account",
+    "username": "Username",
+    "password": "Password",
+    "forgot_password": "Forgot password?",
+    "dont_have_account": "Don't have an account?",
+    "signup": "Sign up"
+  },
+  "logout": {
+    "logoutSuccess": "You have successfully logged out!",
+    "logoutFailed": "Failed to logout!",
+    "thxMsg": "Thank you for using our service, see you next time.",
+    "backToHome": "Back to Home"
+  },
+
+  "category": {
+    "page": {
+      "title": "Item Category",
+      "description": "Manage Item Category"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Item Category Data",
+        "description": "Fill in the form below to create a new Item Category data."
+      },
+      "edit": {
+        "title": "Edit Item Category Data",
+        "description": "Fill in the form below to edit the Item Category data."
+      }
+    },
+    "fields": {
+      "categoryKey": "System Key",
+      "categoryNameEn": "Category Name (English)",
+      "categoryNameZhHk": "Category Name (TC)",
+      "categoryNameZhCn": "Category Name (SC)"
+    }
+  },
+  "country": {
+    "page": {
+      "title": "Country/Region",
+      "description": "Manage Country/Region List"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Country/Region Data",
+        "description": "Fill in the form below to create a new Country/Region data"
+      },
+      "edit": {
+        "title": "Edit Country/Region Data",
+        "description": "Fill in the form below to edit Country/Region data"
+      }
+    },
+    "fields": {
+      "countryNameEn": "Country/Region Name (English)",
+      "countryNameZhHk": "Country/Region Name (TC)",
+      "countryNameZhCn": "Country/Region Name (SC)"
+    },
+    "list": {
+      "hong_kong": "China Hong Kong",
+      "japan": "Japan"
+    }
+  },
+  "warehouse": {
+    "page": {
+      "title": "Warehouse Management",
+      "description": "Manage Warehouse Data"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Warehouse Data",
+        "description": "Fill in the form below to create a new warehouse data."
+      },
+      "edit": {
+        "title": "Edit Warehouse Data",
+        "description": "Fill in the form below to edit the warehouse data."
+      }
+    },
+    "fields": {
+      "warehouseCode": "Warehouse Code",
+      "name": "Name"
+    }
+  },
+  "restriction": {
+    "page": {
+      "title": "Restriction Tags",
+      "description": "Manage Restriction List"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Restriction Tag Data",
+        "description": "Fill in the form below to create a new Restriction Tag data."
+      },
+      "edit": {
+        "title": "Edit Restriction Tag Data",
+        "description": "Fill in the form below to edit the Restriction Tag data."
+      }
+    },
+    "fields": {
+      "restrictionNameEn": "Restriction Tag (English)",
+      "restrictionNameZhHk": "Restriction Tag (TC)",
+      "restrictionNameZhCn": "Restriction Tag (SC)"
+    }
+  },
+  "location": {
+    "page": {
+      "title": "Location Management",
+      "description": "Manage Location Data"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Location Data",
+        "description": "Fill in the form below to create a new Location data."
+      },
+      "edit": {
+        "title": "Edit Location Data",
+        "description": "Fill in the form below to edit the Location data."
+      }
+    },
+    "fields": {
+      "warehouseCode": "Warehouse",
+      "locationCode": "Location",
+      "name": "Name",
+      "address": "Address",
+      "city": "City",
+      "region": "Region",
+      "district": "District",
+      "state": "State",
+      "zip": "Zip",
+      "isDefaultAddress": "Default Address",
+      "isDefaultAddressDescription": "Set as default address"
+    }
+  },
+
+  "outbound": {
+    "page": {
+      "title": "Outbound Order",
+      "description": "Manage Outbound Order"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Outbound Request",
+        "description": "Fill in the form below to create a new Outbound Request."
+      },
+      "edit": {
+        "title": "Edit Outbound Request",
+        "description": "Fill in the form below to edit the Outbound Request."
+      }
+    },
+    "status": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "departed": "Departed",
+      "hold": "Hold",
+      "cancelled": "Cancelled"
+    },
+    "fields": {
+      "orderId": "ID",
+      "warehouse": "Warehouse",
+      "category": "Category",
+      "restrictionTags": "Restriction Tags",
+      "trackingNo": "Tracking No",
+      "logisticParty": "Logistic Party",
+      "logisticService": "Logistic Service",
+      "referenceNo": "Reference No",
+      "dimension": "Dimension",
+      "width": "Width",
+      "height": "Height",
+      "length": "Length",
+      "weight": "Weight",
+      "declaredValue": "Declared Value",
+      "from_address": "Shipping Origin",
+      "to_address": "Shipping Destination",
+      "inboundIds": "Inbound Requests",
+      "willArrivedAt": "Will Arrived At",
+      "timestamp": "Timestamp",
+      "inboundingAt": "Inbounding At",
+      "inboundedAt": "Inbounded At",
+      "cancelledAt": "Cancelled At",
+      "outboundingAt": "Outbounding At",
+      "outboundedAt": "Outbounded At",
+      "remarks": "Remarks"
+    }
+  },
+  "outboundPack": {
+    "page": {
+      "title": "Pack",
+      "description": "Outbound Order Packing",
+      "scanCode": "Scan Item/Box Barcode",
+      "selectedOrder": "Selected Order",
+      "selectOrder": "Select Order",
+      "confirm_emptyBox": "Confirm to Empty Box? (Action cannot be undone)",
+      "maxBox": "Max Box No. {maxBoxNo}",
+      "orderItems": "Order Item",
+      "scannedItems": "Scanned Items",
+      "selectBox": "Select Box",
+      "printBox": "Print Box",
+      "newBox": "New Box",
+      "emptyBox": "Empty Box"
+    }
+  },
+
+  "inbound": {
+    "page": {
+      "title": "Inbound Order",
+      "description": "Manage Inbound Order"
+    },
+    "modal": {
+      "create": {
+        "title": "Create Inbound Request",
+        "description": "Fill in the form below to create a new Inbound Request."
+      },
+      "edit": {
+        "title": "Edit Inbound Request",
+        "description": "Fill in the form below to edit the Inbound Request."
+      },
+      "outbound": {
+        "title": "Create Outbound Request",
+        "description": "Fill in the form below to create a new Outbound Request.",
+        "alarm": " outbound request will be created for selected inbound request"
+      }
+    },
+    "status": {
+      "pending": "Pending",
+      "received": "Received",
+      "scheduled": "Scheduled",
+      "outbounding": "Outbounding",
+      "outbounded": "Outbounded",
+      "cancelled": "Cancelled"
+    },
+    "fields": {
+      "orderId": "ID",
+      "warehouse": "Warehouse",
+      "category": "Category",
+      "restrictionTags": "Restriction Tags",
+      "trackingNo": "Tracking No",
+      "logisticParty": "Logistic Party",
+      "referenceNo": "Reference No",
+      "dimension": "Dimension",
+      "width": "Width",
+      "height": "Height",
+      "length": "Length",
+      "weight": "Weight",
+      "declaredValue": "Declared Value",
+      "from_address": "Shipping Origin",
+      "to_address": "Shipping Destination",
+      "outboundIds": "Outbound Requests",
+      "timestamp": "Timestamp",
+      "arrivedAt": "Arrived At",
+      "receivedAt": "Received At",
+      "outboundingAt": "Outbounding At",
+      "outboundedAt": "Outbounded At",
+      "cancelledAt": "Cancelled At",
+      "remarks": "Remarks",
+      "inboundingAt": "Inbounding At",
+      "inboundedAt": "Inbounded At",
+      "willArrivedAt": "Will Arrived At",
+      "is_add_from_address": "Add Origin",
+      "isCustomToAddress": "Customize Destination"
+    }
+  },
+  "account": {
+    "page": {
+      "title": "Account Management",
+      "description": "Manage Account Data",
+      "passwordChange": "Change Password",
+      "is_api_enabled": "Enable API Connection",
+      "notifyApiUrl": "When order is updated, notification will be sent to specified API URL",
+      "secret": "This is your secret key, it will only show once, please save it safely, do not share it with anyone."
+    },
+    "fields": {
+      "profile": "Profile",
+      "username": "Username",
+      "firstname": "First Name",
+      "lastname": "Last Name",
+      "avatar": "Avatar",
+      "email": "Email",
+      "address": "Address",
+      "account": "Account",
+      "passwordChange": "Change Password",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password",
+      "paymentSetting": "Payment Setting",
+      "payment": "Payment",
+      "paymentMethod": "Payment Method",
+      "cardNumber": "Card Number",
+      "holderName": "Holder Name",
+      "expirationDate": "Expiration Date",
+      "cvv": "CVV (Security Code)",
+      "creditCard": "Credit Card",
+      "appearance": "Appearance",
+      "theme": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "notifications": "Notifications",
+      "is_email_enabled": "Email Notification",
+      "api": "API Setting",
+      "is_api_enabled": "API Connection",
+      "apiKey": "API Key",
+      "appId": "APP ID",
+      "secret": "Secret Key",
+      "connect_3rd_party": "Connect 3rd Party Services",
+      "platform": "Platform",
+      "token": "Token",
+      "notifyApiUrl": "Notification API URL",
+      "url": "URL",
+      "externalTokens": "External Tokens",
+      "apiTokens": "API Tokens"
+    }
+  },
+  "error": {
+    "INTERNAL_SERVER_ERROR": "Internal Server Error"
+  }
+}

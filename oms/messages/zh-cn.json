@@ -1,0 +1,448 @@
+{
+  "utils": {
+    "appName": "ShipItAsia",
+    "company": "公司",
+    "email": "电子邮件",
+    "contacts": "联系人",
+    "contactPerson": "联系人",
+    "mobile": "手机",
+    "warehouseCode": "仓库",
+    "address": "地址",
+    "addressID": "地址 ID",
+    "country": "国家",
+    "city": "城市",
+    "region": "地区",
+    "district": "区域",
+    "state": "州",
+    "zip": "邮政编码",
+    "isDefaultAddress": "默认地址",
+    "isDefaultAddressDescription": "设为默认地址",
+    "basic": "基本信息",
+    "name": "名称",
+    "title": "标题",
+    "description": "描述",
+    "status": "状态",
+    "isActive": "启用",
+    "remarks": "备注",
+    "timestamp": "时间戳",
+    "yes": "是",
+    "no": "否",
+    "id": "编号",
+    "systemKey": "系统键",
+    "system_error": "系统错误",
+    "langCode": "语言",
+    "langText": "简中",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "createdBy": "创建者",
+    "updatedBy": "更新者",
+    "cancelledAt": "取消时间",
+    "expiredAt": "过期时间",
+    "more": "更多",
+    "login": "登录",
+    "logout": "登出",
+    "copyright": "版权©",
+    "allRightReserved": "保留所有权利"
+  },
+  "index": {
+    "logout": "登出",
+    "slogan": "运输更省钱",
+    "faq": "常见问题",
+    "startUse": "开始",
+    "knowMore": "了解更多"
+  },
+
+  "api": {
+    "success": "成功",
+    "updateSuccess": "更新成功",
+    "deleteSuccess": "删除成功",
+    "createSuccess": "创建成功",
+    "done": "完成",
+    "unauthorizedDesc": "请先登录系统"
+  },
+  "button": {
+    "create": "创建",
+    "done": "完成",
+    "edit": "编辑",
+    "update": "更新",
+    "confirm": "确认",
+    "cancel": "取消",
+    "close": "关闭",
+    "add": "添加",
+    "delete": "删除",
+    "more": "更多",
+    "moveTop": "移到顶部",
+    "moveBottom": "移到底部",
+    "moveUp": "向上移",
+    "moveDown": "向下移",
+    "upload": "上传",
+    "pay": "支付",
+    "search": "搜索",
+    "retry": "重试",
+    "next": "下一步",
+    "print": "打印",
+    "view": "查看"
+  },
+  "table": {
+    "search": "搜索",
+    "reset": "重置",
+    "item_selected": "已选项目",
+    "item_per_page": "每页项目数",
+    "page": "页面",
+    "first_page": "前往首页",
+    "previous_page": "前往上一页",
+    "next_page": "前往下一页",
+    "last_page": "前往末页",
+    "no_data": "无数据",
+    "total": "总计",
+    "items": "项目",
+    "add_row": "添加行",
+    "deleteRow": "删除",
+    "showAll": "显示全部",
+    "expand": "展开",
+    "collapse": "收起",
+    "select": "选择"
+  },
+  "menu": {
+    "home": "首页",
+    "inbound": "入库",
+    "inbound_request": "入库请求",
+    "outbound": "出库",
+    "outbound_request": "出库请求",
+    "dashboard": "仪表板",
+    "tools": "工具",
+    "auto_outbound": "自动出库设置",
+    "account": "账户设置",
+    "profile": "个人资料",
+    "billing": "账单"
+  },
+  "menu_pda": {
+    "home": "首页",
+    "inbound": "入库",
+    "outbound": "出库",
+    "warehouse": "仓库",
+    "setting": "设置",
+    "arrive": "到达",
+    "receive": "接收",
+    "pick": "拣货",
+    "palletize": "栈板化",
+    "departure": "出发",
+    "inventory_check": "库存检查",
+    "inventory_take": "拣货",
+    "inventory_put": "放置",
+    "location_check": "位置检查",
+    "warehouse_select": "选择仓库",
+    "logout": "登出"
+  },
+  "login": {
+    "login": "登录",
+    "login_desc": "在下方输入您的电子邮件以登录您的账户",
+    "username": "用户名",
+    "password": "密码",
+    "forgot_password": "忘记密码？",
+    "dont_have_account": "没有账户？",
+    "signup": "注册"
+  },
+  "logout": {
+    "logoutSuccess": "您已成功登出！",
+    "logoutFailed": "登出失败！",
+    "thxMsg": "感谢您使用我们的服务，下次见。",
+    "backToHome": "返回首页"
+  },
+  "category": {
+    "page": {
+      "title": "项目类别",
+      "description": "管理项目类别"
+    },
+    "modal": {
+      "create": {
+        "title": "创建项目类别数据",
+        "description": "请填写下方表格以创建新的项目类别数据。"
+      },
+      "edit": {
+        "title": "编辑项目类别数据",
+        "description": "请填写下方表格以编辑项目类别数据。"
+      }
+    },
+    "fields": {
+      "categoryKey": "系统键",
+      "categoryNameEn": "类别名称（英文）",
+      "categoryNameZhHk": "类别名称（繁中）",
+      "categoryNameZhCn": "类别名称（简中）"
+    }
+  },
+  "country": {
+    "page": {
+      "title": "国家/地区",
+      "description": "管理国家/地区列表"
+    },
+    "modal": {
+      "create": {
+        "title": "创建国家/地区数据",
+        "description": "请填写下方表格以创建新的国家/地区数据"
+      },
+      "edit": {
+        "title": "编辑国家/地区数据",
+        "description": "请填写下方表格以编辑国家/地区数据"
+      }
+    },
+    "fields": {
+      "countryNameEn": "国家/地区名称（英文）",
+      "countryNameZhHk": "国家/地区名称（繁中）",
+      "countryNameZhCn": "国家/地区名称（简中）"
+    },
+    "list": {
+      "hong_kong": "中国香港",
+      "japan": "日本"
+    }
+  },
+  "warehouse": {
+    "page": {
+      "title": "仓库管理",
+      "description": "管理仓库数据"
+    },
+    "modal": {
+      "create": {
+        "title": "创建仓库数据",
+        "description": "请填写下方表格以创建新的仓库数据。"
+      },
+      "edit": {
+        "title": "编辑仓库数据",
+        "description": "请填写下方表格以编辑仓库数据。"
+      }
+    },
+    "fields": {
+      "warehouseCode": "仓库编码",
+      "name": "名称"
+    }
+  },
+  "restriction": {
+    "page": {
+      "title": "限制标签",
+      "description": "管理限制列表"
+    },
+    "modal": {
+      "create": {
+        "title": "创建限制标签数据",
+        "description": "请填写下方表格以创建新的限制标签数据。"
+      },
+      "edit": {
+        "title": "编辑限制标签数据",
+        "description": "请填写下方表格以编辑限制标签数据。"
+      }
+    },
+    "fields": {
+      "restrictionNameEn": "限制标签（英文）",
+      "restrictionNameZhHk": "限制标签（繁中）",
+      "restrictionNameZhCn": "限制标签（简中）"
+    }
+  },
+  "location": {
+    "page": {
+      "title": "位置管理",
+      "description": "管理位置数据"
+    },
+    "modal": {
+      "create": {
+        "title": "创建位置数据",
+        "description": "请填写下方表格以创建新的位置数据。"
+      },
+      "edit": {
+        "title": "编辑位置数据",
+        "description": "请填写下方表格以编辑位置数据。"
+      }
+    },
+    "fields": {
+      "warehouseCode": "仓库",
+      "locationCode": "位置",
+      "name": "名称",
+      "address": "地址",
+      "city": "城市",
+      "region": "地区",
+      "district": "区域",
+      "state": "州",
+      "zip": "邮政编码",
+      "isDefaultAddress": "默认地址",
+      "isDefaultAddressDescription": "设为默认地址"
+    }
+  },
+  "outbound": {
+    "page": {
+      "title": "出库订单",
+      "description": "管理出库订单"
+    },
+    "modal": {
+      "create": {
+        "title": "创建出库请求",
+        "description": "请填写下方表格以创建新的出库请求。"
+      },
+      "edit": {
+        "title": "编辑出库请求",
+        "description": "请填写下方表格以编辑出库请求。"
+      }
+    },
+    "status": {
+      "pending": "待处理",
+      "processing": "处理中",
+      "departed": "已出发",
+      "hold": "暫停",
+      "cancelled": "已取消"
+    },
+    "fields": {
+      "orderId": "编号",
+      "warehouse": "仓库",
+      "category": "类别",
+      "restrictionTags": "限制标签",
+      "trackingNo": "追踪号码",
+      "logisticParty": "物流方",
+      "logisticService": "物流服務",
+      "referenceNo": "参考号码",
+      "dimension": "尺寸",
+      "width": "宽度",
+      "height": "高度",
+      "length": "长度",
+      "weight": "重量",
+      "declaredValue": "申报价值",
+      "from_address": "发货地",
+      "to_address": "收货地",
+      "inboundIds": "入库请求",
+      "willArrivedAt": "预计到达时间",
+      "timestamp": "时间戳",
+      "inboundingAt": "入库时间",
+      "inboundedAt": "已入库时间",
+      "cancelledAt": "取消时间",
+      "outboundingAt": "出库时间",
+      "outboundedAt": "已出库时间",
+      "remarks": "备注"
+    }
+  },
+  "outboundPack": {
+    "page": {
+      "title": "打包",
+      "description": "出库订单打包",
+      "scanCode": "扫描项目/箱子条码",
+      "selectedOrder": "已选订单",
+      "selectOrder": "选择订单",
+      "confirm_emptyBox": "确认清空箱子？（此操作无法撤销）",
+      "maxBox": "最大箱子编号 {maxBoxNo}",
+      "orderItems": "订单项目",
+      "scannedItems": "已扫描项目",
+      "selectBox": "选择箱子",
+      "printBox": "打印箱子",
+      "newBox": "新箱子",
+      "emptyBox": "清空箱子"
+    }
+  },
+  "inbound": {
+    "page": {
+      "title": "入库订单",
+      "description": "管理入库订单"
+    },
+    "modal": {
+      "create": {
+        "title": "创建入库请求",
+        "description": "请填写下方表格以创建新的入库请求。"
+      },
+      "edit": {
+        "title": "编辑入库请求",
+        "description": "请填写下方表格以编辑入库请求。"
+      },
+      "outbound": {
+        "title": "创建出库请求",
+        "description": "请填写下方表格以创建新的出库请求。",
+        "alarm": "把已选的入库请求转为出库请求"
+      }
+    },
+    "status": {
+      "pending": "待处理",
+      "received": "已接收",
+      "scheduled": "已安排",
+      "outbounding": "出库中",
+      "outbounded": "已出库",
+      "cancelled": "已取消"
+    },
+    "fields": {
+      "orderId": "编号",
+      "warehouse": "仓库",
+      "category": "类别",
+      "restrictionTags": "限制标签",
+      "trackingNo": "追踪号码",
+      "logisticParty": "物流方",
+      "referenceNo": "参考号码",
+      "dimension": "尺寸",
+      "width": "宽度",
+      "height": "高度",
+      "length": "长度",
+      "weight": "重量",
+      "declaredValue": "申报价值",
+      "from_address": "发货地",
+      "to_address": "收货地",
+      "outboundIds": "出库请求",
+      "timestamp": "时间戳",
+      "arrivedAt": "到达时间",
+      "receivedAt": "接收时间",
+      "outboundingAt": "出库时间",
+      "outboundedAt": "已出库时间",
+      "cancelledAt": "取消时间",
+      "remarks": "备注",
+      "inboundingAt": "入库时间",
+      "inboundedAt": "已入库时间",
+      "willArrivedAt": "预计到达时间",
+      "is_add_from_address": "加入发货地址",
+      "isCustomToAddress": "自訂收货地址"
+    }
+  },
+  "account": {
+    "page": {
+      "title": "账户设置",
+      "description": "管理账户设置",
+      "passwordChange": "更改您的密码",
+      "is_api_enabled": "启用API连接系统获取数据",
+      "notifyApiUrl": "当订单更新时，将会发送通知到指定的API网址",
+      "secret": "这是您的密钥，只会显示一次，请妥善保管，不要与任何人分享。"
+    },
+    "fields": {
+      "profile": "个人资料",
+      "username": "用户名",
+      "firstname": "名字",
+      "lastname": "姓氏",
+      "avatar": "头像",
+      "email": "电子邮件",
+      "address": "地址",
+      "account": "账户",
+      "passwordChange": "更改密码",
+      "currentPassword": "当前密码",
+      "newPassword": "新密码",
+      "confirmPassword": "确认密码",
+      "paymentSetting": "付款设置",
+      "payment": "付款数据",
+      "paymentMethod": "付款方式",
+      "cardNumber": "卡号",
+      "holderName": "持有人",
+      "expirationDate": "到期日",
+      "cvv": "CVV (安全码)",
+      "creditCard": "信用卡",
+      "appearance": "外观",
+      "theme": "主题",
+      "light": "浅色",
+      "dark": "深色",
+      "notifications": "通知",
+      "is_email_enabled": "电子邮件通知",
+      "api": "API 设置",
+      "is_api_enabled": "API功能",
+      "apiKey": "API密钥",
+      "appId": "APP ID",
+      "secret": "密钥",
+      "connect_3rd_party": "连接第三方服务",
+      "platform": "平台",
+      "token": "令牌",
+      "notifyApiUrl": "通知API网址",
+      "url": "网址",
+      "externalTokens": "外部令牌",
+      "apiTokens": "API令牌"
+    }
+  },
+  "error": {
+    "INTERNAL_SERVER_ERROR": "内部伺服器错误"
+  }
+}
