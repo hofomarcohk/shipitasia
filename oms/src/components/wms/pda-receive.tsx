@@ -20,14 +20,36 @@ interface Matched {
   actualDimension: any | null;
 }
 
+interface LocationOption {
+  warehouseCode: string;
+  locationCode: string;
+  zone: string;
+}
+
 const ANOMALY_CODES = ["damaged", "wet", "packaging", "mismatch"] as const;
 
 export const PdaReceive = () => {
   const t = useTranslations();
   const [locationCode, setLocationCode] = useState("");
+  const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
   const [identifier, setIdentifier] = useState("");
   const [matched, setMatched] = useState<Matched | null>(null);
   const [looking, setLooking] = useState(false);
+
+  // Hydrate the location pull-down on mount so PDA users don't have to
+  // type. Falls back gracefully to a free-text input if the fetch fails
+  // or the warehouse has no seeded locations yet.
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await http_request("GET", "/api/wms/locations", {});
+        const d = await r.json();
+        if (d.status === 200) setLocationOptions(d.data ?? []);
+      } catch {
+        // network fail — leave list empty, fall back to text input
+      }
+    })();
+  }, []);
 
   const [barcodeFile, setBarcodeFile] = useState<File | null>(null);
   const [packageFile, setPackageFile] = useState<File | null>(null);
@@ -223,13 +245,28 @@ export const PdaReceive = () => {
       <Card>
         <CardContent className="grid gap-3 py-4">
           <Label>{t("wms_scan.scan_location")}</Label>
-          <Input
-            ref={locationRef}
-            autoFocus
-            value={locationCode}
-            onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
-            placeholder="A001"
-          />
+          {locationOptions.length > 0 ? (
+            <select
+              className="w-full border rounded h-10 px-2 text-base"
+              value={locationCode}
+              onChange={(e) => setLocationCode(e.target.value)}
+            >
+              <option value="">—</option>
+              {locationOptions.map((l) => (
+                <option key={l.locationCode} value={l.locationCode}>
+                  {l.locationCode} ({l.zone})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Input
+              ref={locationRef}
+              autoFocus
+              value={locationCode}
+              onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
+              placeholder="A001"
+            />
+          )}
           <Label className="mt-2">{t("wms_scan.scan_inbound_id")}</Label>
           <div className="flex gap-2">
             <Input

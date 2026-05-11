@@ -137,7 +137,9 @@
     "scan": "PDA Scan",
     "scan_arrive": "PDA Arrive",
     "scan_receive": "PDA Receive",
-    "scan_depart": "PDA Depart"
+    "scan_depart": "PDA Depart",
+    "ops_locations": "Locations",
+    "ops_receive": "Desktop Receive"
   },
   "menu_pda": {
     "home": "Home",
@@ -1207,6 +1209,28 @@
       "print_all": "Print all",
       "complete": "Mark labels printed",
       "done": "Marked printed"
+    },
+    "receive": {
+      "page_title": "Desktop receive",
+      "page_subtitle": "Run receive (put-away) from desktop; mirrors the PDA flow for CS / new staff"
     }
+  },
+  "wms_locations": {
+    "page_title": "Warehouse locations",
+    "page_subtitle": "Manage location codes used by PDA put-away pickers",
+    "warehouse": "Warehouse",
+    "include_disabled": "Show disabled",
+    "new_title": "New location",
+    "code": "Code",
+    "zone": "Zone",
+    "order": "Order",
+    "note": "Note",
+    "status": "Status",
+    "add_btn": "Add",
+    "disable_btn": "Disable",
+    "enable_btn": "Enable",
+    "empty": "No locations yet",
+    "error_code_required": "Location code is required",
+    "created": "Created location {code}"
   }
 }

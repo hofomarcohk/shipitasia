@@ -120,4 +120,20 @@ export const SCAN_ERROR = {
     zh_hk: "不允許的照片類型",
     zh_cn: "不允许的照片类型",
   },
+  INVALID_LOCATION_CODE: {
+    status: 400,
+    sys_code: "1500016",
+    message: "Invalid location code (allowed: A-Z 0-9 - _)",
+    en: "Invalid location code (allowed: A-Z 0-9 - _)",
+    zh_hk: "庫位編碼格式錯誤（可用 A-Z 0-9 - _）",
+    zh_cn: "库位编码格式错误（可用 A-Z 0-9 - _）",
+  },
+  LOCATION_DUPLICATED: {
+    status: 400,
+    sys_code: "1500017",
+    message: "Location already exists in this warehouse",
+    en: "Location already exists in this warehouse",
+    zh_hk: "此倉庫已有相同庫位編碼",
+    zh_cn: "此仓库已有相同库位编码",
+  },
 };

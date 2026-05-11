@@ -103,6 +103,16 @@ const WMS_GROUPS = [
         icon: "IconDeviceIpadHorizontalSearch",
         url: "/zh-hk/wms/operations/inbound-history",
       },
+      {
+        name: "ops_locations",
+        icon: "IconMapPin",
+        url: "/zh-hk/wms/operations/locations",
+      },
+      {
+        name: "ops_receive",
+        icon: "IconPackage",
+        url: "/zh-hk/wms/operations/receive",
+      },
     ],
   },
   {

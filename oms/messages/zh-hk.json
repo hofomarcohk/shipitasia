@@ -137,7 +137,9 @@
     "scan": "PDA 掃描",
     "scan_arrive": "PDA 到貨",
     "scan_receive": "PDA 收貨上架",
-    "scan_depart": "PDA 離倉"
+    "scan_depart": "PDA 離倉",
+    "ops_locations": "倉位管理",
+    "ops_receive": "桌面收貨"
   },
   "menu_pda": {
     "home": "首頁",
@@ -1207,6 +1209,28 @@
       "print_all": "列印全部",
       "complete": "貼 label 完成",
       "done": "已標記列印完成"
+    },
+    "receive": {
+      "page_title": "桌面收貨上架",
+      "page_subtitle": "桌面端執行 receive 動作（與 PDA 等效），便於 CS 補單 / 員工新手"
     }
+  },
+  "wms_locations": {
+    "page_title": "倉位管理",
+    "page_subtitle": "管理倉內庫位編碼，PDA 上架時直接選取",
+    "warehouse": "倉庫",
+    "include_disabled": "顯示停用",
+    "new_title": "新增倉位",
+    "code": "庫位編碼",
+    "zone": "區域",
+    "order": "排序",
+    "note": "備註",
+    "status": "狀態",
+    "add_btn": "新增",
+    "disable_btn": "停用",
+    "enable_btn": "啟用",
+    "empty": "目前沒有倉位",
+    "error_code_required": "請輸入庫位編碼",
+    "created": "已新增庫位 {code}"
   }
 }
