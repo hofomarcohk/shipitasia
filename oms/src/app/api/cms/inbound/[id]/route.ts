@@ -1,16 +1,11 @@
-// Phase 4 rewrite — replaces the legacy POST/PUT/GET that drove the
-// inherited inbound model. Legacy services in services/inbonud-order/
-// are kept (per P4 §4 "既有 endpoint 不刪") but no longer called from
-// this route.
-
 import { getParam } from "@/app/api/api-helper";
 import {
   cmsMiddleware,
   getCmsToken,
 } from "@/app/api/cms/cms-middleware";
 import {
-  createInbound,
-  listMyInbounds,
+  getMyInbound,
+  updateInbound,
 } from "@/services/inbound/inbound-service";
 import { ApiReturn } from "@/types/Api";
 import jwt from "jsonwebtoken";
@@ -33,37 +28,31 @@ function ipOf(req: NextRequest): string | undefined {
   return req.headers.get("x-real-ip") ?? undefined;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   return cmsMiddleware(request, null, async (): Promise<ApiReturn> => {
     const client_id = clientIdFromJwt(request);
-    const sp = new URL(request.url).searchParams;
-    const statusRaw = sp.get("status");
-    const status = statusRaw
-      ? statusRaw.split(",").map((s) => s.trim()).filter(Boolean)
-      : undefined;
-    const result = await listMyInbounds(
-      { client_id },
-      {
-        status,
-        page: sp.get("page") ? parseInt(sp.get("page")!, 10) : undefined,
-        page_size: sp.get("page_size")
-          ? parseInt(sp.get("page_size")!, 10)
-          : undefined,
-      }
-    );
-    return { status: 200, message: "Success", data: result };
+    const data = await getMyInbound(id, { client_id });
+    return { status: 200, message: "Success", data };
   });
 }
 
-export async function POST(request: NextRequest) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const body = await getParam(request);
   return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
     const client_id = clientIdFromJwt(request);
-    const result = await createInbound(body, {
+    const data = await updateInbound(id, body, {
       client_id,
       ip_address: ipOf(request),
       user_agent: request.headers.get("user-agent") ?? undefined,
     });
-    return { status: 200, message: "Success", data: result };
+    return { status: 200, message: "Success", data };
   });
 }

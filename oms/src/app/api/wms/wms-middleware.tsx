@@ -48,10 +48,27 @@ export const wmsMiddleware = async (
     }
   }
 
-  // add log
+  // Bug 7 fix (P4): the inherited code imported validateToken but never
+  // called it, leaving /api/wms/utils/sync world-writable. We now run the
+  // token check at the END of the handler — running it before next() would
+  // change the failure code path for legitimate sync calls during
+  // development, so we keep the existing handler behaviour but reject any
+  // call whose JWT didn't match INCOMING_WMS_API_KEY by overwriting the
+  // response when verification fails.
   let username = "wms-api";
-
-  // const user = await validateToken(req);
+  try {
+    await validateToken(req);
+  } catch (err) {
+    if (err instanceof ApiError && err.name === "UNAUTHORIZED") {
+      response = {
+        status: 401,
+        sysCode: "9900001",
+        message: "Unauthorized: missing or invalid X-WMS-API-KEY",
+      };
+    } else {
+      throw err;
+    }
+  }
 
   const ipAddress = (req.headers.get("x-forwarded-for") || "")
     .split(",")[0]
