@@ -65,7 +65,7 @@ export const PdaDepart = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto py-6 px-4 grid gap-3">
+    <div className="w-full max-w-md mx-auto grid gap-3">
       <Card>
         <CardHeader>
           <h2 className="font-semibold">{t("wms_scan.depart.scan_title")}</h2>

@@ -1264,5 +1264,10 @@
     "picker_label": "Use saved address",
     "picker_empty": "No saved addresses yet",
     "picker_manage": "Manage saved addresses →"
+  },
+  "pda_layout": {
+    "tab_arrive": "Arrive",
+    "tab_receive": "Receive",
+    "tab_depart": "Depart"
   }
 }

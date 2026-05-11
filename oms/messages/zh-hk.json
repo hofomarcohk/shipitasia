@@ -1264,5 +1264,10 @@
     "picker_label": "選用常用地址",
     "picker_empty": "尚未有常用地址",
     "picker_manage": "管理常用地址 →"
+  },
+  "pda_layout": {
+    "tab_arrive": "到貨簽收",
+    "tab_receive": "收貨上架",
+    "tab_depart": "離倉"
   }
 }

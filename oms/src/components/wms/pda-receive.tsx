@@ -218,7 +218,7 @@ export const PdaReceive = () => {
   const directMode = matched?.status === "pending";
 
   return (
-    <div className="max-w-md mx-auto py-4 px-3 grid gap-3">
+    <div className="w-full max-w-md mx-auto grid gap-3">
       {abandonedCount > 0 && (
         <div className="rounded-md bg-amber-50 border border-amber-200 p-2 text-sm text-amber-700 flex items-center justify-between">
           <span>
