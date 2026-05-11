@@ -589,7 +589,9 @@
     "loading": "Loading…",
     "save_success": "Saved",
     "save_failed": "Save failed",
-    "required": "Required"
+    "required": "Required",
+    "cancel": "Cancel",
+    "not_found": "Not found"
   },
   "carriers": {
     "page_title": "Carrier Accounts",

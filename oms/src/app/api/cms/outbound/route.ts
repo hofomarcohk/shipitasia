@@ -60,12 +60,15 @@ export async function POST(request: NextRequest) {
       ip_address: ipOf(request),
       user_agent: request.headers.get("user-agent") ?? undefined,
     };
-    const shipment_type = body?.shipment_type;
+    // `shipment_type` is a fan-out hint for this route only — the service
+    // schemas use `.strict()`, so we must not forward it. Strip it before
+    // handing off; same treatment for any other route-only metadata.
+    const { shipment_type, ...payload } = body ?? {};
     let data;
     if (shipment_type === "single") {
-      data = await createSingleOutbound(ctx, body);
+      data = await createSingleOutbound(ctx, payload);
     } else {
-      data = await createConsolidatedOutbound(ctx, body);
+      data = await createConsolidatedOutbound(ctx, payload);
     }
     return { status: 200, message: "Success", data };
   });

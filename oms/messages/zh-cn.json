@@ -589,7 +589,9 @@
     "loading": "载入中…",
     "save_success": "已保存",
     "save_failed": "保存失败",
-    "required": "必填"
+    "required": "必填",
+    "cancel": "取消",
+    "not_found": "找不到资料"
   },
   "carriers": {
     "page_title": "物流账号",
