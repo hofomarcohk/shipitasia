@@ -225,14 +225,38 @@ function makeAdapter(cfg: CarrierMockConfig): ICarrierAdapter {
   };
 }
 
+// P9 update — for UPS-resold carriers (fuuffy) we rotate real valid UPS
+// tracking numbers so the OMS "已出庫" page's UPS redirect actually lands
+// on a real UPS page during demos. Other carriers keep the synthetic
+// MOCK-{carrier}-{outbound}-BOX{n} format.
+const MOCK_UPS_TRACKINGS = [
+  "1ZB87K338634800548",
+  "1ZB87K338600636718",
+  "1ZB87K338614953984",
+] as const;
+
+const UPS_RESELLER_CARRIERS = new Set(["fuuffy"]);
+
+function simpleHash(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h) + s.charCodeAt(i);
+  }
+  return Math.abs(h);
+}
+
 function mockTrackingNo(
   carrier_code: string,
   outbound_id?: string,
   box_no?: string
 ): string {
-  // Per P8 spec: `MOCK-{carrier_code}-{outbound_id}-BOX{n}` when box context
-  // available; fall back to compact random format for P7 single-box calls
-  // that didn't carry box info.
+  // P9 §6: UPS resellers (Fuuffy) → real-valid UPS trackings rotated by
+  // box-key hash. Demos can click through to UPS and see real history.
+  if (UPS_RESELLER_CARRIERS.has(carrier_code)) {
+    const key = `${outbound_id ?? ""}-${box_no ?? Date.now().toString(36)}`;
+    return MOCK_UPS_TRACKINGS[simpleHash(key) % MOCK_UPS_TRACKINGS.length];
+  }
+  // Non-UPS carriers: deterministic mock format `MOCK-{carrier}-{outbound}-BOX{n}`.
   if (outbound_id && box_no) {
     const seq = box_no.split("-").slice(-1)[0];
     return `MOCK-${carrier_code.toUpperCase()}-${outbound_id}-BOX${seq}`;

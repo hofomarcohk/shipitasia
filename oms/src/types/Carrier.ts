@@ -58,6 +58,18 @@ export const CarrierSchema = z
     base_url: z.string().url(),
     sandbox_url: z.string().url().nullable().optional(),
     logo_url: z.string().url().nullable().optional(),
+    // P9 — public tracking page URL template. `{tracking_no}` placeholder
+    // gets replaced at render time. null = carrier doesn't expose a public
+    // tracking page (UI disables the redirect button).
+    tracking_url_template: z
+      .string()
+      .url()
+      .max(500)
+      .refine((v) => v.includes("{tracking_no}"), {
+        message: "tracking_url_template must contain '{tracking_no}'",
+      })
+      .nullable()
+      .optional(),
     status: z.enum(["active", "disabled"]),
     sort_order: z.number().int().default(100),
     createdAt: z.date().optional(),

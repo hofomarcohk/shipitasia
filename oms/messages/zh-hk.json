@@ -1091,6 +1091,30 @@
       "proceed_notice": "確認後將以您的物流商帳號生成面單，運費將從錢包扣除。",
       "btn": "確認取運單",
       "success": "已成功取得 {count} 張面單，扣費 HK${total}"
+    },
+    "shipped": {
+      "page_title": "已出庫",
+      "page_subtitle": "查看您所有已發出的出庫單與物流追蹤",
+      "total": "共 {count} 筆",
+      "refresh": "重新整理",
+      "search_placeholder": "以出庫單 ID、追蹤號或收件人搜尋（≥ 2 字元）",
+      "empty": "尚未有已出庫的訂單",
+      "empty_cta": "建立第一張出庫單",
+      "no_results": "沒有符合條件的出庫單",
+      "intl_badge": "國際運單",
+      "copy": "複製追蹤號",
+      "copied": "已複製",
+      "copy_fallback": "複製失敗，請手動選取下列追蹤號",
+      "track_link": "前往物流商官網查詢",
+      "no_track_url": "此 carrier 暫不支援線上查詢",
+      "label_fee": "運費",
+      "detail": {
+        "departed_at": "出庫時間",
+        "sender": "寄件人",
+        "receiver_full": "收件地址",
+        "box": "箱",
+        "no_tracking": "追蹤號未產生"
+      }
     }
   },
   "wms_ops": {

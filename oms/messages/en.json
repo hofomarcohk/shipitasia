@@ -1091,6 +1091,30 @@
       "proceed_notice": "Confirming will fetch the label using your carrier account and deduct cost from your wallet.",
       "btn": "Fetch label",
       "success": "Fetched {count} labels, charged HK${total}"
+    },
+    "shipped": {
+      "page_title": "Shipped",
+      "page_subtitle": "All your departed outbounds with carrier tracking",
+      "total": "{count} record(s)",
+      "refresh": "Refresh",
+      "search_placeholder": "Search by outbound ID, tracking number, or recipient (≥ 2 chars)",
+      "empty": "No shipped outbounds yet",
+      "empty_cta": "Create your first outbound",
+      "no_results": "No outbounds match your filters",
+      "intl_badge": "International",
+      "copy": "Copy tracking",
+      "copied": "Copied",
+      "copy_fallback": "Could not access clipboard; copy manually",
+      "track_link": "Track on carrier site",
+      "no_track_url": "This carrier does not expose a public tracking page",
+      "label_fee": "Label fee",
+      "detail": {
+        "departed_at": "Departed at",
+        "sender": "Sender",
+        "receiver_full": "Receiver address",
+        "box": "Box",
+        "no_tracking": "Tracking not yet assigned"
+      }
     }
   },
   "wms_ops": {

@@ -1091,6 +1091,30 @@
       "proceed_notice": "确认后将以您的物流商账号生成面单，运费将从钱包扣除。",
       "btn": "确认取运单",
       "success": "已成功取得 {count} 张面单，扣费 HK${total}"
+    },
+    "shipped": {
+      "page_title": "已出库",
+      "page_subtitle": "查看您所有已发出的出库单与物流追踪",
+      "total": "共 {count} 笔",
+      "refresh": "重新整理",
+      "search_placeholder": "以出库单 ID、追踪号或收件人搜寻（≥ 2 字元）",
+      "empty": "尚未有已出库的订单",
+      "empty_cta": "建立第一张出库单",
+      "no_results": "没有符合条件的出库单",
+      "intl_badge": "国际运单",
+      "copy": "复制追踪号",
+      "copied": "已复制",
+      "copy_fallback": "复制失败，请手动选取下列追踪号",
+      "track_link": "前往物流商官网查询",
+      "no_track_url": "此 carrier 暂不支援线上查询",
+      "label_fee": "运费",
+      "detail": {
+        "departed_at": "出库时间",
+        "sender": "寄件人",
+        "receiver_full": "收件地址",
+        "box": "箱",
+        "no_tracking": "追踪号未产生"
+      }
     }
   },
   "wms_ops": {

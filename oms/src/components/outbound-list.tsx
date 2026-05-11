@@ -85,9 +85,14 @@ export const OutboundList = () => {
             {t("outbound_v1.page_subtitle")}
           </p>
         </div>
-        <Link href="/zh-hk/outbound/new">
-          <Button>{t("outbound_v1.new_btn")}</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/zh-hk/outbound/shipped">
+            <Button variant="outline">{t("outbound_v1.shipped.page_title")}</Button>
+          </Link>
+          <Link href="/zh-hk/outbound/new">
+            <Button>{t("outbound_v1.new_btn")}</Button>
+          </Link>
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
