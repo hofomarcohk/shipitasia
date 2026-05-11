@@ -46,6 +46,11 @@ export const collections = {
   INBOUND_DECLARED_ITEM: "inbound_declared_items",
   DAILY_COUNTER: "daily_counters",
   NOTIFICATION: "notifications",
+
+  // P5 — WMS scan (arrive + receive)
+  INBOUND_SCAN: "inbound_scans",
+  UNCLAIMED_INBOUND: "unclaimed_inbounds",
+  STAFF_HANDLED_ABANDONED: "staff_handled_abandoned",
 };
 
 export const ID_Prefix: {

@@ -54,6 +54,15 @@ export const AUDIT_ACTIONS = {
   inbound_abandoned_by_client: "inbound_abandoned_by_client",
   inbound_abandoned_by_admin: "inbound_abandoned_by_admin",
   admin_inbound_created_for_client: "admin_inbound_created_for_client",
+
+  // ── Phase 5 — WMS scan ───────────────────────────────────────
+  inbound_arrived: "inbound_arrived",
+  inbound_arrive_cancelled: "inbound_arrive_cancelled",
+  inbound_received: "inbound_received",
+  inbound_anomaly_detected: "inbound_anomaly_detected",
+  inbound_status_adjusted: "inbound_status_adjusted",
+  unclaimed_arrived: "unclaimed_arrived",
+  staff_abandoned_handled: "staff_abandoned_handled",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
