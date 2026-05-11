@@ -54,6 +54,44 @@ interface ItemDraft {
   unit_price: number;
 }
 
+// Country phone dial codes — covers the v1 destination countries.
+// Keyed by ISO-2 country_code so it composes with the existing receiver
+// address shape. Extended ad-hoc as new destinations come online.
+const DIAL_CODES: Record<string, string> = {
+  HK: "+852",
+  TW: "+886",
+  CN: "+86",
+  JP: "+81",
+  US: "+1",
+  GB: "+44",
+  AU: "+61",
+  SG: "+65",
+  KR: "+82",
+};
+
+// HK 18 districts — only surfaced when country_code=HK. Other countries
+// keep the free-text input.
+const HK_DISTRICTS: { code: string; zh: string }[] = [
+  { code: "central_western", zh: "中西區" },
+  { code: "wan_chai", zh: "灣仔" },
+  { code: "eastern", zh: "東區" },
+  { code: "southern", zh: "南區" },
+  { code: "yau_tsim_mong", zh: "油尖旺" },
+  { code: "sham_shui_po", zh: "深水埗" },
+  { code: "kowloon_city", zh: "九龍城" },
+  { code: "wong_tai_sin", zh: "黃大仙" },
+  { code: "kwun_tong", zh: "觀塘" },
+  { code: "kwai_tsing", zh: "葵青" },
+  { code: "tsuen_wan", zh: "荃灣" },
+  { code: "tuen_mun", zh: "屯門" },
+  { code: "yuen_long", zh: "元朗" },
+  { code: "north", zh: "北區" },
+  { code: "tai_po", zh: "大埔" },
+  { code: "sha_tin", zh: "沙田" },
+  { code: "sai_kung", zh: "西貢" },
+  { code: "islands", zh: "離島" },
+];
+
 export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
   const t = useTranslations();
   const router = useRouter();
@@ -484,27 +522,60 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                       value={recipientName}
                       onChange={(e) => setRecipientName(e.target.value)}
                     />
-                    <Input
-                      placeholder="Phone"
-                      value={recipientPhone}
-                      onChange={(e) => setRecipientPhone(e.target.value)}
-                    />
-                    <Input
-                      placeholder="Country (HK)"
+                    {/* Phone with dial-code prefix derived from country */}
+                    <div className="flex">
+                      <span className="inline-flex items-center px-2 border border-r-0 rounded-l bg-gray-50 text-sm text-gray-600 whitespace-nowrap">
+                        {DIAL_CODES[recipientCountry] ?? "+"}
+                      </span>
+                      <Input
+                        placeholder="Phone (no country code)"
+                        className="rounded-l-none"
+                        value={recipientPhone}
+                        onChange={(e) => setRecipientPhone(e.target.value)}
+                      />
+                    </div>
+                    <select
+                      className="w-full border rounded px-3 py-2 text-sm"
                       value={recipientCountry}
-                      onChange={(e) => setRecipientCountry(e.target.value)}
-                      maxLength={2}
-                    />
+                      onChange={(e) => {
+                        setRecipientCountry(e.target.value);
+                        // Reset HK-specific district picks when leaving HK
+                        if (e.target.value !== "HK") {
+                          setRecipientDistrict("");
+                        }
+                      }}
+                    >
+                      {Object.keys(DIAL_CODES).map((code) => (
+                        <option key={code} value={code}>
+                          {code} ({DIAL_CODES[code]})
+                        </option>
+                      ))}
+                    </select>
                     <Input
                       placeholder="City"
                       value={recipientCity}
                       onChange={(e) => setRecipientCity(e.target.value)}
                     />
-                    <Input
-                      placeholder="District (optional)"
-                      value={recipientDistrict}
-                      onChange={(e) => setRecipientDistrict(e.target.value)}
-                    />
+                    {recipientCountry === "HK" ? (
+                      <select
+                        className="w-full border rounded px-3 py-2 text-sm"
+                        value={recipientDistrict}
+                        onChange={(e) => setRecipientDistrict(e.target.value)}
+                      >
+                        <option value="">區域 (選填)</option>
+                        {HK_DISTRICTS.map((d) => (
+                          <option key={d.code} value={d.zh}>
+                            {d.zh}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        placeholder="District (optional)"
+                        value={recipientDistrict}
+                        onChange={(e) => setRecipientDistrict(e.target.value)}
+                      />
+                    )}
                     <Input
                       placeholder="Postal code (optional)"
                       value={recipientPostal}
@@ -718,6 +789,29 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
           setItemModalOpen(false);
           setItemEditing(null);
         }}
+        // Keep the modal open and reset the draft so the user can chain
+        // multiple item entries without re-clicking "Add Item" — common
+        // when declaring many small items at once.
+        onSaveAndNext={(saved) => {
+          setItems((prev) => {
+            const idx = prev.findIndex((p) => p.draft_id === saved.draft_id);
+            if (idx >= 0) {
+              const copy = [...prev];
+              copy[idx] = saved;
+              return copy;
+            }
+            return [...prev, saved];
+          });
+          setItemEditing({
+            draft_id: `new_${Date.now()}`,
+            category_id: saved.category_id, // carry-forward the category for fast input
+            subcategory_id: saved.subcategory_id,
+            product_name: "",
+            product_url: "",
+            quantity: 1,
+            unit_price: 0,
+          });
+        }}
         onCancel={() => {
           setItemModalOpen(false);
           setItemEditing(null);
@@ -749,6 +843,7 @@ function ItemModal({
   categories,
   currency,
   onSave,
+  onSaveAndNext,
   onCancel,
 }: {
   open: boolean;
@@ -757,6 +852,7 @@ function ItemModal({
   categories: Category[];
   currency: string;
   onSave: (it: ItemDraft) => void;
+  onSaveAndNext: (it: ItemDraft) => void;
   onCancel: () => void;
 }) {
   const t = useTranslations();
@@ -860,7 +956,12 @@ function ItemModal({
                 type="number"
                 min={1}
                 step={1}
-                value={draft.quantity}
+                // Display empty when value is the initial default (1) so the
+                // user can type without colliding with a sticky "1" prefix.
+                // Marco's bug: typing 1000 produced "01000".
+                value={draft.quantity === 1 ? "" : draft.quantity || ""}
+                placeholder="1"
+                onFocus={(e) => e.target.select()}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
@@ -877,7 +978,9 @@ function ItemModal({
                 type="number"
                 min={0}
                 step={1}
-                value={draft.unit_price}
+                value={draft.unit_price || ""}
+                placeholder="0"
+                onFocus={(e) => e.target.select()}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
@@ -897,6 +1000,14 @@ function ItemModal({
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
             {t("inbound_v1.new.item_modal.cancel_btn")}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => valid && onSaveAndNext(draft)}
+            disabled={!valid}
+            title="保存並開始下一個申報項目"
+          >
+            {t("inbound_v1.new.item_modal.save_and_next_btn")}
           </Button>
           <Button onClick={() => valid && onSave(draft)} disabled={!valid}>
             {t("inbound_v1.new.item_modal.save_btn")}

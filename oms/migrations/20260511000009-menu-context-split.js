@@ -9,8 +9,10 @@ const OMS_GROUPS = [
     context: "oms",
     order: 10,
     items: [
-      { name: "my_inbound", icon: "IconPackage", url: "/zh-hk/inbound/list" },
+      // Marco's feedback: "create first" matches the intuitive flow —
+      // most visits to this section are to start a new declaration.
       { name: "new_inbound", icon: "IconPackages", url: "/zh-hk/inbound/new" },
+      { name: "my_inbound", icon: "IconPackage", url: "/zh-hk/inbound/list" },
       {
         name: "pending_confirm",
         icon: "IconHomeQuestion",
@@ -23,12 +25,12 @@ const OMS_GROUPS = [
     context: "oms",
     order: 20,
     items: [
-      { name: "outbound_list", icon: "IconTruck", url: "/zh-hk/outbound/list" },
       {
         name: "new_outbound",
         icon: "IconTruckLoading",
         url: "/zh-hk/outbound/new",
       },
+      { name: "outbound_list", icon: "IconTruck", url: "/zh-hk/outbound/list" },
       {
         name: "shipped",
         icon: "IconTruckDelivery",

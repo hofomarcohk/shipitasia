@@ -843,6 +843,7 @@
         "unit_price_label": "Unit price *",
         "subtotal_label": "Subtotal",
         "save_btn": "Save item",
+        "save_and_next_btn": "Save & next",
         "cancel_btn": "Cancel",
         "delete_btn": "Delete"
       },
@@ -954,7 +955,18 @@
     "unclaimed_arrived_at": "Arrived",
     "unclaimed_status_pending_assignment": "Pending assign",
     "unclaimed_status_assigned": "Assigned",
-    "unclaimed_status_disposed": "Disposed"
+    "unclaimed_status_disposed": "Disposed",
+    "depart": {
+      "page_title": "PDA depart",
+      "scan_title": "Scan box for departure",
+      "box_no_label": "Box no.",
+      "submit": "Confirm depart",
+      "outbound_done": "All boxes departed ✅",
+      "box_done": "{departed}/{total} boxes departed",
+      "pending_title": "Pending departure",
+      "no_pending": "—",
+      "history": "This session"
+    }
   },
   "unclaimed_ui": {
     "admin_assign_btn": "Assign to client",
@@ -1195,19 +1207,6 @@
       "print_all": "Print all",
       "complete": "Mark labels printed",
       "done": "Marked printed"
-    }
-  },
-  "wms_scan": {
-    "depart": {
-      "page_title": "PDA depart",
-      "scan_title": "Scan box for departure",
-      "box_no_label": "Box no.",
-      "submit": "Confirm depart",
-      "outbound_done": "All boxes departed ✅",
-      "box_done": "{departed}/{total} boxes departed",
-      "pending_title": "Pending departure",
-      "no_pending": "—",
-      "history": "This session"
     }
   }
 }

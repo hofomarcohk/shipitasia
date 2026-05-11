@@ -843,6 +843,7 @@
         "unit_price_label": "單件售價 *",
         "subtotal_label": "小計",
         "save_btn": "儲存品項",
+        "save_and_next_btn": "儲存並繼續",
         "cancel_btn": "取消",
         "delete_btn": "刪除"
       },
@@ -954,7 +955,18 @@
     "unclaimed_arrived_at": "到倉時間",
     "unclaimed_status_pending_assignment": "待指派",
     "unclaimed_status_assigned": "已指派",
-    "unclaimed_status_disposed": "已處置"
+    "unclaimed_status_disposed": "已處置",
+    "depart": {
+      "page_title": "PDA 離倉",
+      "scan_title": "掃箱號離倉",
+      "box_no_label": "箱號",
+      "submit": "確認離倉",
+      "outbound_done": "全部箱已離倉 ✅",
+      "box_done": "{departed}/{total} 箱已離倉",
+      "pending_title": "待離倉出庫單",
+      "no_pending": "—",
+      "history": "本次掃過"
+    }
   },
   "unclaimed_ui": {
     "admin_assign_btn": "指派客戶",
@@ -1195,19 +1207,6 @@
       "print_all": "列印全部",
       "complete": "貼 label 完成",
       "done": "已標記列印完成"
-    }
-  },
-  "wms_scan": {
-    "depart": {
-      "page_title": "PDA 離倉",
-      "scan_title": "掃箱號離倉",
-      "box_no_label": "箱號",
-      "submit": "確認離倉",
-      "outbound_done": "全部箱已離倉 ✅",
-      "box_done": "{departed}/{total} 箱已離倉",
-      "pending_title": "待離倉出庫單",
-      "no_pending": "—",
-      "history": "本次掃過"
     }
   }
 }
