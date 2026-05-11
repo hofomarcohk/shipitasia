@@ -4,6 +4,7 @@ import { CARRIER_ERROR } from "./errors/carrier-error";
 import { COMMON_ERROR } from "./errors/common-error";
 import { OUTBOUND_ERROR } from "./errors/outbound-error";
 import { SCAN_ERROR } from "./errors/scan-error";
+import { UNCLAIMED_ERROR } from "./errors/unclaimed-error";
 import { WALLET_ERROR } from "./errors/wallet-error";
 
 export const ApiErrorList = {
@@ -14,4 +15,5 @@ export const ApiErrorList = {
   ...WALLET_ERROR, // 13 (reuses the BILL slot; v1 wallet replaces legacy bills)
   ...CARRIER_ERROR, // 14
   ...SCAN_ERROR, // 15
+  ...UNCLAIMED_ERROR, // 16
 };

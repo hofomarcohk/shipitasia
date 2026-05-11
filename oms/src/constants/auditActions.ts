@@ -63,6 +63,15 @@ export const AUDIT_ACTIONS = {
   inbound_status_adjusted: "inbound_status_adjusted",
   unclaimed_arrived: "unclaimed_arrived",
   staff_abandoned_handled: "staff_abandoned_handled",
+
+  // ── Phase 6 — unclaimed processing ───────────────────────────
+  unclaimed_assigned: "unclaimed_assigned",
+  unclaimed_assignment_cancelled: "unclaimed_assignment_cancelled",
+  unclaimed_accepted_by_client: "unclaimed_accepted_by_client",
+  unclaimed_rejected_by_client: "unclaimed_rejected_by_client",
+  unclaimed_self_claimed: "unclaimed_self_claimed",
+  unclaimed_disposed: "unclaimed_disposed",
+  unclaimed_merged_to_existing: "unclaimed_merged_to_existing",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
