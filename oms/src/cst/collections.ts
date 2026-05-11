@@ -51,6 +51,9 @@ export const collections = {
   INBOUND_SCAN: "inbound_scans",
   UNCLAIMED_INBOUND: "unclaimed_inbounds",
   STAFF_HANDLED_ABANDONED: "staff_handled_abandoned",
+  // ITEM_LOCATION pre-existed in cst (legacy LOCATION key); add explicit
+  // P5 entry so service code doesn't accidentally reuse LOCATION.
+  ITEM_LOCATION: "item_locations",
 };
 
 export const ID_Prefix: {
