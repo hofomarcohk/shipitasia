@@ -72,6 +72,18 @@ export const AUDIT_ACTIONS = {
   unclaimed_self_claimed: "unclaimed_self_claimed",
   unclaimed_disposed: "unclaimed_disposed",
   unclaimed_merged_to_existing: "unclaimed_merged_to_existing",
+
+  // ── Phase 7 — outbound creation + rate quote + label ─────────
+  outbound_created: "outbound_created",
+  outbound_held: "outbound_held",
+  outbound_held_released: "outbound_held_released",
+  outbound_cancelled: "outbound_cancelled",
+  outbound_single_completed: "outbound_single_completed",
+  outbound_rate_quoted: "outbound_rate_quoted",
+  outbound_label_obtaining: "outbound_label_obtaining",
+  outbound_label_obtained: "outbound_label_obtained",
+  outbound_label_failed: "outbound_label_failed",
+  outbound_balance_reserved: "outbound_balance_reserved",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

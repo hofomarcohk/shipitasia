@@ -1,173 +1,72 @@
-import { getParam, matchBuilder, sortBuilder } from "@/app/api/api-helper";
-import { auth, cmsMiddleware, getUser } from "@/app/api/cms/cms-middleware";
-import { lang } from "@/lang/base";
-import { getInboundRequest } from "@/services/inbonud-order/get_inbound_order_list";
-import { createOutbound } from "@/services/outbound-order/do_create_outbound_order";
-import { updateOutbound } from "@/services/outbound-order/do_update_outbound_order";
+// Phase 7 rewrite — replaces the legacy POST/PUT/GET that drove the
+// inherited outbound model. Legacy services in services/outbound-order/
+// stay on disk (per P4 precedent "既有 endpoint 不刪") but are no longer
+// called from this route.
+
+import { getParam } from "@/app/api/api-helper";
 import {
-  countOutboundRequest,
-  getOutboundRequest,
-  getOutboundRequestByOrderId,
-} from "@/services/outbound-order/get_outbound_order_list";
+  cmsMiddleware,
+  getCmsToken,
+} from "@/app/api/cms/cms-middleware";
+import {
+  createConsolidatedOutbound,
+  createSingleOutbound,
+  listMyOutbounds,
+} from "@/services/outbound/outbound-service";
 import { ApiReturn } from "@/types/Api";
+import jwt from "jsonwebtoken";
 import { NextRequest } from "next/server";
-import { ApiError } from "../../api-error";
+
+function clientIdFromJwt(req: NextRequest): string {
+  const token = getCmsToken(req);
+  const payload = jwt.verify(
+    token,
+    process.env.CMS_SECRET || ""
+  ) as jwt.JwtPayload;
+  const clientId = (payload as any).clientId as string | undefined;
+  if (!clientId) throw new Error("UNAUTHORIZED: token missing clientId");
+  return clientId;
+}
+
+function ipOf(req: NextRequest): string | undefined {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0]?.trim();
+  return req.headers.get("x-real-ip") ?? undefined;
+}
 
 export async function GET(request: NextRequest) {
-  const param = await getParam(request);
-  return cmsMiddleware(request, param, async (): Promise<ApiReturn> => {
-    auth(request, "login");
-    const pageSize = Number(param.pageSize || "10");
-    const pageNo = Number(param.pageNo || "1");
-    const sort = sortBuilder(param, ["updatedAt"]);
-    const match = {
-      ...matchBuilder(param, {
-        search: {
-          type: "search",
-          field: ["trackingNo", "orderId"],
-        },
-        scan: {
-          type: "in",
-          field: ["trackingNo", "orderId"],
-        },
-        status: {
-          type: "in",
-          field: "status",
-        },
-        warehouseCode: {
-          type: "in",
-          field: "warehouseCode",
-        },
-        xOrderId: {
-          type: "nin",
-          field: "orderId",
-        },
-      }),
-      deletedAt: { $exists: false },
-    };
-    let count = await countOutboundRequest(match);
-    let results = await getOutboundRequest([
-      {
-        $match: match,
-      },
-      {
-        $sort: sort,
-      },
-      {
-        $skip: (pageNo - 1) * pageSize,
-      },
-      {
-        $limit: pageSize,
-      },
-    ]);
-    return {
-      status: 200,
-      message: "Success",
-      data: {
-        count,
-        results,
-      },
-    };
+  return cmsMiddleware(request, null, async (): Promise<ApiReturn> => {
+    const client_id = clientIdFromJwt(request);
+    const sp = new URL(request.url).searchParams;
+    const statusRaw = sp.get("status");
+    const status = statusRaw
+      ? (statusRaw.split(",").map((s) => s.trim()).filter(Boolean) as any)
+      : undefined;
+    const limit = sp.get("limit") ? parseInt(sp.get("limit")!, 10) : undefined;
+    const offset = sp.get("offset")
+      ? parseInt(sp.get("offset")!, 10)
+      : undefined;
+    const result = await listMyOutbounds(client_id, { status, limit, offset });
+    return { status: 200, message: "Success", data: result };
   });
 }
 
 export async function POST(request: NextRequest) {
   const body = await getParam(request);
   return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
-    const headers = request.headers;
-    const langCode = headers.get("langCode") || "en";
-    const user = await getUser(request);
-    delete body._id;
-
-    delete body.addresses;
-    delete body.n;
-    delete body.isCustomToAddress;
-
-    const inboundRequestIds = body.inboundRequestIds;
-    const inboundRequests = await getInboundRequest([
-      {
-        $match: {
-          orderId: {
-            $in: inboundRequestIds,
-          },
-        },
-      },
-    ]);
-
-    let error: string[] = [];
-    inboundRequests.map((inboundRequest) => {
-      if (inboundRequest.declaredValue <= 0) {
-        error.push(
-          inboundRequest.orderId +
-            ":" +
-            lang("error.MISSING_DECLARED_VALUE", langCode)
-        );
-      }
-      if (!inboundRequest.category || inboundRequest.category?.length == 0) {
-        error.push(
-          inboundRequest.orderId +
-            ":" +
-            lang("error.MISSING_CATEGORY", langCode)
-        );
-      }
-    });
-    if (error.length > 0) {
-      throw new ApiError("FAIL_TO_CREATE_OUTBOUND_ORDER", {
-        langCode,
-        error: error.join("\n"),
-      });
-    }
-
-    await createOutbound(user._id.toString(), [{ ...body, source: "cms" }]);
-
-    return {
-      status: 200,
-      message: "Success",
-      data: { inboundRequests },
+    const client_id = clientIdFromJwt(request);
+    const ctx = {
+      client_id,
+      ip_address: ipOf(request),
+      user_agent: request.headers.get("user-agent") ?? undefined,
     };
-  });
-}
-
-export async function PUT(request: NextRequest) {
-  const body = await getParam(request);
-  return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
-    delete body._id;
-    delete body.createdAt;
-
-    const user = await getUser(request);
-    const orderId: string = body.orderId;
-
-    if (!orderId) {
-      throw new ApiError("MISSING_FIELD", { langCode: "en", field: "orderId" });
+    const shipment_type = body?.shipment_type;
+    let data;
+    if (shipment_type === "single") {
+      data = await createSingleOutbound(ctx, body);
+    } else {
+      data = await createConsolidatedOutbound(ctx, body);
     }
-
-    const order = await getOutboundRequestByOrderId(orderId);
-    if (!order) {
-      throw new ApiError("OUTBOUND_NOT_FOUND", { langCode: "en", orderId });
-    }
-    if (order.status != "prending") {
-      throw new ApiError("INVALID_OUTBOUND_STATUS", { status: order.status });
-    }
-
-    await updateOutbound(user._id.toString(), orderId, {
-      to: body.to,
-    });
-
-    return {
-      status: 200,
-      message: "Success",
-    };
-  });
-}
-
-export async function DELETE(request: NextRequest) {
-  const body = await getParam(request);
-  return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
-    let inbound_request = await getInboundRequest([]);
-    return {
-      status: 200,
-      message: "Success",
-      data: inbound_request,
-    };
+    return { status: 200, message: "Success", data };
   });
 }

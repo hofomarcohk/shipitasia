@@ -54,6 +54,11 @@ export const collections = {
   // ITEM_LOCATION pre-existed in cst (legacy LOCATION key); add explicit
   // P5 entry so service code doesn't accidentally reuse LOCATION.
   ITEM_LOCATION: "item_locations",
+
+  // P7 — outbound creation
+  OUTBOUND_INBOUND_LINK: "outbound_inbound_links",
+  OUTBOUND_ACTION_LOG: "outbound_action_logs",
+  RATE_QUOTE_LOG: "rate_quote_logs",
 };
 
 export const ID_Prefix: {

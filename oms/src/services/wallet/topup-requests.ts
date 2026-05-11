@@ -324,6 +324,19 @@ export async function adminApproveTopup(id: string, actor: AdminContext) {
       }
     );
 
+  // P7 hook: top-up may free up held(insufficient_balance) outbounds. We
+  // import lazily to avoid a circular dependency between wallet and
+  // outbound services. Failures are swallowed so a flaky outbound release
+  // never blocks the topup approval.
+  try {
+    const { releaseHeldByBalance } = await import(
+      "@/services/outbound/outbound-service"
+    );
+    await releaseHeldByBalance(updated.client_id);
+  } catch {
+    // best-effort; admin can manually release via admin UI if needed
+  }
+
   return await adminGetTopupRequest(id);
 }
 
