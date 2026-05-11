@@ -1,4 +1,39 @@
 {
+  "invoice": {
+    "title": "商業發票 / 包裝清單",
+    "subtitle": "Commercial Invoice · {id}",
+    "print": "列印 / 存 PDF",
+    "close": "關閉",
+    "sender": "寄件方",
+    "receiver": "收件方",
+    "empty": "此出庫單沒有申報品項",
+    "meta": {
+      "outbound_id": "出庫單號",
+      "carrier": "物流商",
+      "tracking_no": "追蹤號",
+      "shipment_type": "出貨類型",
+      "date_created": "建立日期",
+      "date_dispatched": "取單日期",
+      "weight": "實際重量",
+      "boxes_inbounds": "箱數 / 入庫數",
+      "boxes_inbounds_fmt": "{boxes} 箱 · {inbounds} 張入庫"
+    },
+    "col": {
+      "product": "品項",
+      "qty": "數量",
+      "unit_price": "單價",
+      "subtotal": "小計"
+    },
+    "totals": {
+      "items_count": "申報項數",
+      "total_quantity": "總件數",
+      "grand_total": "申報總值"
+    },
+    "footer": {
+      "generated_at": "生成時間 {ts}",
+      "signature": "簽署 / 日期"
+    }
+  },
   "utils": {
     "appName": "ShipItAsia",
     "company": "公司",
@@ -127,13 +162,19 @@
     "wms_admin": "CS / 後台",
     "admin_topup": "增值審批",
     "operations": "倉內作業 (員工)",
+    "wms_inbound_group": "入庫功能",
+    "wms_pack_group": "包裝功能",
+    "wms_outbound_group": "出庫功能",
+    "wms_manage_group": "管理功能",
     "ops_pick": "桌面揀貨",
     "ops_pack": "桌面裝箱",
     "ops_weigh": "桌面複重",
     "ops_label_print": "面單列印 / 貼箱",
+    "ops_depart": "桌面離倉",
+    "ops_outbound_list": "出庫任務總覽",
     "ops_unclaimed": "無頭件指派",
     "ops_abandoned": "棄件處理",
-    "ops_inbound_history": "入庫掃描歷史",
+    "ops_inbound_history": "入庫總覽",
     "scan": "PDA 掃描",
     "scan_arrive": "PDA 到貨",
     "scan_receive": "PDA 收貨上架",
@@ -853,7 +894,9 @@
         "delete_btn": "刪除"
       },
       "submit": "提交預報",
+      "submit_and_continue": "提交並繼續新增",
       "submitting": "提交中…",
+      "continue_success": "已建立 <link>{id}</link>，可繼續新增下一張預報（已保留倉庫 / 快遞 / 體積等設定）",
       "validation_required": "請填寫所有必填欄位",
       "validation_no_items": "至少需要 1 項申報品項"
     },
@@ -1114,7 +1157,9 @@
       "cancel_dialog_title": "確認取消此出庫單？",
       "cancel_dialog_desc": "取消後此出庫單將釋放入庫單回到可選列表。",
       "cancel_reason_placeholder": "可填寫取消原因（最多 200 字）",
-      "cancel_confirm_btn": "確認取消"
+      "cancel_confirm_btn": "確認取消",
+      "retry_label_btn": "重試取單",
+      "retry_label_running": "重試中…"
     },
     "rate": {
       "base_fee": "基礎費",
@@ -1129,7 +1174,7 @@
       "weight": "實重",
       "carrier": "物流商 / 目的地",
       "total": "總運費",
-      "proceed_notice": "確認後將以您的物流商帳號生成面單，運費將從錢包扣除。",
+      "proceed_notice": "確認後將以您的物流商帳號生成面單，運費由物流商於您的帳號直接結算（不扣 ShipItAsia 錢包）。",
       "btn": "確認取運單",
       "success": "已成功取得 {count} 張面單，扣費 HK${total}"
     },
@@ -1210,13 +1255,84 @@
       "expand": "展開箱列表",
       "preview_pdf": "預覽 PDF",
       "print_all": "列印全部",
+      "print_invoice": "列印發票",
       "complete": "貼 label 完成",
       "done": "已標記列印完成"
+    },
+    "depart": {
+      "page_title": "桌面離倉",
+      "page_subtitle": "員工確認整張出庫單所有箱已離倉",
+      "empty": "目前沒有待離倉出庫單",
+      "depart_all_btn": "確認離倉 ({count} 箱)",
+      "depart_running": "處理中…",
+      "done": "已離倉 {count} 箱"
+    },
+    "outbound_list": {
+      "page_title": "出庫任務總覽",
+      "page_subtitle": "查看本倉所有出庫單，可依狀態篩選",
+      "search_placeholder": "搜尋出庫單號 / Client / 追蹤號",
+      "total": "共 {total} 筆",
+      "empty": "沒有符合條件的出庫單",
+      "filter": {
+        "all": "全部",
+        "in_progress": "進行中",
+        "held": "暫存",
+        "departed": "已離倉",
+        "cancelled": "已取消"
+      },
+      "col_id": "出庫單",
+      "col_client": "客戶",
+      "col_status": "狀態",
+      "col_warehouse": "倉庫",
+      "col_carrier": "物流商",
+      "col_dest": "目的地",
+      "col_inbounds": "入庫數",
+      "col_weight": "重量",
+      "col_tracking": "追蹤號",
+      "col_created": "建立時間"
     },
     "receive": {
       "page_title": "桌面收貨上架",
       "page_subtitle": "桌面端執行 receive 動作（與 PDA 等效），便於 CS 補單 / 員工新手"
     }
+  },
+  "wms_inbound_list": {
+    "page_title": "入庫總覽",
+    "page_subtitle": "查看本倉所有入庫單，可依狀態篩選",
+    "search_placeholder": "搜尋入庫單號 / Client / 追蹤號 / Carrier code",
+    "total": "共 {total} 筆",
+    "empty": "沒有符合條件的入庫單",
+    "filter": {
+      "all": "全部",
+      "pending": "已預報",
+      "arrived": "已到倉",
+      "received": "已上架",
+      "outbound_in_progress": "出庫處理中",
+      "departed": "已出庫",
+      "closed": "已取消 / 棄件 / 過期"
+    },
+    "status": {
+      "pending": "已預報",
+      "arrived": "已到倉",
+      "received": "已上架",
+      "picking": "揀貨中",
+      "packed": "已裝箱",
+      "palletized": "已棧板",
+      "departed": "已出庫",
+      "cancelled": "已取消",
+      "abandoned": "已棄件",
+      "expired": "已過期"
+    },
+    "col_id": "入庫單",
+    "col_client": "客戶",
+    "col_status": "狀態",
+    "col_warehouse": "倉庫",
+    "col_tracking": "追蹤號",
+    "col_items": "申報件數",
+    "col_weight": "實重",
+    "col_arrived": "到倉時間",
+    "col_received": "上架時間",
+    "col_created": "建立時間"
   },
   "wms_locations": {
     "page_title": "倉位管理",

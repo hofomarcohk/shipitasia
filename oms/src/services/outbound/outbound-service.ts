@@ -184,18 +184,15 @@ function estimateWeightKg(inbounds: any[]): number {
   return Math.max(0.1, total);
 }
 
-// Resolves the initial status from a quote against client balance.
-// Per P8 spec §1.5.3 flow: confirm_before_label and auto both enter
-// pick/pack/weigh in ready_for_label; the preference branch happens at
-// weight-verified time (P8 completeWeighing).
+// Resolves the initial status for a new outbound. Carrier shipping cost is
+// billed directly by the carrier against the client's own linked account,
+// so the ShipItAsia wallet balance is irrelevant at this stage — every new
+// outbound enters ready_for_label.
 function resolveInitialStatus(
-  balance: number,
-  quote_total: number,
+  _balance: number,
+  _quote_total: number,
   _preference: "auto" | "confirm_before_label"
 ): { status: OutboundStatusV1; held_reason: OutboundHeldReason | null } {
-  if (balance < quote_total) {
-    return { status: "held", held_reason: "insufficient_balance" };
-  }
   return { status: "ready_for_label", held_reason: null };
 }
 
@@ -459,11 +456,9 @@ async function createOutboundCore(
 
   await createNotification({
     client_id: ctx.client_id,
-    type: held_reason ? "outbound_held_insufficient_balance" : "outbound_created",
-    title: held_reason ? "出庫單暫存（餘額不足）" : "出庫單建立成功",
-    body: held_reason
-      ? `出庫單 ${outbound_id} 需 HK$${quote.total}，目前餘額 HK$${balance}，請增值以繼續處理。`
-      : `出庫單 ${outbound_id} 已建立，預估費用 HK$${quote.total}。`,
+    type: "outbound_created",
+    title: "出庫單建立成功",
+    body: `出庫單 ${outbound_id} 已建立，預估運費 HK$${quote.total}（由 carrier 直接收取）。`,
     reference_type: "outbound",
     reference_id: outbound_id,
     action_url: `/zh-hk/outbound/${outbound_id}`,
@@ -863,26 +858,9 @@ export async function fetchLabel(input: {
   if (doc.status !== "ready_for_label" && doc.status !== "weight_verified") {
     throw new ApiError("OUTBOUND_INVALID_STATUS", { status: doc.status });
   }
-  const need = doc.quoted_amount_hkd ?? doc.rate_quote?.total ?? 0;
-  const balance = await walletService.getBalance(doc.client_id);
-  if (balance < need) {
-    await db.collection(collections.OUTBOUND).updateOne(
-      { _id: input.outbound_id as any },
-      {
-        $set: {
-          status: "held",
-          held_reason: "insufficient_balance",
-          held_since: new Date(),
-          held_detail: `label fetch blocked: need HK$${need}, balance HK$${balance}`,
-          updatedAt: new Date(),
-        },
-      }
-    );
-    throw new ApiError("INSUFFICIENT_BALANCE", {
-      required: String(need),
-      available: String(balance),
-    });
-  }
+  // Carrier shipping cost is billed directly to the client's own carrier
+  // account (OAuth-linked). ShipItAsia wallet is not charged for shipping,
+  // so no pre-flight balance gate here.
 
   // Move to label_obtaining first (so concurrent calls can't double-charge).
   const claim = await db.collection(collections.OUTBOUND).findOneAndUpdate(
@@ -918,16 +896,8 @@ export async function fetchLabel(input: {
     label_url = labelResp.label_url;
     tracking_no = labelResp.tracking_no;
 
-    // Atomic-ish: charge wallet then update outbound. If wallet succeeds but
-    // outbound update fails (very unlikely — same DB), retrying the function
-    // would notice label_url is set and short-circuit.
-    await walletService.charge({
-      client_id: doc.client_id,
-      amount: charged,
-      reference_type: "outbound",
-      reference_id: String(doc._id),
-      customer_note: `出庫費用 ${doc.carrier_code} HK$${charged}`,
-    });
+    // No wallet charge — carrier bills the client's own account directly.
+    // `charged` is recorded on the outbound row for reference only.
 
     const now = new Date();
     await db.collection(collections.OUTBOUND).updateOne(
@@ -964,7 +934,7 @@ export async function fetchLabel(input: {
       client_id: doc.client_id,
       type: "outbound_label_obtained",
       title: "出庫面單已取得",
-      body: `出庫單 ${input.outbound_id} 已取得面單，追蹤號 ${tracking_no}，扣費 HK$${charged}。`,
+      body: `出庫單 ${input.outbound_id} 已取得面單，追蹤號 ${tracking_no}，運費 HK$${charged} 由 ${doc.carrier_code} 直接收取。`,
       reference_type: "outbound",
       reference_id: input.outbound_id,
       action_url: `/zh-hk/outbound/${input.outbound_id}`,

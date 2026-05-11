@@ -128,6 +128,17 @@ export const OperationsLabelPrint = () => {
               <div className="flex justify-end gap-2 pt-3">
                 <Button
                   variant="outline"
+                  onClick={() =>
+                    window.open(
+                      `/zh-hk/wms/print/invoice/${o._id}`,
+                      "_blank"
+                    )
+                  }
+                >
+                  {t("wms_ops.label_print.print_invoice")}
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => printAll(boxes.map((b) => b.label_pdf_path))}
                 >
                   {t("wms_ops.label_print.print_all")}

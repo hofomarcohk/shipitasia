@@ -1023,27 +1023,9 @@ export async function fetchLabelMultiBox(
     throw new ApiError("OUTBOUND_NOT_AVAILABLE_FOR_LABEL", { status: ob.status });
   }
 
-  // Pre-flight balance check on the most current quote.
-  const need = ob.quoted_amount_hkd ?? ob.rate_quote?.total ?? 0;
-  const balance = await walletService.getBalance(ob.client_id);
-  if (balance < need) {
-    await db.collection(collections.OUTBOUND).updateOne(
-      { _id: outbound_id as any },
-      {
-        $set: {
-          status: "held",
-          held_reason: "insufficient_balance",
-          held_since: new Date(),
-          held_detail: `label fetch blocked: need HK$${need}, balance HK$${balance}`,
-          updatedAt: new Date(),
-        },
-      }
-    );
-    throw new ApiError("INSUFFICIENT_BALANCE", {
-      required: String(need),
-      available: String(balance),
-    });
-  }
+  // Outbound shipping fee is billed by the carrier directly against the
+  // client's own carrier account (Fuuffy / YunExpress OAuth) — ShipItAsia
+  // never touches the wallet for shipping. No pre-flight balance gate.
 
   // Claim status=label_obtaining (atomic, prevents concurrent fetch).
   const claim = await db.collection(collections.OUTBOUND).findOneAndUpdate(
@@ -1133,14 +1115,9 @@ export async function fetchLabelMultiBox(
       0
     );
 
-    // Charge wallet for the aggregate (single transaction).
-    await walletService.charge({
-      client_id: ob.client_id,
-      amount: total_actual_label_fee,
-      reference_type: "outbound",
-      reference_id: outbound_id,
-      customer_note: `出庫費用 ${ob.carrier_code} ${boxes.length} 箱 HK$${total_actual_label_fee}`,
-    });
+    // Shipping cost is settled by the carrier against the client's own
+    // carrier account — recorded on the outbound for reference but no
+    // wallet movement on our side.
 
     const firstLabel = labelResults[0];
     const now = new Date();
@@ -1155,6 +1132,9 @@ export async function fetchLabelMultiBox(
           label_obtained_at: now,
           label_obtained_by_operator_type: operator_type,
           label_obtained_by_operator_id: operator_id,
+          held_reason: null,
+          held_since: null,
+          held_detail: null,
           updatedAt: now,
         },
       }
@@ -1194,7 +1174,7 @@ export async function fetchLabelMultiBox(
       client_id: ob.client_id,
       type: "outbound_label_obtained",
       title: "出庫面單已取得",
-      body: `出庫單 ${outbound_id} 共 ${boxes.length} 箱面單已取得，扣費 HK$${total_actual_label_fee}。`,
+      body: `出庫單 ${outbound_id} 共 ${boxes.length} 箱面單已取得，運費 HK$${total_actual_label_fee} 由 ${ob.carrier_code} 直接收取。`,
       reference_type: "outbound",
       reference_id: outbound_id,
       action_url: `/zh-hk/outbound/${outbound_id}`,
@@ -1500,6 +1480,44 @@ export async function departBox(ctx: StaffContext, box_no: string) {
   };
 }
 
+/**
+ * Staff-wide outbound list for the desktop "出庫任務" overview page.
+ * Unlike the per-stage listables, this one ignores status by default
+ * and exposes a generic filter.
+ */
+export async function listAllOutboundsForStaff(params: {
+  warehouseCode?: string;
+  status?: string[];
+  limit?: number;
+  offset?: number;
+  q?: string;
+}) {
+  const db = await connectToDatabase();
+  const filter: Record<string, any> = {};
+  if (params.warehouseCode) filter.warehouseCode = params.warehouseCode;
+  if (params.status && params.status.length > 0)
+    filter.status = { $in: params.status };
+  if (params.q && params.q.trim()) {
+    const q = params.q.trim();
+    filter.$or = [
+      { _id: { $regex: q, $options: "i" } },
+      { client_id: { $regex: q, $options: "i" } },
+      { tracking_no: { $regex: q, $options: "i" } },
+    ];
+  }
+  const limit = Math.min(params.limit ?? 50, 200);
+  const offset = params.offset ?? 0;
+  const total = await db.collection(collections.OUTBOUND).countDocuments(filter);
+  const docs = await db
+    .collection(collections.OUTBOUND)
+    .find(filter)
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .toArray();
+  return { items: docs.map(projectOutboundV1), total };
+}
+
 export async function listDepartableOutbounds(warehouseCode?: string) {
   const db = await connectToDatabase();
   const filter: any = { status: "label_printed" };
@@ -1510,7 +1528,54 @@ export async function listDepartableOutbounds(warehouseCode?: string) {
     .sort({ label_printed_at: 1 })
     .limit(100)
     .toArray();
-  return docs.map(projectOutboundV1);
+  const ids = docs.map((d: any) => d._id);
+  const boxes = ids.length
+    ? await db
+        .collection(collections.OUTBOUND_BOX)
+        .find({ outbound_id: { $in: ids } })
+        .project({ outbound_id: 1, box_no: 1, status: 1 })
+        .sort({ box_no: 1 })
+        .toArray()
+    : [];
+  const byOutbound = new Map<string, { box_no: string; status: string }[]>();
+  for (const b of boxes as any[]) {
+    const arr = byOutbound.get(b.outbound_id) ?? [];
+    arr.push({ box_no: b.box_no, status: b.status });
+    byOutbound.set(b.outbound_id, arr);
+  }
+  return docs.map((d: any) => ({
+    ...projectOutboundV1(d),
+    boxes: byOutbound.get(d._id) ?? [],
+  }));
+}
+
+/**
+ * Depart every still-pending box for an outbound in one call. Used by
+ * desktop batch-action UI where the operator has already verified the
+ * whole outbound physically. Delegates each box to {@link departBox} so
+ * the per-box atomicity + outbound-aggregate transition logic is reused.
+ */
+export async function departOutboundAll(ctx: StaffContext, outbound_id: string) {
+  const db = await connectToDatabase();
+  const pending = await db
+    .collection(collections.OUTBOUND_BOX)
+    .find({ outbound_id, status: "label_printed" })
+    .project({ box_no: 1 })
+    .toArray();
+  if (pending.length === 0) {
+    throw new ApiError("BOX_NOT_AVAILABLE_FOR_DEPART", { status: "none_pending" });
+  }
+  const results = [];
+  for (const b of pending as any[]) {
+    const r = await departBox(ctx, b.box_no);
+    results.push(r);
+  }
+  const last = results[results.length - 1];
+  return {
+    outbound_id,
+    departed_count: results.length,
+    outbound_departed: last?.outbound_departed === true,
+  };
 }
 
 export const wmsFlow = {
@@ -1523,6 +1588,7 @@ export const wmsFlow = {
   clientConfirmLabel,
   labelPrintComplete,
   departBox,
+  departOutboundAll,
   listPickableOutbounds,
   getPickDetail,
   listPackableOutbounds,
@@ -1530,4 +1596,5 @@ export const wmsFlow = {
   listWeighableOutbounds,
   listLabelPrintableOutbounds,
   listDepartableOutbounds,
+  listAllOutboundsForStaff,
 };

@@ -1,16 +1,26 @@
-// Phase 7 — mock label generator. Produces an A6 PDF with a [MOCK]
-// watermark so warehouse staff can visually distinguish demo labels from
-// real ones at production cut-over.
+// Phase 7 — mock label generator.
+// v2 (2026-05-11): Switched from runtime PDFKit drawing to a static copy of
+// `public/mock-assets/mock-label.pdf`. PDFKit's bundled .afm font files don't
+// survive Next 16 / Turbopack server bundling (ENOENT on Helvetica.afm), and
+// label content fidelity is not what the v1 flow tests — only that a real PDF
+// is produced and reachable via the returned URL. Production cutover replaces
+// this whole module with the real carrier API response.
 
 import fs from "fs/promises";
 import path from "path";
-import PDFDocument from "pdfkit";
 
 const LABEL_ROOT = process.env.LABEL_STORAGE_DIR
   ? process.env.LABEL_STORAGE_DIR
   : path.join(process.cwd(), "public", "uploads", "labels");
 
 const LABEL_PUBLIC_PREFIX = "/uploads/labels";
+
+const MOCK_SOURCE_PDF = path.join(
+  process.cwd(),
+  "public",
+  "mock-assets",
+  "mock-label.pdf"
+);
 
 export interface MockLabelInput {
   outbound_id: string;
@@ -20,7 +30,6 @@ export interface MockLabelInput {
   weight_kg: number;
   receiver_name: string;
   receiver_address: string;
-  // ── Phase 8 multi-box additions (all optional for back-compat with P7) ──
   box_id?: string;
   box_no?: string;
   dimensions?: { length: number; width: number; height: number };
@@ -34,91 +43,12 @@ export async function generateMockLabel(
   const dateStr = formatYYYYMMDD(new Date());
   const dir = path.join(LABEL_ROOT, dateStr);
   await fs.mkdir(dir, { recursive: true });
-  // Per-box label filename: include box_no if present, so multi-box
-  // outbounds get distinct PDF paths.
   const suffix = input.box_no ? `_${input.box_no}` : "";
   const filename = `${input.outbound_id}${suffix}_${input.carrier_code}.pdf`;
   const fullPath = path.join(dir, filename);
 
-  // A6 in points: 298 x 420
-  const doc = new PDFDocument({ size: [298, 420], margin: 16 });
-  const chunks: Buffer[] = [];
-  doc.on("data", (b: Buffer) => chunks.push(b));
-  const done = new Promise<void>((resolve, reject) => {
-    doc.on("end", () => resolve());
-    doc.on("error", (e: unknown) => reject(e));
-  });
+  await fs.copyFile(MOCK_SOURCE_PDF, fullPath);
 
-  // ── Header ──────────────────────────────────────────────
-  doc
-    .fontSize(10)
-    .fillColor("#222")
-    .text(`Carrier: ${input.carrier_code.toUpperCase()}`, { continued: false })
-    .moveDown(0.2)
-    .text(`Outbound: ${input.outbound_id}`);
-  if (input.box_no) {
-    doc.moveDown(0.2).text(`Box: ${input.box_no}`);
-  }
-  doc
-    .moveDown(0.2)
-    .fontSize(14)
-    .text(`TRACKING: ${input.tracking_no}`, { underline: true })
-    .moveDown(0.5);
-
-  // ── Receiver ────────────────────────────────────────────
-  doc
-    .fontSize(11)
-    .text(`To: ${input.receiver_name}`)
-    .moveDown(0.2)
-    .text(input.receiver_address, { width: 266 })
-    .moveDown(0.4)
-    .fontSize(10)
-    .text(`Country: ${input.destination_country}`)
-    .moveDown(0.2)
-    .text(`Weight: ${input.weight_kg.toFixed(2)} kg`);
-  if (input.dimensions) {
-    doc
-      .moveDown(0.2)
-      .text(
-        `Dim: ${input.dimensions.length}×${input.dimensions.width}×${input.dimensions.height} cm`
-      );
-  }
-  if (input.sender_name) {
-    doc
-      .moveDown(0.4)
-      .fontSize(9)
-      .text(`From: ${input.sender_name}`, { width: 266 });
-    if (input.sender_address) doc.text(input.sender_address, { width: 266 });
-  }
-
-  // ── Watermark ───────────────────────────────────────────
-  doc.save();
-  doc.rotate(-30, { origin: [149, 280] });
-  doc
-    .fontSize(54)
-    .fillColor("#cccccc")
-    .opacity(0.45)
-    .text("[MOCK]", 30, 240, { width: 240, align: "center" });
-  doc.opacity(1);
-  doc.restore();
-
-  // ── Footer ──────────────────────────────────────────────
-  doc
-    .fillColor("#666")
-    .fontSize(8)
-    .text(
-      `Generated ${new Date().toISOString()} · ShipItAsia v1 demo · not for production use`,
-      16,
-      396,
-      { width: 266, align: "center" }
-    );
-
-  doc.end();
-  await done;
-  const buf = Buffer.concat(chunks);
-  await fs.writeFile(fullPath, buf);
-
-  // Return the URL the OMS/WMS UI can fetch.
   return `${LABEL_PUBLIC_PREFIX}/${dateStr}/${filename}`;
 }
 

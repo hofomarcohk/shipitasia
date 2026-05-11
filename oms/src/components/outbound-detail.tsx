@@ -74,6 +74,7 @@ export const OutboundDetail = ({ outboundId }: { outboundId: string }) => {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -90,6 +91,26 @@ export const OutboundDetail = ({ outboundId }: { outboundId: string }) => {
   useEffect(() => {
     load();
   }, [outboundId]);
+
+  const handleRetryLabel = async () => {
+    setRetrying(true);
+    setError("");
+    try {
+      const res = await http_request(
+        "POST",
+        `/api/cms/admin/outbound/${outboundId}/retry-label`,
+        {}
+      );
+      const data = await res.json();
+      if (data.status === 200) {
+        await load();
+      } else {
+        setError(data.message ?? "retry failed");
+      }
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const handleCancel = async () => {
     setCancelling(true);
@@ -154,6 +175,13 @@ export const OutboundDetail = ({ outboundId }: { outboundId: string }) => {
               >
                 {t("outbound_v1.detail.download_label")}
               </a>
+            )}
+            {doc.held_reason === "label_failed_retry" && (
+              <Button onClick={handleRetryLabel} disabled={retrying}>
+                {retrying
+                  ? t("outbound_v1.detail.retry_label_running")
+                  : t("outbound_v1.detail.retry_label_btn")}
+              </Button>
             )}
             {CANCELLABLE.has(doc.status) && (
               <Button variant="destructive" onClick={() => setCancelOpen(true)}>

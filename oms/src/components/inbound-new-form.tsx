@@ -157,6 +157,10 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [continueFlash, setContinueFlash] = useState<{
+    id: string;
+    locale: string;
+  } | null>(null);
 
   // Load master data + existing inbound (edit mode)
   useEffect(() => {
@@ -265,8 +269,28 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     [items]
   );
 
-  const submit = async () => {
+  const resetForNext = (justCreatedId: string) => {
+    setTrackingNo("");
+    setTrackingNoOther("");
+    setItems([]);
+    setCustomerRemarks("");
+    setRecipientName("");
+    setRecipientPhone("");
+    setRecipientCity("");
+    setRecipientDistrict("");
+    setRecipientAddress("");
+    setRecipientPostal("");
+    setSaveAsDefault(false);
     setError("");
+    setContinueFlash({ id: justCreatedId, locale: "zh-hk" });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const submit = async (continueAfter = false) => {
+    setError("");
+    setContinueFlash(null);
     if (items.length === 0) {
       setError(t("inbound_v1.new.validation_no_items"));
       return;
@@ -328,6 +352,10 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
       const d = await res.json();
       if (res.ok && d.status === 200) {
         const newId = editMode ? inboundId : d.data.inbound_id;
+        if (continueAfter && !editMode) {
+          resetForNext(newId);
+          return;
+        }
         router.push(`/zh-hk/inbound/${newId}`);
         return;
       }
@@ -710,6 +738,30 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                   {error}
                 </p>
               )}
+              {continueFlash && (
+                <div className="text-sm bg-emerald-50 text-emerald-700 border border-emerald-200 rounded p-3 flex items-center justify-between gap-3">
+                  <span>
+                    {t.rich("inbound_v1.new.continue_success", {
+                      id: continueFlash.id,
+                      link: (chunks) => (
+                        <Link
+                          href={`/${continueFlash.locale}/inbound/${continueFlash.id}`}
+                          className="underline font-mono"
+                        >
+                          {chunks}
+                        </Link>
+                      ),
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setContinueFlash(null)}
+                    className="text-xs text-emerald-700 hover:underline"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <Link href="/zh-hk/inbound/list">
@@ -719,7 +771,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                 </Link>
                 <Button
                   type="button"
-                  onClick={submit}
+                  onClick={() => submit(false)}
                   disabled={
                     submitting ||
                     !warehouseCode ||
@@ -732,6 +784,22 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                     ? t("inbound_v1.new.submitting")
                     : t("inbound_v1.new.submit")}
                 </Button>
+                {!editMode && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => submit(true)}
+                    disabled={
+                      submitting ||
+                      !warehouseCode ||
+                      !carrierInbound ||
+                      !trackingNo ||
+                      items.length === 0
+                    }
+                  >
+                    {t("inbound_v1.new.submit_and_continue")}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -14,6 +14,7 @@ import {
   IconHttpGet,
   IconHttpPut,
   IconLayoutBoard,
+  IconListDetails,
   IconLogin2,
   IconLogout,
   IconMapPin,
@@ -60,6 +61,8 @@ const IconHandler: React.FC<{
       return <IconHttpPut size={size} color={color} stroke={stroke} className={className} onClick={onClick} />;
     case "IconLayoutBoard":
       return <IconLayoutBoard size={size} color={color} stroke={stroke} className={className} onClick={onClick} />
+    case "IconListDetails":
+      return <IconListDetails size={size} color={color} stroke={stroke} className={className} onClick={onClick} />
     case "IconShoppingCart":
       return <IconShoppingCart size={size} color={color} stroke={stroke} className={className} onClick={onClick} />;
     case "IconTruckDelivery":

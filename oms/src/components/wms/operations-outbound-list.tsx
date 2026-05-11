@@ -6,36 +6,49 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-interface InboundRow {
+interface OutboundRow {
   _id: string;
   client_id: string;
   warehouseCode: string;
-  tracking_no: string;
-  carrier_inbound_code: string | null;
+  carrier_code: string;
+  destination_country: string;
   status: string;
   shipment_type: string;
-  declared_items_count: number;
-  actualWeight: number | null;
-  arrivedAt: string | null;
-  receivedAt: string | null;
+  inbound_count: number;
+  declared_weight_kg: number | null;
+  actual_weight_kg: number | null;
+  tracking_no: string | null;
   createdAt: string;
 }
 
 const STATUS_FILTERS: { key: string; statuses: string[] }[] = [
   { key: "all", statuses: [] },
-  { key: "pending", statuses: ["pending"] },
-  { key: "arrived", statuses: ["arrived"] },
-  { key: "received", statuses: ["received"] },
-  { key: "outbound_in_progress", statuses: ["picking", "packed", "palletized"] },
+  {
+    key: "in_progress",
+    statuses: [
+      "ready_for_label",
+      "picking",
+      "picked",
+      "packing",
+      "packed",
+      "weighing",
+      "weight_verified",
+      "pending_client_label",
+      "label_obtaining",
+      "label_obtained",
+      "label_printed",
+    ],
+  },
+  { key: "held", statuses: ["held"] },
   { key: "departed", statuses: ["departed"] },
-  { key: "closed", statuses: ["cancelled", "abandoned", "expired"] },
+  { key: "cancelled", statuses: ["cancelled", "cancelled_after_label"] },
 ];
 
-export const ScanHistory = () => {
+export const OperationsOutboundList = () => {
   const t = useTranslations();
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<InboundRow[]>([]);
+  const [items, setItems] = useState<OutboundRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -46,10 +59,10 @@ export const ScanHistory = () => {
     if (grp && grp.statuses.length > 0)
       params.set("status", grp.statuses.join(","));
     if (queryStr.trim()) params.set("q", queryStr.trim());
-    params.set("limit", "200");
+    params.set("limit", "100");
     const r = await http_request(
       "GET",
-      `/api/wms/inbound/list?${params.toString()}`,
+      `/api/wms/outbound/list?${params.toString()}`,
       {}
     );
     const d = await r.json();
@@ -81,7 +94,7 @@ export const ScanHistory = () => {
                     : "bg-white border-gray-300 hover:bg-gray-50")
                 }
               >
-                {t(`wms_inbound_list.filter.${f.key}` as any)}
+                {t(`wms_ops.outbound_list.filter.${f.key}` as any)}
               </button>
             ))}
             <div className="ml-auto flex items-center gap-2">
@@ -91,11 +104,11 @@ export const ScanHistory = () => {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") load(filter, q);
                 }}
-                placeholder={t("wms_inbound_list.search_placeholder")}
-                className="w-72"
+                placeholder={t("wms_ops.outbound_list.search_placeholder")}
+                className="w-64"
               />
               <span className="text-xs text-gray-500">
-                {t("wms_inbound_list.total", { total })}
+                {t("wms_ops.outbound_list.total", { total })}
               </span>
             </div>
           </div>
@@ -107,65 +120,55 @@ export const ScanHistory = () => {
             </p>
           ) : items.length === 0 ? (
             <p className="text-center text-gray-500 py-12">
-              {t("wms_inbound_list.empty")}
+              {t("wms_ops.outbound_list.empty")}
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-xs text-gray-500 border-b">
                 <tr className="text-left">
-                  <th className="py-2 pr-3">{t("wms_inbound_list.col_id")}</th>
-                  <th className="py-2 pr-3">{t("wms_inbound_list.col_client")}</th>
-                  <th className="py-2 pr-3">{t("wms_inbound_list.col_status")}</th>
-                  <th className="py-2 pr-3">{t("wms_inbound_list.col_warehouse")}</th>
-                  <th className="py-2 pr-3">{t("wms_inbound_list.col_tracking")}</th>
-                  <th className="py-2 pr-3 text-right">{t("wms_inbound_list.col_items")}</th>
-                  <th className="py-2 pr-3 text-right">{t("wms_inbound_list.col_weight")}</th>
-                  <th className="py-2 pr-3">{t("wms_inbound_list.col_arrived")}</th>
-                  <th className="py-2 pr-3">{t("wms_inbound_list.col_received")}</th>
-                  <th className="py-2 pr-3">{t("wms_inbound_list.col_created")}</th>
+                  <th className="py-2 pr-3">{t("wms_ops.outbound_list.col_id")}</th>
+                  <th className="py-2 pr-3">{t("wms_ops.outbound_list.col_client")}</th>
+                  <th className="py-2 pr-3">{t("wms_ops.outbound_list.col_status")}</th>
+                  <th className="py-2 pr-3">{t("wms_ops.outbound_list.col_warehouse")}</th>
+                  <th className="py-2 pr-3">{t("wms_ops.outbound_list.col_carrier")}</th>
+                  <th className="py-2 pr-3">{t("wms_ops.outbound_list.col_dest")}</th>
+                  <th className="py-2 pr-3 text-right">{t("wms_ops.outbound_list.col_inbounds")}</th>
+                  <th className="py-2 pr-3 text-right">{t("wms_ops.outbound_list.col_weight")}</th>
+                  <th className="py-2 pr-3">{t("wms_ops.outbound_list.col_tracking")}</th>
+                  <th className="py-2 pr-3">{t("wms_ops.outbound_list.col_created")}</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((i) => (
-                  <tr key={i._id} className="border-b hover:bg-gray-50">
+                {items.map((o) => (
+                  <tr key={o._id} className="border-b hover:bg-gray-50">
                     <td className="py-2 pr-3 font-mono text-xs">
                       <Link
                         className="text-blue-700 hover:underline"
-                        href={`/zh-hk/inbound/${i._id}`}
+                        href={`/zh-hk/outbound/${o._id}`}
                       >
-                        {i._id}
+                        {o._id}
                       </Link>
                     </td>
                     <td className="py-2 pr-3 font-mono text-xs text-gray-600">
-                      {i.client_id}
+                      {o.client_id}
                     </td>
                     <td className="py-2 pr-3">
                       <span className="text-xs px-2 py-0.5 rounded bg-gray-100">
-                        {t(`wms_inbound_list.status.${i.status}` as any)}
+                        {o.status}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-xs">{i.warehouseCode}</td>
+                    <td className="py-2 pr-3 text-xs">{o.warehouseCode}</td>
+                    <td className="py-2 pr-3 text-xs">{o.carrier_code}</td>
+                    <td className="py-2 pr-3 text-xs">{o.destination_country}</td>
+                    <td className="py-2 pr-3 text-right">{o.inbound_count}</td>
+                    <td className="py-2 pr-3 text-right">
+                      {o.actual_weight_kg ?? o.declared_weight_kg ?? "—"}
+                    </td>
                     <td className="py-2 pr-3 font-mono text-xs">
-                      {i.tracking_no}
-                    </td>
-                    <td className="py-2 pr-3 text-right">
-                      {i.declared_items_count}
-                    </td>
-                    <td className="py-2 pr-3 text-right">
-                      {i.actualWeight ?? "—"}
+                      {o.tracking_no ?? "—"}
                     </td>
                     <td className="py-2 pr-3 text-xs text-gray-500">
-                      {i.arrivedAt
-                        ? new Date(i.arrivedAt).toLocaleString()
-                        : "—"}
-                    </td>
-                    <td className="py-2 pr-3 text-xs text-gray-500">
-                      {i.receivedAt
-                        ? new Date(i.receivedAt).toLocaleString()
-                        : "—"}
-                    </td>
-                    <td className="py-2 pr-3 text-xs text-gray-500">
-                      {new Date(i.createdAt).toLocaleString()}
+                      {new Date(o.createdAt).toLocaleString()}
                     </td>
                   </tr>
                 ))}

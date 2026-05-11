@@ -1,4 +1,39 @@
 {
+  "invoice": {
+    "title": "Commercial Invoice / Packing List",
+    "subtitle": "Commercial Invoice · {id}",
+    "print": "Print / Save PDF",
+    "close": "Close",
+    "sender": "Sender",
+    "receiver": "Recipient",
+    "empty": "No declared items for this outbound",
+    "meta": {
+      "outbound_id": "Outbound ID",
+      "carrier": "Carrier",
+      "tracking_no": "Tracking",
+      "shipment_type": "Shipment",
+      "date_created": "Created",
+      "date_dispatched": "Dispatched",
+      "weight": "Actual weight",
+      "boxes_inbounds": "Boxes / Inbounds",
+      "boxes_inbounds_fmt": "{boxes} boxes · {inbounds} inbounds"
+    },
+    "col": {
+      "product": "Item",
+      "qty": "Qty",
+      "unit_price": "Unit price",
+      "subtotal": "Subtotal"
+    },
+    "totals": {
+      "items_count": "Line items",
+      "total_quantity": "Total qty",
+      "grand_total": "Grand total"
+    },
+    "footer": {
+      "generated_at": "Generated {ts}",
+      "signature": "Signature / Date"
+    }
+  },
   "utils": {
     "appName": "ShipItAsia",
     "company": "Company",
@@ -125,15 +160,21 @@
     "carrier_group": "Carriers",
     "carrier_accounts": "Carrier Accounts",
     "wms_admin": "CS / Admin",
+    "wms_inbound_group": "Inbound",
+    "wms_pack_group": "Pack",
+    "wms_outbound_group": "Outbound",
+    "wms_manage_group": "Manage",
     "admin_topup": "Topup Approval",
     "operations": "WMS Operations",
     "ops_pick": "Desktop Pick",
     "ops_pack": "Desktop Pack",
     "ops_weigh": "Desktop Reweigh",
     "ops_label_print": "Label Print",
+    "ops_depart": "Depart",
+    "ops_outbound_list": "Outbound Tasks",
     "ops_unclaimed": "Unclaimed Assign",
     "ops_abandoned": "Abandoned",
-    "ops_inbound_history": "Scan History",
+    "ops_inbound_history": "Inbound Overview",
     "scan": "PDA Scan",
     "scan_arrive": "PDA Arrive",
     "scan_receive": "PDA Receive",
@@ -853,7 +894,9 @@
         "delete_btn": "Delete"
       },
       "submit": "Submit",
+      "submit_and_continue": "Submit & add another",
       "submitting": "Submitting…",
+      "continue_success": "Created <link>{id}</link>. You can keep adding (warehouse / carrier / size settings preserved).",
       "validation_required": "Please fill all required fields",
       "validation_no_items": "At least one item is required"
     },
@@ -1114,7 +1157,9 @@
       "cancel_dialog_title": "Cancel this outbound?",
       "cancel_dialog_desc": "Cancelling will release the linked inbounds back to the selectable list.",
       "cancel_reason_placeholder": "Optional cancel reason (up to 200 chars)",
-      "cancel_confirm_btn": "Confirm cancel"
+      "cancel_confirm_btn": "Confirm cancel",
+      "retry_label_btn": "Retry label",
+      "retry_label_running": "Retrying…"
     },
     "rate": {
       "base_fee": "Base fee",
@@ -1129,7 +1174,7 @@
       "weight": "Actual weight",
       "carrier": "Carrier / destination",
       "total": "Total cost",
-      "proceed_notice": "Confirming will fetch the label using your carrier account and deduct cost from your wallet.",
+      "proceed_notice": "Confirming will fetch the label using your carrier account. Shipping cost is billed directly by the carrier on your linked account — not from your ShipItAsia wallet.",
       "btn": "Fetch label",
       "success": "Fetched {count} labels, charged HK${total}"
     },
@@ -1210,13 +1255,84 @@
       "expand": "Expand boxes",
       "preview_pdf": "Preview PDF",
       "print_all": "Print all",
+      "print_invoice": "Print invoice",
       "complete": "Mark labels printed",
       "done": "Marked printed"
+    },
+    "depart": {
+      "page_title": "Depart (Desktop)",
+      "page_subtitle": "Staff confirms all boxes of an outbound have left the warehouse",
+      "empty": "No outbounds awaiting depart",
+      "depart_all_btn": "Depart all ({count} boxes)",
+      "depart_running": "Working…",
+      "done": "Departed {count} boxes"
+    },
+    "outbound_list": {
+      "page_title": "Outbound tasks",
+      "page_subtitle": "All outbounds in this warehouse, filterable by status",
+      "search_placeholder": "Search outbound id / client / tracking no",
+      "total": "{total} rows",
+      "empty": "No outbounds match",
+      "filter": {
+        "all": "All",
+        "in_progress": "In progress",
+        "held": "Held",
+        "departed": "Departed",
+        "cancelled": "Cancelled"
+      },
+      "col_id": "Outbound",
+      "col_client": "Client",
+      "col_status": "Status",
+      "col_warehouse": "Warehouse",
+      "col_carrier": "Carrier",
+      "col_dest": "Dest.",
+      "col_inbounds": "Inbounds",
+      "col_weight": "Weight",
+      "col_tracking": "Tracking",
+      "col_created": "Created"
     },
     "receive": {
       "page_title": "Desktop receive",
       "page_subtitle": "Run receive (put-away) from desktop; mirrors the PDA flow for CS / new staff"
     }
+  },
+  "wms_inbound_list": {
+    "page_title": "Inbound overview",
+    "page_subtitle": "All inbounds in this warehouse, filterable by status",
+    "search_placeholder": "Search inbound id / client / tracking / carrier code",
+    "total": "{total} rows",
+    "empty": "No inbounds match",
+    "filter": {
+      "all": "All",
+      "pending": "Declared",
+      "arrived": "Arrived",
+      "received": "Shelved",
+      "outbound_in_progress": "In outbound",
+      "departed": "Departed",
+      "closed": "Cancelled / Abandoned"
+    },
+    "status": {
+      "pending": "Declared",
+      "arrived": "Arrived",
+      "received": "Shelved",
+      "picking": "Picking",
+      "packed": "Packed",
+      "palletized": "Palletized",
+      "departed": "Departed",
+      "cancelled": "Cancelled",
+      "abandoned": "Abandoned",
+      "expired": "Expired"
+    },
+    "col_id": "Inbound",
+    "col_client": "Client",
+    "col_status": "Status",
+    "col_warehouse": "Warehouse",
+    "col_tracking": "Tracking",
+    "col_items": "Items",
+    "col_weight": "Weight",
+    "col_arrived": "Arrived",
+    "col_received": "Shelved",
+    "col_created": "Created"
   },
   "wms_locations": {
     "page_title": "Warehouse locations",

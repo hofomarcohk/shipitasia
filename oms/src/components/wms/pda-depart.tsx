@@ -17,6 +17,7 @@ interface ScanResult {
 interface OutboundRow {
   _id: string;
   inbound_count: number;
+  boxes: { box_no: string; status: string }[];
 }
 
 export const PdaDepart = () => {
@@ -107,8 +108,27 @@ export const PdaDepart = () => {
             <p className="text-gray-500">{t("wms_scan.depart.no_pending")}</p>
           ) : (
             list.map((o) => (
-              <div key={o._id} className="font-mono text-xs">
-                {o._id} · {o.inbound_count} 件
+              <div key={o._id} className="border-b last:border-0 pb-1.5 mb-1.5 last:pb-0 last:mb-0">
+                <div className="font-mono text-xs text-gray-500">
+                  {o._id} · {o.inbound_count} 件
+                </div>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {o.boxes
+                    .filter((b) => b.status === "label_printed")
+                    .map((b) => (
+                      <button
+                        key={b.box_no}
+                        type="button"
+                        className="font-mono text-xs px-1.5 py-0.5 rounded border border-gray-300 hover:bg-gray-100"
+                        onClick={() => {
+                          setBoxNo(b.box_no);
+                          inputRef.current?.focus();
+                        }}
+                      >
+                        {b.box_no}
+                      </button>
+                    ))}
+                </div>
               </div>
             ))
           )}

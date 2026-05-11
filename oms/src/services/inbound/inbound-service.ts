@@ -303,6 +303,44 @@ export interface ListOptions {
   page_size?: number;
 }
 
+/**
+ * Staff-wide inbound list for the desktop "入庫總覽" page. No client_id
+ * filter; warehouse defaults to the staff's assigned warehouse.
+ */
+export async function listAllInboundsForStaff(params: {
+  warehouseCode?: string;
+  status?: string[];
+  limit?: number;
+  offset?: number;
+  q?: string;
+}) {
+  const db = await connectToDatabase();
+  const filter: Record<string, any> = {};
+  if (params.warehouseCode) filter.warehouseCode = params.warehouseCode;
+  if (params.status && params.status.length > 0)
+    filter.status = { $in: params.status };
+  if (params.q && params.q.trim()) {
+    const q = params.q.trim();
+    filter.$or = [
+      { _id: { $regex: q, $options: "i" } },
+      { client_id: { $regex: q, $options: "i" } },
+      { tracking_no: { $regex: q, $options: "i" } },
+      { carrier_inbound_code: { $regex: q, $options: "i" } },
+    ];
+  }
+  const limit = Math.min(params.limit ?? 50, 200);
+  const offset = params.offset ?? 0;
+  const total = await db.collection(collections.INBOUND).countDocuments(filter);
+  const docs = await db
+    .collection(collections.INBOUND)
+    .find(filter)
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .toArray();
+  return { items: docs.map(projectInboundV1), total };
+}
+
 export async function listMyInbounds(
   ctx: ClientContext,
   options: ListOptions = {}
