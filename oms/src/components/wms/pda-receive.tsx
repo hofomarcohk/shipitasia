@@ -165,10 +165,11 @@ export const PdaReceive = () => {
       const d = await r.json();
       if (r.ok && d.status === 200 && d.data?.scan_id) {
         setFlash(
-          t("wms_scan.submit_success_receive")
-            .replace("{id}", d.data.inbound_id)
-            .replace("{loc}", locationCode)
-            .replace("{bal}", String(d.data.balance_after))
+          t("wms_scan.submit_success_receive", {
+            id: d.data.inbound_id,
+            loc: locationCode,
+            bal: String(d.data.balance_after),
+          })
         );
         refreshBanner();
         reset();

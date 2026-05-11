@@ -176,7 +176,7 @@ export const PdaArrive = () => {
       const d = await r.json();
       if (r.ok && d.status === 200 && d.data?.scan_id) {
         setFlash(
-          t("wms_scan.submit_success_arrive").replace("{id}", d.data.inbound_id)
+          t("wms_scan.submit_success_arrive", { id: d.data.inbound_id })
         );
         setLastScanId({ id: d.data.scan_id, at: Date.now() });
         refreshBanner();

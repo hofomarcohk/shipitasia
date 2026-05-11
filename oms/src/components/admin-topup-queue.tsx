@@ -268,10 +268,9 @@ export const AdminTopupQueue = () => {
               {t("admin_wallet.approve_confirm_title")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("admin_wallet.approve_confirm_body").replace(
-                "{amount}",
-                approveTarget?.amount?.toLocaleString() ?? ""
-              )}
+              {t("admin_wallet.approve_confirm_body", {
+                amount: approveTarget?.amount?.toLocaleString() ?? "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
