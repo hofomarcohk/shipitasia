@@ -82,6 +82,12 @@ export async function login(
       email: user.email ?? null,
       username: cacheKey, // legacy session lookup key
       client_type: user.client_type ?? null,
+      // v1 reuses the clients collection for staff/admin accounts
+      // (P5 §2.6). When `role` is set on the doc, propagate it into the
+      // JWT so requireAdmin / requireStaff (which read this claim) can
+      // gate WMS endpoints. clients without a role get null = treated as
+      // regular client downstream.
+      role: user.role ?? null,
     },
     secret,
     { expiresIn: expireIn } as jwt.SignOptions
