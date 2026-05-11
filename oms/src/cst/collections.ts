@@ -39,6 +39,13 @@ export const collections = {
   // P3 — wallet (append-only transactions + topup requests + clients.balance)
   WALLET_TRANSACTION: "wallet_transactions",
   TOPUP_REQUEST: "topup_requests",
+
+  // P4 — inbound declaration
+  CARRIER_INBOUND: "carriers_inbound",
+  PRODUCT_CATEGORY: "product_categories",
+  INBOUND_DECLARED_ITEM: "inbound_declared_items",
+  DAILY_COUNTER: "daily_counters",
+  NOTIFICATION: "notifications",
 };
 
 export const ID_Prefix: {

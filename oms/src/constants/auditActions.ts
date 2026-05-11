@@ -46,6 +46,14 @@ export const AUDIT_ACTIONS = {
   wallet_refunded: "wallet_refunded",
   wallet_adjusted: "wallet_adjusted",
   wallet_balance_rebuilt: "wallet_balance_rebuilt",
+
+  // ── Phase 4 — inbound declaration ────────────────────────────
+  inbound_created: "inbound_created",
+  inbound_updated: "inbound_updated",
+  inbound_cancelled: "inbound_cancelled",
+  inbound_abandoned_by_client: "inbound_abandoned_by_client",
+  inbound_abandoned_by_admin: "inbound_abandoned_by_admin",
+  admin_inbound_created_for_client: "admin_inbound_created_for_client",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
