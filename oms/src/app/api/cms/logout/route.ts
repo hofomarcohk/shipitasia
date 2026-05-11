@@ -1,16 +1,20 @@
-import { getParam } from "@/app/api/api-helper";
-import { auth, cmsMiddleware } from "@/app/api/cms/cms-middleware";
-import { ApiReturn } from "@/types/Api";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: NextRequest) {
-  const body = await getParam(request);
-  return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
-    auth(request);
-
-    return {
-      status: 200,
-      message: "Success",
-    };
+// Logout doesn't need auth gating — anonymous calls just no-op. We always
+// clear the cookie so a stale/expired JWT also gets wiped, and so users
+// re-login (picking up role claim updates etc.) without browser cookie
+// surgery.
+export async function GET(_request: NextRequest) {
+  const res = NextResponse.json({
+    status: 200,
+    message: "Success",
   });
+  res.cookies.set({
+    name: "token",
+    value: "",
+    path: "/",
+    maxAge: 0,
+    sameSite: "lax",
+  });
+  return res;
 }

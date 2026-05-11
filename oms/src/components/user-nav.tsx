@@ -13,6 +13,7 @@ import {
 import { getCurrentLangCode, lang } from "@/lang/base";
 import { http_request } from "@/lib/httpRequest";
 import { IconLogout } from "@tabler/icons-react";
+import { useLocale } from "next-intl";
 import Link from "next/link";
 import React, { useEffect } from "react";
 
@@ -36,7 +37,12 @@ export function UserNav() {
       });
     });
   }, []);
+  // legacy `lang()` dictionary uses underscored keys (zh_hk) for lookup,
+  // but Next.js routes use hyphenated locale segments (zh-hk). Keep the
+  // legacy code for label text, but use next-intl's useLocale() for URL
+  // construction so /logout actually resolves.
   const langCode = getCurrentLangCode();
+  const routeLocale = useLocale();
 
   return (
     <DropdownMenu>
@@ -63,7 +69,7 @@ export function UserNav() {
         <DropdownMenuGroup>
           <DropdownMenuItem>
             <Link
-              href={"/" + langCode + "/logout"}
+              href={"/" + routeLocale + "/logout"}
               title={lang("utils.logout")}
               className="flex items-center space-x-2 justify-between w-full"
             >
