@@ -65,6 +65,9 @@ export const collections = {
   BOX_INBOUND_LINK: "box_inbound_links",
   OUTBOUND_BOX_WEIGHT: "outbound_box_weights",
   OUTBOUND_SCAN: "outbound_scans",
+
+  // Bugfix wave 3 — client saved address book
+  SAVED_ADDRESS: "saved_addresses",
 };
 
 export const ID_Prefix: {

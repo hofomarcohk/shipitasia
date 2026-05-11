@@ -139,7 +139,8 @@
     "scan_receive": "PDA Receive",
     "scan_depart": "PDA Depart",
     "ops_locations": "Locations",
-    "ops_receive": "Desktop Receive"
+    "ops_receive": "Desktop Receive",
+    "addresses": "Addresses"
   },
   "menu_pda": {
     "home": "Home",
@@ -1232,5 +1233,34 @@
     "empty": "No locations yet",
     "error_code_required": "Location code is required",
     "created": "Created location {code}"
+  },
+  "addresses": {
+    "page_title": "Saved Addresses",
+    "page_subtitle": "Manage frequently used shipping addresses; pick them during inbound / outbound",
+    "new_btn": "New address",
+    "new_title": "New saved address",
+    "edit_title": "Edit saved address",
+    "label": "Label (e.g. Home / Office)",
+    "name": "Recipient",
+    "phone": "Phone",
+    "country": "Country / Dial code",
+    "city": "City",
+    "district": "District",
+    "postal": "Postal code (optional)",
+    "address": "Full address",
+    "set_default": "Set as default",
+    "save_btn": "Save",
+    "edit_btn": "Edit",
+    "delete_btn": "Delete",
+    "delete_confirm": "Delete {label}?",
+    "default": "Default",
+    "empty": "No saved addresses yet",
+    "created": "Address saved",
+    "updated": "Address updated",
+    "deleted": "Address deleted",
+    "error_required": "Fill all required fields (label / name / phone / city / address)",
+    "picker_label": "Use saved address",
+    "picker_empty": "No saved addresses yet",
+    "picker_manage": "Manage saved addresses →"
   }
 }

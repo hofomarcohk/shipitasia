@@ -119,4 +119,20 @@ export const ACCOUNT_ERROR = {
     zh_cn: "商业客户必须提供公司资讯",
     en: "company_info is required for business clients",
   },
+  SAVED_ADDRESS_NOT_FOUND: {
+    status: 404,
+    sys_code: "1000030",
+    message: "Saved address not found",
+    en: "Saved address not found",
+    zh_hk: "找不到此常用地址",
+    zh_cn: "找不到此常用地址",
+  },
+  SAVED_ADDRESS_LABEL_DUP: {
+    status: 400,
+    sys_code: "1000031",
+    message: "Saved address label already exists",
+    en: "Saved address label already exists",
+    zh_hk: "已有同名的常用地址",
+    zh_cn: "已有同名的常用地址",
+  },
 };

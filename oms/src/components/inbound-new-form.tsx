@@ -133,6 +133,23 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
   const [carrierAccountId, setCarrierAccountId] = useState("");
   const [saveAsDefault, setSaveAsDefault] = useState(false);
   const [customerRemarks, setCustomerRemarks] = useState("");
+  // Saved-address picker state. Populated on mount; rendered above the
+  // receiver block so clients can hydrate the form with one click.
+  const [savedAddresses, setSavedAddresses] = useState<
+    Array<{
+      _id: string;
+      label: string;
+      name: string;
+      phone: string;
+      country_code: string;
+      city: string;
+      district: string | null;
+      address: string;
+      postal_code: string | null;
+      is_default: boolean;
+    }>
+  >([]);
+  const [savedAddressId, setSavedAddressId] = useState<string>("");
 
   const [items, setItems] = useState<ItemDraft[]>([]);
   const [itemEditing, setItemEditing] = useState<ItemDraft | null>(null);
@@ -144,16 +161,18 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
   // Load master data + existing inbound (edit mode)
   useEffect(() => {
     (async () => {
-      const [wRes, cRes, catRes, accRes] = await Promise.all([
+      const [wRes, cRes, catRes, accRes, saRes] = await Promise.all([
         http_request("GET", "/api/cms/warehouses", {}),
         http_request("GET", "/api/cms/carriers-inbound", {}),
         http_request("GET", "/api/cms/product-categories", {}),
         http_request("GET", "/api/cms/carrier-accounts", {}),
+        http_request("GET", "/api/cms/saved-addresses", {}),
       ]);
       const wData = await wRes.json();
       const cData = await cRes.json();
       const catData = await catRes.json();
       const accData = await accRes.json();
+      const saData = await saRes.json();
       if (wData.status === 200) {
         setWarehouses(wData.data);
         if (wData.data[0]) setWarehouseCode(wData.data[0].warehouseCode);
@@ -164,6 +183,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
         setCarrierAccounts(
           accData.data.filter((a: CarrierAccount) => a.status === "active")
         );
+      if (saData.status === 200) setSavedAddresses(saData.data ?? []);
       setLoadingMaster(false);
 
       if (editMode && inboundId) {
@@ -516,6 +536,51 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                   <h3 className="font-semibold">
                     {t("inbound_v1.new.receiver_address_label")}
                   </h3>
+                  {/* Saved-address picker — hydrate the entire receiver
+                      block in one click. The "manage" link opens the
+                      address-book in a new tab. */}
+                  <div className="flex items-center gap-2 mb-2 text-sm">
+                    <Label className="text-xs text-gray-500 whitespace-nowrap">
+                      {t("addresses.picker_label")}
+                    </Label>
+                    <select
+                      className="flex-1 border rounded h-9 px-2 text-sm"
+                      value={savedAddressId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setSavedAddressId(id);
+                        if (!id) return;
+                        const a = savedAddresses.find((x) => x._id === id);
+                        if (!a) return;
+                        setRecipientName(a.name);
+                        setRecipientPhone(a.phone);
+                        setRecipientCountry(a.country_code);
+                        setRecipientCity(a.city);
+                        setRecipientDistrict(a.district ?? "");
+                        setRecipientAddress(a.address);
+                        setRecipientPostal(a.postal_code ?? "");
+                      }}
+                    >
+                      <option value="">
+                        {savedAddresses.length === 0
+                          ? t("addresses.picker_empty")
+                          : "—"}
+                      </option>
+                      {savedAddresses.map((a) => (
+                        <option key={a._id} value={a._id}>
+                          {a.label}
+                          {a.is_default ? " ⭐" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <Link
+                      href="/zh-hk/addresses"
+                      target="_blank"
+                      className="text-blue-600 text-xs whitespace-nowrap"
+                    >
+                      {t("addresses.picker_manage")}
+                    </Link>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Input
                       placeholder="Name"

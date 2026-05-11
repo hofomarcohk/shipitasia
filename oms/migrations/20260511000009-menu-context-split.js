@@ -62,6 +62,7 @@ const OMS_GROUPS = [
     order: 90,
     items: [
       { name: "profile", icon: "IconUserCircle", url: "/zh-hk/profile" },
+      { name: "addresses", icon: "IconMapPin", url: "/zh-hk/addresses" },
     ],
   },
 ];

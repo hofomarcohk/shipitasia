@@ -270,7 +270,7 @@ export default function PageLayout(props: {
               )}
             >
               <div>
-                <div className="flex-1 flex-col space-y-2 pb-0 p-8 md:flex min-h-[calc(100vh-160px)]">
+                <div className="flex-1 flex-col space-y-2 pb-0 p-3 sm:p-6 md:p-8 md:flex min-h-[calc(100vh-160px)]">
                   {props.title && (
                     <>
                       <div className="flex items-center justify-between space-y-2">

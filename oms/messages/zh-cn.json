@@ -139,7 +139,8 @@
     "scan_receive": "PDA 收货上架",
     "scan_depart": "PDA 离仓",
     "ops_locations": "仓位管理",
-    "ops_receive": "桌面收货"
+    "ops_receive": "桌面收货",
+    "addresses": "常用地址"
   },
   "menu_pda": {
     "home": "首页",
@@ -1232,5 +1233,34 @@
     "empty": "目前没有仓位",
     "error_code_required": "请输入库位编码",
     "created": "已新增库位 {code}"
+  },
+  "addresses": {
+    "page_title": "常用地址",
+    "page_subtitle": "管理常寄送地址，预报 / 出库时可直接选用",
+    "new_btn": "新增地址",
+    "new_title": "新增常用地址",
+    "edit_title": "编辑常用地址",
+    "label": "简称（例：家 / 公司）",
+    "name": "收件人",
+    "phone": "电话",
+    "country": "国家 / 区码",
+    "city": "城市",
+    "district": "区域",
+    "postal": "邮政编码（选填）",
+    "address": "详细地址",
+    "set_default": "设为默认地址",
+    "save_btn": "保存",
+    "edit_btn": "编辑",
+    "delete_btn": "删除",
+    "delete_confirm": "确定删除 {label}？",
+    "default": "默认",
+    "empty": "尚未保存任何常用地址",
+    "created": "已新增地址",
+    "updated": "已更新地址",
+    "deleted": "已删除地址",
+    "error_required": "请填写必填栏位（简称 / 收件人 / 电话 / 城市 / 地址）",
+    "picker_label": "选用常用地址",
+    "picker_empty": "尚未有常用地址",
+    "picker_manage": "管理常用地址 →"
   }
 }

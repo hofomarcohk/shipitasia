@@ -90,9 +90,26 @@ export const OutboundNewForm = () => {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Saved-address picker
+  const [savedAddresses, setSavedAddresses] = useState<
+    Array<{
+      _id: string;
+      label: string;
+      name: string;
+      phone: string;
+      country_code: string;
+      city: string;
+      district: string | null;
+      address: string;
+      postal_code: string | null;
+      is_default: boolean;
+    }>
+  >([]);
+  const [savedAddressId, setSavedAddressId] = useState("");
+
   useEffect(() => {
     (async () => {
-      const [inbRes, cRes, accRes, bRes] = await Promise.all([
+      const [inbRes, cRes, accRes, bRes, saRes] = await Promise.all([
         http_request("GET", "/api/cms/inbound", {
           status: "received",
           page_size: 200,
@@ -100,11 +117,13 @@ export const OutboundNewForm = () => {
         http_request("GET", "/api/cms/carriers", {}),
         http_request("GET", "/api/cms/carrier-accounts", {}),
         http_request("GET", "/api/cms/wallet/balance", {}),
+        http_request("GET", "/api/cms/saved-addresses", {}),
       ]);
       const inbData = await inbRes.json();
       const cData = await cRes.json();
       const accData = await accRes.json();
       const bData = await bRes.json();
+      const saData = await saRes.json();
       if (inbData.status === 200) {
         setEligibles(
           (inbData.data.items as EligibleInbound[]).filter(
@@ -115,6 +134,7 @@ export const OutboundNewForm = () => {
       if (cData.status === 200) setCarriers(cData.data ?? []);
       if (accData.status === 200) setCarrierAccounts(accData.data ?? []);
       if (bData.status === 200) setBalance(bData.data?.balance ?? 0);
+      if (saData.status === 200) setSavedAddresses(saData.data ?? []);
       setLoadingMaster(false);
     })();
   }, []);
@@ -376,7 +396,55 @@ export const OutboundNewForm = () => {
             {t("outbound_v1.new.step_address")}
           </h2>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3">
+        <CardContent className="grid gap-3">
+          {/* Saved-address picker — hydrate the whole receiver block in
+              one click. Hidden when client has zero saved entries to
+              avoid empty UI noise (link still shows). */}
+          <div className="flex items-center gap-2 text-sm">
+            <Label className="text-xs text-gray-500 whitespace-nowrap">
+              {t("addresses.picker_label")}
+            </Label>
+            <select
+              className="flex-1 border rounded h-9 px-2 text-sm"
+              value={savedAddressId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setSavedAddressId(id);
+                if (!id) return;
+                const a = savedAddresses.find((x) => x._id === id);
+                if (!a) return;
+                setName(a.name);
+                setPhone(a.phone);
+                setCountry(a.country_code);
+                setCity(a.city);
+                setDistrict(a.district ?? "");
+                setAddress(a.address);
+                setPostal(a.postal_code ?? "");
+              }}
+            >
+              <option value="">
+                {savedAddresses.length === 0
+                  ? t("addresses.picker_empty")
+                  : "—"}
+              </option>
+              {savedAddresses.map((a) => (
+                <option key={a._id} value={a._id}>
+                  {a.label}
+                  {a.is_default ? " ⭐" : ""}
+                </option>
+              ))}
+            </select>
+            <a
+              href="/zh-hk/addresses"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 text-xs whitespace-nowrap"
+            >
+              {t("addresses.picker_manage")}
+            </a>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>{t("outbound_v1.new.recipient_name")}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
@@ -406,6 +474,7 @@ export const OutboundNewForm = () => {
           <div>
             <Label>{t("outbound_v1.new.recipient_postal")}</Label>
             <Input value={postal} onChange={(e) => setPostal(e.target.value)} />
+          </div>
           </div>
         </CardContent>
       </Card>

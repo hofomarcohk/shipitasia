@@ -139,7 +139,8 @@
     "scan_receive": "PDA 收貨上架",
     "scan_depart": "PDA 離倉",
     "ops_locations": "倉位管理",
-    "ops_receive": "桌面收貨"
+    "ops_receive": "桌面收貨",
+    "addresses": "常用地址"
   },
   "menu_pda": {
     "home": "首頁",
@@ -1232,5 +1233,34 @@
     "empty": "目前沒有倉位",
     "error_code_required": "請輸入庫位編碼",
     "created": "已新增庫位 {code}"
+  },
+  "addresses": {
+    "page_title": "常用地址",
+    "page_subtitle": "管理常寄送地址，預報 / 出庫時可直接選用",
+    "new_btn": "新增地址",
+    "new_title": "新增常用地址",
+    "edit_title": "編輯常用地址",
+    "label": "簡稱（例：家 / 公司）",
+    "name": "收件人",
+    "phone": "電話",
+    "country": "國家 / 區碼",
+    "city": "城市",
+    "district": "區域",
+    "postal": "郵遞區號（選填）",
+    "address": "詳細地址",
+    "set_default": "設為預設地址",
+    "save_btn": "儲存",
+    "edit_btn": "編輯",
+    "delete_btn": "刪除",
+    "delete_confirm": "確定刪除 {label}？",
+    "default": "預設",
+    "empty": "尚未儲存任何常用地址",
+    "created": "已新增地址",
+    "updated": "已更新地址",
+    "deleted": "已刪除地址",
+    "error_required": "請填寫必填欄位（簡稱 / 收件人 / 電話 / 城市 / 地址）",
+    "picker_label": "選用常用地址",
+    "picker_empty": "尚未有常用地址",
+    "picker_manage": "管理常用地址 →"
   }
 }
