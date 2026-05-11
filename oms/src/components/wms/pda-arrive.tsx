@@ -236,7 +236,7 @@ export const PdaArrive = () => {
             )}
           </span>
           <a
-            href="/zh-hk/operations/abandoned-inbounds"
+            href="/zh-hk/wms/operations/abandoned-inbounds"
             className="underline text-xs"
           >
             {t("wms_scan.see_list")}
@@ -296,7 +296,7 @@ export const PdaArrive = () => {
             <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm">
               <div>{t("wms_scan.no_match")}</div>
               <a
-                href={`/zh-hk/scan/inbound-arrive/unclaimed?tracking=${encodeURIComponent(trackingNo)}`}
+                href={`/zh-hk/wms/pda/scan/inbound-arrive/unclaimed?tracking=${encodeURIComponent(trackingNo)}`}
                 className="text-blue-600 underline text-xs mt-1 inline-block"
               >
                 {t("wms_scan.register_unclaimed_btn")}

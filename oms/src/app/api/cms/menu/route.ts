@@ -8,10 +8,13 @@ export async function GET(request: NextRequest) {
   const body = await getParam(request);
   return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
     auth(request);
+    const ctxParam = new URL(request.url).searchParams.get("context") ?? "oms";
+    const context: "oms" | "wms" | "pda" =
+      ctxParam === "wms" || ctxParam === "pda" ? ctxParam : "oms";
     return {
       status: 200,
       message: "Success",
-      data: await getMenu(),
+      data: await getMenu(context),
     };
   });
 }

@@ -15,20 +15,33 @@ import {
 import { get_request } from "@/lib/httpRequest";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ComponentProps, useEffect, useState } from "react";
 import IconHandler from "./ui/icon-handler";
+
+// Detect which app section the current URL belongs to so we can show
+// the matching sidebar. Order matters: PDA must be checked before WMS
+// (since /wms/pda/ starts with /wms/).
+function detectContext(pathname: string | null): "oms" | "wms" | "pda" {
+  if (!pathname) return "oms";
+  if (/^\/[^/]+\/wms\/pda(\/|$)/.test(pathname)) return "pda";
+  if (/^\/[^/]+\/wms(\/|$)/.test(pathname)) return "wms";
+  return "oms";
+}
 
 export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const [menuData, setMenuData] = useState<{ navMain: any[] }>({
     navMain: [],
   });
+  const pathname = usePathname();
+  const context = detectContext(pathname);
 
   const t = useTranslations();
 
   useEffect(() => {
     const fetchMenu = async () => {
       try {
-        const response = await get_request("/api/cms/menu");
+        const response = await get_request(`/api/cms/menu?context=${context}`);
         const json = await response.json();
         setMenuData({ navMain: json.data || [] });
       } catch (error) {
@@ -36,7 +49,7 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
       }
     };
     fetchMenu();
-  }, []);
+  }, [context]);
 
   return (
     <Sidebar {...props} collapsible="icon">

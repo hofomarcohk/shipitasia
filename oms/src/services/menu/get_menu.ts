@@ -8,10 +8,10 @@ export async function aggregateMenu(pipe: any) {
   return await db.collection(collection).aggregate(pipe).toArray();
 }
 
-export async function getMenu() {
+export async function getMenu(context: "oms" | "wms" | "pda" = "oms") {
   const menu = (
     await aggregateMenu([
-      { $match: { order: { $gt: 0 } } },
+      { $match: { order: { $gt: 0 }, context } },
       { $sort: { order: 1 } },
     ])
   ).map((item) => ({

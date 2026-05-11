@@ -205,7 +205,7 @@ export const PdaReceive = () => {
             )}
           </span>
           <a
-            href="/zh-hk/operations/abandoned-inbounds"
+            href="/zh-hk/wms/operations/abandoned-inbounds"
             className="underline text-xs"
           >
             {t("wms_scan.see_list")}
