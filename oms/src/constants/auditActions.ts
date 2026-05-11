@@ -84,6 +84,22 @@ export const AUDIT_ACTIONS = {
   outbound_label_obtained: "outbound_label_obtained",
   outbound_label_failed: "outbound_label_failed",
   outbound_balance_reserved: "outbound_balance_reserved",
+
+  // ── Phase 8 — WMS outbound flow (pick/pack/weigh/depart) ────
+  outbound_picking_progress: "outbound_picking_progress",
+  outbound_picked: "outbound_picked",
+  outbound_packing_progress: "outbound_packing_progress",
+  outbound_packed: "outbound_packed",
+  outbound_weighing_progress: "outbound_weighing_progress",
+  outbound_weight_verified: "outbound_weight_verified",
+  outbound_box_created: "outbound_box_created",
+  outbound_box_weight_override: "outbound_box_weight_override",
+  outbound_label_printed: "outbound_label_printed",
+  outbound_departed: "outbound_departed",
+  outbound_box_departed: "outbound_box_departed",
+  outbound_cancelled_after_label: "outbound_cancelled_after_label",
+  outbound_label_client_confirmed: "outbound_label_client_confirmed",
+  outbound_admin_retry_label: "outbound_admin_retry_label",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -104,6 +120,7 @@ export const AUDIT_TARGET_TYPES = {
   client: "client",
   inbound: "inbound",
   outbound: "outbound",
+  outbound_box: "outbound_box",
   wallet: "wallet",
   wallet_transaction: "wallet_transaction",
   carrier_account: "carrier_account",

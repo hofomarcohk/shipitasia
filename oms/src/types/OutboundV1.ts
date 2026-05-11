@@ -10,13 +10,18 @@ export const OUTBOUND_STATUS_V1 = [
   "held",
   "ready_for_label",
   "picking",
+  "picked",
+  "packing",
   "packed",
+  "weighing",
   "weight_verified",
   "pending_client_label",
   "label_obtaining",
   "label_obtained",
+  "label_printed",
   "departed",
   "cancelled",
+  "cancelled_after_label",
 ] as const;
 export type OutboundStatusV1 = (typeof OUTBOUND_STATUS_V1)[number];
 
@@ -314,3 +319,158 @@ export function projectOutboundV1Admin(doc: any): OutboundRequestV1Admin {
     cancelled_by_actor_type: doc.cancelled_by_actor_type ?? null,
   };
 }
+
+// ── Phase 8: per-box schema ──────────────────────────────────
+
+export const OUTBOUND_BOX_STATUS = [
+  "packing",
+  "packed",
+  "weight_verified",
+  "label_obtained",
+  "label_printed",
+  "departed",
+] as const;
+export type OutboundBoxStatus = (typeof OUTBOUND_BOX_STATUS)[number];
+
+export const OutboundBoxDimensionsSchema = z
+  .object({
+    length: z.number().int().positive(),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+  })
+  .strict();
+export type OutboundBoxDimensions = z.infer<typeof OutboundBoxDimensionsSchema>;
+
+export const OutboundBoxSchema = z
+  .object({
+    _id: z.string().min(1),
+    outbound_id: z.string().min(1),
+    box_no: z.string().min(1), // B-{out_id_short}-NN
+    dimensions: OutboundBoxDimensionsSchema,
+    weight_estimate: z.number().positive(),
+    weight_actual: z.number().positive().nullable(),
+    tare_weight: z.number().nonnegative().nullable(),
+    weight_diff: z.number().nullable(),
+    weight_diff_passed: z.boolean().nullable(),
+    status: z.enum(OUTBOUND_BOX_STATUS),
+    label_pdf_path: z.string().nullable(),
+    tracking_no_carrier: z.string().nullable(),
+    actual_label_fee: z.number().nonnegative().nullable(),
+    label_obtained_at: z.date().nullable(),
+    label_obtained_by_operator_type: z
+      .enum(["system", "client", "admin", "wms_staff"])
+      .nullable(),
+    departed_at: z.date().nullable(),
+    created_by_staff_id: z.string().min(1),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+  })
+  .strict();
+export type OutboundBox = z.infer<typeof OutboundBoxSchema>;
+
+export interface OutboundBoxPublic {
+  _id: string;
+  outbound_id: string;
+  box_no: string;
+  dimensions: OutboundBoxDimensions;
+  weight_estimate: number;
+  weight_actual: number | null;
+  tare_weight: number | null;
+  weight_diff: number | null;
+  weight_diff_passed: boolean | null;
+  status: OutboundBoxStatus;
+  label_pdf_path: string | null;
+  tracking_no_carrier: string | null;
+  actual_label_fee: number | null;
+  label_obtained_at: Date | null;
+  departed_at: Date | null;
+  createdAt: Date;
+}
+
+export function projectOutboundBox(doc: any): OutboundBoxPublic {
+  return {
+    _id: String(doc._id),
+    outbound_id: doc.outbound_id,
+    box_no: doc.box_no,
+    dimensions: doc.dimensions,
+    weight_estimate: doc.weight_estimate,
+    weight_actual: doc.weight_actual ?? null,
+    tare_weight: doc.tare_weight ?? null,
+    weight_diff: doc.weight_diff ?? null,
+    weight_diff_passed: doc.weight_diff_passed ?? null,
+    status: doc.status,
+    label_pdf_path: doc.label_pdf_path ?? null,
+    tracking_no_carrier: doc.tracking_no_carrier ?? null,
+    actual_label_fee: doc.actual_label_fee ?? null,
+    label_obtained_at: doc.label_obtained_at ?? null,
+    departed_at: doc.departed_at ?? null,
+    createdAt: doc.createdAt,
+  };
+}
+
+// ── box ↔ inbound link ──────────────────────────────────────
+
+export const BoxInboundLinkSchema = z
+  .object({
+    box_id: z.string().min(1),
+    outbound_id: z.string().min(1),
+    inbound_id: z.string().min(1),
+    linked_at: z.date(),
+    unlinked_at: z.date().nullable(),
+  })
+  .strict();
+export type BoxInboundLink = z.infer<typeof BoxInboundLinkSchema>;
+
+// ── box weights ─────────────────────────────────────────────
+
+export const OutboundBoxWeightSchema = z
+  .object({
+    box_id: z.string().min(1),
+    outbound_id: z.string().min(1),
+    expected_gross_weight: z.number().nonnegative(),
+    actual_gross_weight: z.number().nonnegative(),
+    tare_weight_input: z.number().nonnegative(),
+    weight_diff: z.number(),
+    tolerance_threshold: z.number().nonnegative(),
+    tolerance_passed: z.boolean(),
+    override_at: z.date().nullable(),
+    weighed_by_staff_id: z.string().min(1),
+    weighed_at: z.date(),
+    weigh_method: z.enum(["pda", "desktop"]),
+  })
+  .strict();
+export type OutboundBoxWeight = z.infer<typeof OutboundBoxWeightSchema>;
+
+// ── outbound_scans (append-only WMS audit) ──────────────────
+
+export const OUTBOUND_SCAN_TYPE = [
+  "inbound_picked",
+  "outbound_pick_complete",
+  "box_created",
+  "outbound_pack_complete",
+  "box_weight_verified",
+  "box_weight_override",
+  "outbound_weight_verified",
+  "label_obtained",
+  "label_failed",
+  "box_departed",
+  "outbound_departed",
+] as const;
+export type OutboundScanType = (typeof OUTBOUND_SCAN_TYPE)[number];
+
+export const OutboundScanSchema = z
+  .object({
+    _id: z.string().min(1),
+    outbound_id: z.string().min(1),
+    inbound_id: z.string().nullable(),
+    box_id: z.string().nullable(),
+    type: z.enum(OUTBOUND_SCAN_TYPE),
+    operator_staff_id: z.string().min(1),
+    pick_method: z.enum(["pda_scan", "desktop_batch"]).nullable(),
+    weigh_method: z.enum(["pda", "desktop"]).nullable(),
+    details: z.record(z.string(), z.unknown()).nullable(),
+    staff_note: z.string().max(200).nullable(),
+    createdAt: z.date(),
+  })
+  .strict();
+export type OutboundScan = z.infer<typeof OutboundScanSchema>;

@@ -1081,6 +1081,85 @@
       "country_multiplier": "國家係數",
       "carrier_multiplier": "物流商係數",
       "total": "合計"
+    },
+    "confirm_label": {
+      "title": "確認取運單",
+      "held_notice": "此出庫單目前處於暫存狀態，需先處理：",
+      "weight": "實重",
+      "carrier": "物流商 / 目的地",
+      "total": "總運費",
+      "proceed_notice": "確認後將以您的物流商帳號生成面單，運費將從錢包扣除。",
+      "btn": "確認取運單",
+      "success": "已成功取得 {count} 張面單，扣費 HK${total}"
+    }
+  },
+  "wms_ops": {
+    "pick": {
+      "page_title": "桌面揀貨",
+      "page_subtitle": "倉內批次揀貨（visual confirm）",
+      "list_title": "待揀清單",
+      "detail_title": "待揀入庫單",
+      "choose_prompt": "請先選擇要揀的出庫單",
+      "empty": "目前沒有可揀的出庫單",
+      "select_all": "全部勾選",
+      "batch_pick_btn": "批次揀 ({count})"
+    },
+    "pack": {
+      "page_title": "桌面裝箱",
+      "page_subtitle": "多入庫單集進箱、一單多箱、多單合一箱",
+      "list_title": "待裝箱清單",
+      "box_title": "裝箱動作",
+      "choose": "請先選擇要裝箱的出庫單",
+      "empty": "目前沒有待裝箱出庫單",
+      "waiting_inbound": "待裝箱入庫單",
+      "all_boxed": "已全部裝箱",
+      "box_dim": "新箱尺寸 + 預估重量",
+      "est_weight": "預估重量 kg",
+      "create_box_btn": "建立此箱",
+      "complete_all_btn": "全部裝箱完成",
+      "complete_ok": "裝箱完成",
+      "boxes_title": "已建箱",
+      "error_pick_first": "請先勾選要裝進此箱的入庫單",
+      "error_dimensions": "請填寫完整尺寸 + 預估重量"
+    },
+    "weigh": {
+      "page_title": "桌面複重",
+      "page_subtitle": "逐箱量重 + 容差檢查",
+      "list_title": "待複重清單",
+      "detail_title": "逐箱複重",
+      "choose": "請先選擇要複重的出庫單",
+      "empty": "目前沒有待複重出庫單",
+      "actual": "實重 kg",
+      "tare": "皮重 kg",
+      "submit": "提交",
+      "override_prompt": "重量差超過容差 0.5kg，要 override 通過嗎？",
+      "complete_all": "全部複重通過 (推 OMS)",
+      "complete_auto": "已通過 + 系統自動取運單中",
+      "complete_pending": "已通過，等客戶於 OMS 確認取運單",
+      "error_actual": "請輸入實重"
+    },
+    "label_print": {
+      "page_title": "面單列印 / 貼箱",
+      "page_subtitle": "員工列印每箱 label 並貼上",
+      "empty": "目前沒有待列印面單",
+      "expand": "展開箱列表",
+      "preview_pdf": "預覽 PDF",
+      "print_all": "列印全部",
+      "complete": "貼 label 完成",
+      "done": "已標記列印完成"
+    }
+  },
+  "wms_scan": {
+    "depart": {
+      "page_title": "PDA 離倉",
+      "scan_title": "掃箱號離倉",
+      "box_no_label": "箱號",
+      "submit": "確認離倉",
+      "outbound_done": "全部箱已離倉 ✅",
+      "box_done": "{departed}/{total} 箱已離倉",
+      "pending_title": "待離倉出庫單",
+      "no_pending": "—",
+      "history": "本次掃過"
     }
   }
 }

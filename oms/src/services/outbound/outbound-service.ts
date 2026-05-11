@@ -185,16 +185,16 @@ function estimateWeightKg(inbounds: any[]): number {
 }
 
 // Resolves the initial status from a quote against client balance.
+// Per P8 spec §1.5.3 flow: confirm_before_label and auto both enter
+// pick/pack/weigh in ready_for_label; the preference branch happens at
+// weight-verified time (P8 completeWeighing).
 function resolveInitialStatus(
   balance: number,
   quote_total: number,
-  preference: "auto" | "confirm_before_label"
+  _preference: "auto" | "confirm_before_label"
 ): { status: OutboundStatusV1; held_reason: OutboundHeldReason | null } {
   if (balance < quote_total) {
     return { status: "held", held_reason: "insufficient_balance" };
-  }
-  if (preference === "confirm_before_label") {
-    return { status: "pending_client_label", held_reason: null };
   }
   return { status: "ready_for_label", held_reason: null };
 }
@@ -620,10 +620,10 @@ export async function releaseHeldByBalance(client_id: string) {
     const balance = await walletService.getBalance(client_id);
     const need = doc.quoted_amount_hkd ?? doc.rate_quote?.total ?? 0;
     if (balance < need) break; // can't afford any further; stop loop
-    const next: OutboundStatusV1 =
-      doc.processing_preference === "confirm_before_label"
-        ? "pending_client_label"
-        : "ready_for_label";
+    // Released outbounds always go back to ready_for_label so they can
+    // enter P8 pick/pack/weigh. The confirm_before_label preference is
+    // honored at the post-weigh checkpoint.
+    const next: OutboundStatusV1 = "ready_for_label";
     const now = new Date();
     const upd = await db.collection(collections.OUTBOUND).updateOne(
       { _id: doc._id, status: HELD_RELEASE_TARGET },
@@ -661,9 +661,7 @@ export async function releaseHeldByBalance(client_id: string) {
       client_id,
       type: "outbound_held_released",
       title: "出庫單已解除暫存",
-      body: `出庫單 ${String(doc._id)} 餘額已足夠，將進入${
-        next === "pending_client_label" ? "等待您確認面單" : "出庫處理流程"
-      }。`,
+      body: `出庫單 ${String(doc._id)} 餘額已足夠，將進入出庫處理流程。`,
       reference_type: "outbound",
       reference_id: String(doc._id),
       action_url: `/zh-hk/outbound/${String(doc._id)}`,
@@ -728,10 +726,7 @@ export async function adminReleaseHeld(
   if (doc.status !== "held") {
     throw new ApiError("CANNOT_RELEASE_NOT_HELD");
   }
-  const next: OutboundStatusV1 =
-    doc.processing_preference === "confirm_before_label"
-      ? "pending_client_label"
-      : "ready_for_label";
+  const next: OutboundStatusV1 = "ready_for_label";
   const now = new Date();
   const upd = await db.collection(collections.OUTBOUND).updateOne(
     { _id: outbound_id as any, status: "held" },

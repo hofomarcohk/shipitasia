@@ -1081,6 +1081,85 @@
       "country_multiplier": "Country multiplier",
       "carrier_multiplier": "Carrier multiplier",
       "total": "Total"
+    },
+    "confirm_label": {
+      "title": "Confirm shipping label",
+      "held_notice": "This outbound is currently held; resolve first:",
+      "weight": "Actual weight",
+      "carrier": "Carrier / destination",
+      "total": "Total cost",
+      "proceed_notice": "Confirming will fetch the label using your carrier account and deduct cost from your wallet.",
+      "btn": "Fetch label",
+      "success": "Fetched {count} labels, charged HK${total}"
+    }
+  },
+  "wms_ops": {
+    "pick": {
+      "page_title": "Desktop pick",
+      "page_subtitle": "Batch pick from desktop (visual confirm)",
+      "list_title": "Pickable outbounds",
+      "detail_title": "Inbounds to pick",
+      "choose_prompt": "Pick an outbound from the left",
+      "empty": "No pickable outbounds",
+      "select_all": "Select all",
+      "batch_pick_btn": "Pick batch ({count})"
+    },
+    "pack": {
+      "page_title": "Desktop pack",
+      "page_subtitle": "Group inbounds into boxes; one box can hold multiple inbounds",
+      "list_title": "Packable outbounds",
+      "box_title": "Pack actions",
+      "choose": "Choose an outbound first",
+      "empty": "No packable outbounds",
+      "waiting_inbound": "Inbounds awaiting boxing",
+      "all_boxed": "All boxed",
+      "box_dim": "New box dimensions + estimated weight",
+      "est_weight": "Estimated weight kg",
+      "create_box_btn": "Create box",
+      "complete_all_btn": "All packing complete",
+      "complete_ok": "Pack complete",
+      "boxes_title": "Boxes built",
+      "error_pick_first": "Pick at least one inbound for this box",
+      "error_dimensions": "Enter dimensions + estimated weight"
+    },
+    "weigh": {
+      "page_title": "Desktop reweigh",
+      "page_subtitle": "Per-box weigh + tolerance check",
+      "list_title": "Weighable outbounds",
+      "detail_title": "Weigh each box",
+      "choose": "Choose an outbound first",
+      "empty": "No weighable outbounds",
+      "actual": "Actual kg",
+      "tare": "Tare kg",
+      "submit": "Submit",
+      "override_prompt": "Weight diff exceeds tolerance 0.5kg; override?",
+      "complete_all": "All weigh-verified (push to OMS)",
+      "complete_auto": "Verified + system auto-fetching label",
+      "complete_pending": "Verified, waiting for client confirm on OMS",
+      "error_actual": "Enter actual weight"
+    },
+    "label_print": {
+      "page_title": "Print / paste labels",
+      "page_subtitle": "Staff prints each box label and attaches it",
+      "empty": "No labels pending print",
+      "expand": "Expand boxes",
+      "preview_pdf": "Preview PDF",
+      "print_all": "Print all",
+      "complete": "Mark labels printed",
+      "done": "Marked printed"
+    }
+  },
+  "wms_scan": {
+    "depart": {
+      "page_title": "PDA depart",
+      "scan_title": "Scan box for departure",
+      "box_no_label": "Box no.",
+      "submit": "Confirm depart",
+      "outbound_done": "All boxes departed ✅",
+      "box_done": "{departed}/{total} boxes departed",
+      "pending_title": "Pending departure",
+      "no_pending": "—",
+      "history": "This session"
     }
   }
 }

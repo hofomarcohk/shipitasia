@@ -255,10 +255,13 @@ async function main() {
       processing_preference: "confirm_before_label",
     }
   );
-  if (ob2.status !== "pending_client_label") {
-    throw new Error(`expected pending_client_label, got ${ob2.status}`);
+  // Per P8 alignment: confirm_before_label preference is honored at the
+  // post-weigh checkpoint, not at create time. So both auto and
+  // confirm_before_label start in ready_for_label.
+  if (ob2.status !== "ready_for_label") {
+    throw new Error(`expected ready_for_label, got ${ob2.status}`);
   }
-  console.log("✓ freed inbound reused → pending_client_label:", ob2._id);
+  console.log("✓ freed inbound reused → ready_for_label:", ob2._id);
 
   // ── 9) Capacity violation ────────────────────────────────
   let capErr = null;
@@ -278,16 +281,12 @@ async function main() {
   }
   console.log("✓ capacity violation rejected (40kg > 30kg)");
 
-  // ── 10) Mock label PDF ──────────────────────────────────
+  // ── 10) Mock label PDF (P7 single-box fast path) ────────
   const { fetchLabel } = await import(
     "../src/services/outbound/outbound-service.ts"
   );
-  await db
-    .collection("outbound_requests")
-    .updateOne(
-      { _id: ob2._id },
-      { $set: { status: "ready_for_label", updatedAt: new Date() } }
-    );
+  // P7 fetchLabel still works for outbounds that skipped P8 reweigh
+  // (e.g. mock dev fast path). It expects ready_for_label.
   const labelResult = await fetchLabel({ outbound_id: ob2._id });
   console.log(
     `✓ label generated: tracking_no=${labelResult.tracking_no} charged=${labelResult.charged} url=${labelResult.label_url}`

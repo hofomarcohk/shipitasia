@@ -59,6 +59,12 @@ export const collections = {
   OUTBOUND_INBOUND_LINK: "outbound_inbound_links",
   OUTBOUND_ACTION_LOG: "outbound_action_logs",
   RATE_QUOTE_LOG: "rate_quote_logs",
+
+  // P8 — WMS outbound flow (pick / pack / weigh / depart)
+  OUTBOUND_BOX: "outbound_boxes",
+  BOX_INBOUND_LINK: "box_inbound_links",
+  OUTBOUND_BOX_WEIGHT: "outbound_box_weights",
+  OUTBOUND_SCAN: "outbound_scans",
 };
 
 export const ID_Prefix: {

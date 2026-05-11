@@ -20,6 +20,12 @@ export interface MockLabelInput {
   weight_kg: number;
   receiver_name: string;
   receiver_address: string;
+  // ── Phase 8 multi-box additions (all optional for back-compat with P7) ──
+  box_id?: string;
+  box_no?: string;
+  dimensions?: { length: number; width: number; height: number };
+  sender_name?: string;
+  sender_address?: string;
 }
 
 export async function generateMockLabel(
@@ -28,7 +34,10 @@ export async function generateMockLabel(
   const dateStr = formatYYYYMMDD(new Date());
   const dir = path.join(LABEL_ROOT, dateStr);
   await fs.mkdir(dir, { recursive: true });
-  const filename = `${input.outbound_id}_${input.carrier_code}.pdf`;
+  // Per-box label filename: include box_no if present, so multi-box
+  // outbounds get distinct PDF paths.
+  const suffix = input.box_no ? `_${input.box_no}` : "";
+  const filename = `${input.outbound_id}${suffix}_${input.carrier_code}.pdf`;
   const fullPath = path.join(dir, filename);
 
   // A6 in points: 298 x 420
@@ -46,7 +55,11 @@ export async function generateMockLabel(
     .fillColor("#222")
     .text(`Carrier: ${input.carrier_code.toUpperCase()}`, { continued: false })
     .moveDown(0.2)
-    .text(`Outbound: ${input.outbound_id}`)
+    .text(`Outbound: ${input.outbound_id}`);
+  if (input.box_no) {
+    doc.moveDown(0.2).text(`Box: ${input.box_no}`);
+  }
+  doc
     .moveDown(0.2)
     .fontSize(14)
     .text(`TRACKING: ${input.tracking_no}`, { underline: true })
@@ -63,6 +76,20 @@ export async function generateMockLabel(
     .text(`Country: ${input.destination_country}`)
     .moveDown(0.2)
     .text(`Weight: ${input.weight_kg.toFixed(2)} kg`);
+  if (input.dimensions) {
+    doc
+      .moveDown(0.2)
+      .text(
+        `Dim: ${input.dimensions.length}×${input.dimensions.width}×${input.dimensions.height} cm`
+      );
+  }
+  if (input.sender_name) {
+    doc
+      .moveDown(0.4)
+      .fontSize(9)
+      .text(`From: ${input.sender_name}`, { width: 266 });
+    if (input.sender_address) doc.text(input.sender_address, { width: 266 });
+  }
 
   // ── Watermark ───────────────────────────────────────────
   doc.save();

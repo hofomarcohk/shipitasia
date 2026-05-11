@@ -102,6 +102,12 @@ export interface GetLabelRequest {
   weight_kg: number;
   receiver_name: string;
   receiver_address: string;
+  // ── Phase 8 multi-box additions ──
+  box_id?: string;
+  box_no?: string;
+  dimensions?: { length: number; width: number; height: number };
+  sender_name?: string;
+  sender_address?: string;
 }
 
 export interface GetLabelResponse {
@@ -181,7 +187,11 @@ function makeAdapter(cfg: CarrierMockConfig): ICarrierAdapter {
         input.destination_country,
         input.weight_kg
       );
-      const tracking_no = mockTrackingNo(cfg.carrier_code);
+      const tracking_no = mockTrackingNo(
+        cfg.carrier_code,
+        input.outbound_id,
+        input.box_no
+      );
       const label_url = await generateMockLabel({
         outbound_id: input.outbound_id,
         carrier_code: cfg.carrier_code,
@@ -190,6 +200,11 @@ function makeAdapter(cfg: CarrierMockConfig): ICarrierAdapter {
         weight_kg: input.weight_kg,
         receiver_name: input.receiver_name,
         receiver_address: input.receiver_address,
+        box_id: input.box_id,
+        box_no: input.box_no,
+        dimensions: input.dimensions,
+        sender_name: input.sender_name,
+        sender_address: input.sender_address,
       });
       return { label_url, tracking_no, charged_amount: quote.total };
     },
@@ -210,7 +225,18 @@ function makeAdapter(cfg: CarrierMockConfig): ICarrierAdapter {
   };
 }
 
-function mockTrackingNo(carrier_code: string): string {
+function mockTrackingNo(
+  carrier_code: string,
+  outbound_id?: string,
+  box_no?: string
+): string {
+  // Per P8 spec: `MOCK-{carrier_code}-{outbound_id}-BOX{n}` when box context
+  // available; fall back to compact random format for P7 single-box calls
+  // that didn't carry box info.
+  if (outbound_id && box_no) {
+    const seq = box_no.split("-").slice(-1)[0];
+    return `MOCK-${carrier_code.toUpperCase()}-${outbound_id}-BOX${seq}`;
+  }
   const prefix = carrier_code.toUpperCase().slice(0, 3);
   const random = Math.random().toString(36).slice(2, 10).toUpperCase();
   return `${prefix}${Date.now().toString(36).toUpperCase()}${random}`;
