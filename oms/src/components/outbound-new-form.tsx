@@ -117,7 +117,6 @@ export const OutboundNewForm = () => {
   const [savedAddressId, setSavedAddressId] = useState("");
 
   // ── P10 redesign · section-locking + aggregate from picked inbounds.
-  const [editingSection, setEditingSection] = useState<number | null>(null);
   const [aggregated, setAggregated] = useState<AggregatedSummary | null>(null);
   const [aggregating, setAggregating] = useState(false);
   // Which inbound did the recipient prefill come from (banner in section 3).
@@ -365,7 +364,6 @@ export const OutboundNewForm = () => {
     4: false,
   };
   const sectionStatus = (n: number): "editing" | "done" | "locked" => {
-    if (editingSection === n) return "editing";
     const idx = sections.indexOf(n);
     if (idx === -1) return "locked";
     const prev = idx === 0 ? null : sections[idx - 1];
@@ -411,22 +409,6 @@ export const OutboundNewForm = () => {
             n={1}
             title={t("outbound_v1.new.section1_title")}
             status={sectionStatus(1)}
-            summary={
-              s1Complete ? (
-                <div className="text-sm">
-                  {selectedInbounds.length} {t("outbound_v1.new.section1_count_unit")} · ~
-                  {selectedWeight.toFixed(2)} kg
-                  <div className="text-xs text-gray-500 mt-1 font-mono">
-                    {selectedInbounds.slice(0, 3).join(" · ")}
-                    {selectedInbounds.length > 3
-                      ? ` … +${selectedInbounds.length - 3}`
-                      : ""}
-                  </div>
-                </div>
-              ) : null
-            }
-            onEdit={() => setEditingSection(1)}
-            onDone={() => setEditingSection(null)}
           >
             {eligibles.length === 0 ? (
               <p className="text-gray-500 text-sm">
@@ -471,25 +453,6 @@ export const OutboundNewForm = () => {
             n={2}
             title={t("outbound_v1.new.section2_title")}
             status={sectionStatus(2)}
-            summary={
-              s2Complete && aggregated ? (
-                <div className="text-sm">
-                  {aggregated.item_count} {t("outbound_v1.new.section1_count_unit")} ·{" "}
-                  {aggregated.currencies.length === 1
-                    ? `${aggregated.currencies[0]} ${aggregated.total_value.toLocaleString()}`
-                    : aggregated.total_value.toLocaleString()}
-                  {aggregated.contains_liquid && (
-                    <span className="text-amber-700"> · 含液體</span>
-                  )}
-                  {aggregated.contains_battery && (
-                    <span className="text-amber-700"> · 含電池</span>
-                  )}
-                </div>
-              ) : null
-            }
-            onEdit={() => setEditingSection(2)}
-            onDone={() => setEditingSection(null)}
-            hideEditButton
           >
             {aggregating ? (
               <p className="text-sm text-gray-500">{t("common.loading")}</p>
@@ -539,29 +502,6 @@ export const OutboundNewForm = () => {
             n={3}
             title={t("outbound_v1.new.section3_title")}
             status={sectionStatus(3)}
-            summary={
-              s3Complete ? (
-                <div className="text-sm grid gap-1">
-                  <div>
-                    {name} · {phone}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {country} · {city}
-                    {district ? ` · ${district}` : ""} · {address}
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {carriers.find((c) => c.carrier_code === carrierCode)
-                      ?.name_zh ?? carrierCode}{" "}
-                    ·{" "}
-                    {preference === "auto"
-                      ? t("outbound_v1.new.preference_auto")
-                      : t("outbound_v1.new.preference_confirm")}
-                  </div>
-                </div>
-              ) : null
-            }
-            onEdit={() => setEditingSection(3)}
-            onDone={() => setEditingSection(null)}
           >
             <div className="grid gap-4">
               {recipientFromInbound && (
@@ -761,10 +701,6 @@ export const OutboundNewForm = () => {
             n={4}
             title={t("outbound_v1.new.section4_title")}
             status={sectionStatus(4)}
-            summary={null}
-            onEdit={() => setEditingSection(4)}
-            onDone={() => setEditingSection(null)}
-            hideEditButton
             emphasis={balanceShort > 0 ? "warn" : undefined}
           >
             <div className="grid gap-4">

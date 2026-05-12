@@ -55,6 +55,17 @@ interface ItemDraft {
   unit_price: number;
 }
 
+interface SavedItem {
+  _id: string;
+  category_id: string;
+  subcategory_id: string;
+  product_name: string;
+  product_url: string | null;
+  default_quantity: number;
+  default_unit_price: number;
+  used_count: number;
+}
+
 // Country phone dial codes — covers the v1 destination countries.
 // Keyed by ISO-2 country_code so it composes with the existing receiver
 // address shape. Extended ad-hoc as new destinations come online.
@@ -167,24 +178,11 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
   });
 
   // ── P10 redesign · saved-items library + apply-last-inbound ──
-  interface SavedItem {
-    _id: string;
-    category_id: string;
-    subcategory_id: string;
-    product_name: string;
-    product_url: string | null;
-    default_quantity: number;
-    default_unit_price: number;
-    used_count: number;
-  }
   interface AppliedFromInbound {
     inbound_id: string;
     applied: Array<"package_attrs" | "recipient" | "carrier_account" | "items">;
   }
   const [savedItemPool, setSavedItemPool] = useState<SavedItem[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerSearch, setPickerSearch] = useState("");
-  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
   // draft_id → saved_item_id : which rows came from the library (so the
   // submit handler can bump `used_count` + the ⟲ sync action knows the
   // target saved-item).
@@ -197,9 +195,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     {}
   );
   const [applied, setApplied] = useState<AppliedFromInbound | null>(null);
-  // user-driven override on section collapsing: when set, that section is
-  // forced expanded even if its data is valid.
-  const [editingSection, setEditingSection] = useState<number | null>(null);
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -383,45 +378,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     setSavedToLibrary({});
     setCustomerRemarks("");
     setError("");
-  };
-
-  // Push picker-selected saved items into the items list. Skips IDs that
-  // are already present (by saved-item linkage) so re-opening the picker
-  // doesn't duplicate.
-  const addFromPicker = () => {
-    const alreadyLinked = new Set(Object.values(linkedToSavedItem));
-    const toAdd = Array.from(pickerSelected).filter(
-      (id) => !alreadyLinked.has(id)
-    );
-    if (toAdd.length === 0) {
-      setPickerOpen(false);
-      setPickerSelected(new Set());
-      return;
-    }
-    const newRows: ItemDraft[] = [];
-    const newLinks: Record<string, string> = {};
-    for (const sid of toAdd) {
-      const s = savedItemPool.find((x) => x._id === sid);
-      if (!s) continue;
-      const draftId = `lib_${sid}_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2, 5)}`;
-      newRows.push({
-        draft_id: draftId,
-        category_id: s.category_id,
-        subcategory_id: s.subcategory_id,
-        product_name: s.product_name,
-        product_url: s.product_url ?? "",
-        quantity: s.default_quantity,
-        unit_price: s.default_unit_price,
-      });
-      newLinks[draftId] = sid;
-    }
-    setItems((prev) => [...prev, ...newRows]);
-    setLinkedToSavedItem((prev) => ({ ...prev, ...newLinks }));
-    setPickerOpen(false);
-    setPickerSelected(new Set());
-    setPickerSearch("");
   };
 
   // ☆ Save a manually-entered row into the library so it can be re-used
@@ -644,7 +600,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     4: false,
   };
   const sectionStatus = (n: number): "editing" | "done" | "locked" => {
-    if (editingSection === n) return "editing";
     const idx = sectionList.indexOf(n);
     if (idx === -1) return "locked";
     const prev = idx === 0 ? null : sectionList[idx - 1];
@@ -655,16 +610,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
   const finalSection = sectionList[sectionList.length - 1];
   const canSubmit =
     !submitting && s1Complete && s2Complete && s3Complete;
-
-  // Saved-item picker — filter pool in-memory by search.
-  const visiblePoolItems = savedItemPool.filter((s) => {
-    if (!pickerSearch.trim()) return true;
-    const q = pickerSearch.trim().toLowerCase();
-    return s.product_name.toLowerCase().includes(q);
-  });
-  const alreadyAddedSavedIds = new Set(Object.values(linkedToSavedItem));
-
-  const expanded = (n: number) => sectionStatus(n) === "editing";
 
   return (
     <div className="max-w-6xl mx-auto py-6 px-4">
@@ -706,46 +651,12 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
             n={1}
             title={t("inbound_v1.new.section1_title")}
             status={sectionStatus(1)}
-            summary={
-              s1Complete ? (
-                <div className="grid grid-cols-[120px_1fr] gap-y-1 text-sm">
-                  <span className="text-gray-500">
-                    {t("inbound_v1.new.warehouse_label")}
-                  </span>
-                  <span>{selectedWarehouse?.name_zh ?? warehouseCode}</span>
-                  <span className="text-gray-500">
-                    {t("inbound_v1.new.carrier_label")}
-                  </span>
-                  <span>
-                    {carriers.find(
-                      (c) => c.carrier_inbound_code === carrierInbound
-                    )?.name_zh ?? carrierInbound}
-                  </span>
-                  <span className="text-gray-500">
-                    {t("inbound_v1.new.tracking_no_label")}
-                  </span>
-                  <span className="font-mono">{trackingNo}</span>
-                  <span className="text-gray-500">
-                    {t("inbound_v1.new.shipment_type_label")}
-                  </span>
-                  <span>
-                    {t(`inbound_v1.shipment_type.${shipmentType}` as any)}
-                    {" · "}
-                    {t(`inbound_v1.size_estimate.${sizeEstimate}` as any)}
-                    {containsLiquid ? " · 含液體" : ""}
-                    {containsBattery ? " · 含電池" : ""}
-                  </span>
-                </div>
-              ) : null
-            }
-            onEdit={() => setEditingSection(1)}
-            onDone={() => setEditingSection(null)}
           >
             <div className="grid gap-4">
-              <div className="grid md:grid-cols-2 gap-3">
+              <div className="grid md:grid-cols-2 gap-3 items-start">
                 <FieldGroup label={t("inbound_v1.new.warehouse_label")}>
                   <select
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border rounded h-10 px-3 text-sm bg-white"
                     value={warehouseCode}
                     onChange={(e) => setWarehouseCode(e.target.value)}
                   >
@@ -764,7 +675,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
 
                 <FieldGroup label={t("inbound_v1.new.carrier_label")}>
                   <select
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border rounded h-10 px-3 text-sm bg-white"
                     value={carrierInbound}
                     onChange={(e) => {
                       setCarrierInbound(e.target.value);
@@ -914,143 +825,19 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
             n={2}
             title={t("inbound_v1.new.section2_title")}
             status={sectionStatus(2)}
-            summary={
-              s2Complete ? (
-                <div className="text-sm">
-                  {t("inbound_v1.new.items_panel_title")}：
-                  <b>{items.length} {t("inbound_v1.new.section2_count_unit")}</b>
-                  {" · "}
-                  {currency} {total.toLocaleString()}
-                </div>
-              ) : null
-            }
-            onEdit={() => setEditingSection(2)}
-            onDone={() => setEditingSection(null)}
             headerActions={
-              expanded(2) ? (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setPickerOpen((p) => !p)}
-                    disabled={savedItemPool.length === 0}
-                    title={
-                      savedItemPool.length === 0
-                        ? t("saved_items.empty")
-                        : undefined
-                    }
-                  >
-                    {t("saved_items.picker_open_btn")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setItemDrafts([blankItem()]);
-                      setItemModalOpen(true);
-                    }}
-                  >
-                    {t("inbound_v1.new.add_item_btn")}
-                  </Button>
-                </div>
-              ) : null
+              <Button
+                size="sm"
+                onClick={() => {
+                  setItemDrafts([blankItem()]);
+                  setItemModalOpen(true);
+                }}
+              >
+                {t("inbound_v1.new.add_item_btn")}
+              </Button>
             }
           >
             <div className="grid gap-3">
-              {/* Inline picker drawer */}
-              {pickerOpen && (
-                <div className="border rounded-md bg-gray-50 p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <b className="text-sm">{t("saved_items.picker_title")}</b>
-                    <Input
-                      placeholder={t("saved_items.picker_search_placeholder")}
-                      value={pickerSearch}
-                      onChange={(e) => setPickerSearch(e.target.value)}
-                      className="flex-1 max-w-xs bg-white"
-                    />
-                    <span className="text-xs text-gray-500 ml-auto">
-                      {t("saved_items.selected_count", {
-                        n: pickerSelected.size,
-                      })}
-                    </span>
-                    <Button size="sm" onClick={addFromPicker}>
-                      {t("saved_items.picker_confirm")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setPickerOpen(false);
-                        setPickerSelected(new Set());
-                        setPickerSearch("");
-                      }}
-                    >
-                      ✕
-                    </Button>
-                  </div>
-                  <div className="bg-white rounded border max-h-64 overflow-y-auto">
-                    {visiblePoolItems.length === 0 ? (
-                      <p className="text-xs text-gray-500 text-center py-6">
-                        {t("saved_items.empty")}
-                      </p>
-                    ) : (
-                      <table className="w-full text-sm">
-                        <tbody>
-                          {visiblePoolItems.map((s) => {
-                            const alreadyAdded = alreadyAddedSavedIds.has(s._id);
-                            const checked = pickerSelected.has(s._id);
-                            return (
-                              <tr
-                                key={s._id}
-                                className={`border-b last:border-b-0 ${
-                                  alreadyAdded ? "opacity-50" : ""
-                                }`}
-                              >
-                                <td className="p-2 w-8">
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    disabled={alreadyAdded}
-                                    onChange={() =>
-                                      setPickerSelected((prev) => {
-                                        const next = new Set(prev);
-                                        if (next.has(s._id)) next.delete(s._id);
-                                        else next.add(s._id);
-                                        return next;
-                                      })
-                                    }
-                                  />
-                                </td>
-                                <td className="p-2">
-                                  <div className="font-medium">
-                                    {s.product_name}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {categories.find(
-                                      (c) => c._id === s.category_id
-                                    )?.name_zh ?? s.category_id}
-                                  </div>
-                                </td>
-                                <td className="p-2 text-right whitespace-nowrap text-xs text-gray-600">
-                                  ×{s.default_quantity} ·{" "}
-                                  {s.default_unit_price.toLocaleString()}
-                                </td>
-                                <td className="p-2 text-xs text-gray-500 whitespace-nowrap">
-                                  {alreadyAdded
-                                    ? t("saved_items.picker_already_added")
-                                    : t("saved_items.used_count", {
-                                        n: s.used_count,
-                                      })}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Items list */}
               {items.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-6">
@@ -1189,27 +976,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
               n={3}
               title={t("inbound_v1.new.section3_title")}
               status={sectionStatus(3)}
-              summary={
-                s3Complete ? (
-                  <div className="text-sm grid gap-1">
-                    <div>
-                      {recipientName} · {DIAL_CODES[recipientCountry] ?? "+"}
-                      {recipientPhone}
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      {recipientCountry} · {recipientCity}
-                      {recipientDistrict ? ` · ${recipientDistrict}` : ""} ·{" "}
-                      {recipientAddress}
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      {carrierAccounts.find((a) => a._id === carrierAccountId)
-                        ?.nickname ?? carrierAccountId}
-                    </div>
-                  </div>
-                ) : null
-              }
-              onEdit={() => setEditingSection(3)}
-              onDone={() => setEditingSection(null)}
             >
               <div className="grid gap-3">
                 <div className="flex items-center gap-2 text-sm">
@@ -1372,10 +1138,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
             n={finalSection}
             title={t("inbound_v1.new.section4_title")}
             status={sectionStatus(finalSection)}
-            summary={null}
-            onEdit={() => setEditingSection(finalSection)}
-            onDone={() => setEditingSection(null)}
-            hideEditButton
           >
             <div className="grid gap-3">
               <FieldGroup label={t("inbound_v1.new.customer_remarks_label")}>
@@ -1508,7 +1270,9 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
         drafts={itemDrafts}
         categories={categories}
         currency={currency}
-        onSave={(saved) => {
+        savedItemPool={savedItemPool}
+        existingLinkedSavedIds={new Set(Object.values(linkedToSavedItem))}
+        onSave={(saved, addedLinks) => {
           setItems((prev) => {
             const next = [...prev];
             saved.forEach((s) => {
@@ -1518,6 +1282,9 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
             });
             return next;
           });
+          if (Object.keys(addedLinks).length > 0) {
+            setLinkedToSavedItem((prev) => ({ ...prev, ...addedLinks }));
+          }
           setItemModalOpen(false);
           setItemDrafts([]);
         }}
@@ -1552,6 +1319,8 @@ function ItemModal({
   drafts,
   categories,
   currency,
+  savedItemPool,
+  existingLinkedSavedIds,
   onSave,
   onCancel,
 }: {
@@ -1560,7 +1329,14 @@ function ItemModal({
   drafts: ItemDraft[];
   categories: Category[];
   currency: string;
-  onSave: (items: ItemDraft[]) => void;
+  savedItemPool: SavedItem[];
+  /** Saved-item IDs already represented in the parent's items list (so
+   *  the picker dropdown can disable them). */
+  existingLinkedSavedIds: Set<string>;
+  onSave: (
+    items: ItemDraft[],
+    newLinks: Record<string, string>
+  ) => void;
   onCancel: () => void;
 }) {
   const t = useTranslations();
@@ -1574,6 +1350,12 @@ function ItemModal({
     unit_price: 0,
   });
   const [rows, setRows] = useState<ItemDraft[]>([]);
+  // Per-row linkage to a saved-item id, populated when a row is added via
+  // the in-modal picker. Returned to the parent on save so used_count can
+  // be bumped + ⟲ sync knows the target.
+  const [newLinks, setNewLinks] = useState<Record<string, string>>({});
+  const [pickerQ, setPickerQ] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // Sync incoming drafts → local rows whenever the modal opens. Local
   // edits are isolated until "Save" so cancel cleanly discards them.
@@ -1584,6 +1366,9 @@ function ItemModal({
           ? drafts.map((d) => ({ ...d }))
           : [blankRow()]
       );
+      setNewLinks({});
+      setPickerQ("");
+      setPickerOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -1621,6 +1406,44 @@ function ItemModal({
     );
   const addRow = () => setRows((prev) => [...prev, blankRow()]);
 
+  // Picker: filter pool by free-text + already-used dedupe.
+  const addedFromLibThisModal = new Set(Object.values(newLinks));
+  const dimmedSavedIds = new Set([
+    ...Array.from(existingLinkedSavedIds),
+    ...Array.from(addedFromLibThisModal),
+  ]);
+  const filteredPool = savedItemPool
+    .filter((s) =>
+      pickerQ.trim()
+        ? s.product_name.toLowerCase().includes(pickerQ.trim().toLowerCase())
+        : true
+    )
+    .slice(0, 8);
+
+  const addFromLibrary = (s: SavedItem) => {
+    const draftId = `lib_${s._id}_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 5)}`;
+    const newRow: ItemDraft = {
+      draft_id: draftId,
+      category_id: s.category_id,
+      subcategory_id: s.subcategory_id,
+      product_name: s.product_name,
+      product_url: s.product_url ?? "",
+      quantity: s.default_quantity,
+      unit_price: s.default_unit_price,
+    };
+    setRows((prev) => {
+      // If the only existing row is blank (fresh modal), replace it
+      // rather than append — keeps the row count tidy.
+      if (prev.length === 1 && isBlank(prev[0])) return [newRow];
+      return [...prev, newRow];
+    });
+    setNewLinks((prev) => ({ ...prev, [draftId]: s._id }));
+    setPickerQ("");
+    setPickerOpen(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
@@ -1629,6 +1452,67 @@ function ItemModal({
             {t("inbound_v1.new.item_modal.title")}
           </DialogTitle>
         </DialogHeader>
+
+        {/* In-modal picker — search the saved-items library and add a
+            prefilled row in one click. */}
+        {savedItemPool.length > 0 && (
+          <div className="flex items-center gap-2 pb-2 border-b">
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              📚 {t("saved_items.picker_title")}
+            </span>
+            <div className="relative flex-1 max-w-md">
+              <Input
+                placeholder={t("saved_items.picker_search_placeholder")}
+                value={pickerQ}
+                onChange={(e) => {
+                  setPickerQ(e.target.value);
+                  setPickerOpen(true);
+                }}
+                onFocus={() => setPickerOpen(true)}
+                onBlur={() => {
+                  // Delay closing so the row click registers before the
+                  // suggestions disappear.
+                  setTimeout(() => setPickerOpen(false), 150);
+                }}
+              />
+              {pickerOpen && filteredPool.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded shadow-md z-10 max-h-72 overflow-y-auto">
+                  {filteredPool.map((s) => {
+                    const dimmed = dimmedSavedIds.has(s._id);
+                    const cat = categories.find(
+                      (c) => c._id === s.category_id
+                    );
+                    return (
+                      <button
+                        key={s._id}
+                        type="button"
+                        disabled={dimmed}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => !dimmed && addFromLibrary(s)}
+                        className="block w-full text-left px-3 py-2 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed border-b last:border-b-0"
+                      >
+                        <div className="font-medium text-sm">
+                          {s.product_name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {cat?.name_zh ?? s.category_id} · ×
+                          {s.default_quantity} · {currency}{" "}
+                          {s.default_unit_price.toLocaleString()}
+                          {dimmed && (
+                            <span className="ml-2 text-emerald-600">
+                              · {t("saved_items.picker_already_added")}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-3">
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse min-w-[900px]">
@@ -1742,6 +1626,11 @@ function ItemModal({
                               })
                             }
                           />
+                          {newLinks[r.draft_id] && (
+                            <span className="text-xs text-emerald-600">
+                              📚 由品項庫加入（可即場改）
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="p-2 align-top">
@@ -1823,7 +1712,17 @@ function ItemModal({
             {t("inbound_v1.new.item_modal.cancel_btn")}
           </Button>
           <Button
-            onClick={() => canSave && onSave(filledRows)}
+            onClick={() => {
+              if (!canSave) return;
+              // Filter out blanks from newLinks too — only saved rows
+              // count toward used_count bumps.
+              const keptIds = new Set(filledRows.map((r) => r.draft_id));
+              const keptLinks: Record<string, string> = {};
+              for (const [k, v] of Object.entries(newLinks)) {
+                if (keptIds.has(k)) keptLinks[k] = v;
+              }
+              onSave(filledRows, keptLinks);
+            }}
             disabled={!canSave}
           >
             {t("inbound_v1.new.item_modal.save_btn")}
