@@ -152,8 +152,18 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
   const [savedAddressId, setSavedAddressId] = useState<string>("");
 
   const [items, setItems] = useState<ItemDraft[]>([]);
-  const [itemEditing, setItemEditing] = useState<ItemDraft | null>(null);
+  const [itemDrafts, setItemDrafts] = useState<ItemDraft[]>([]);
   const [itemModalOpen, setItemModalOpen] = useState(false);
+
+  const blankItem = (): ItemDraft => ({
+    draft_id: `new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    category_id: "",
+    subcategory_id: "",
+    product_name: "",
+    product_url: "",
+    quantity: 1,
+    unit_price: 0,
+  });
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -815,15 +825,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
               <Button
                 size="sm"
                 onClick={() => {
-                  setItemEditing({
-                    draft_id: `new_${Date.now()}`,
-                    category_id: "",
-                    subcategory_id: "",
-                    product_name: "",
-                    product_url: "",
-                    quantity: 1,
-                    unit_price: 0,
-                  });
+                  setItemDrafts([blankItem()]);
                   setItemModalOpen(true);
                 }}
               >
@@ -867,7 +869,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              setItemEditing(it);
+                              setItemDrafts([{ ...it }]);
                               setItemModalOpen(true);
                             }}
                           >
@@ -906,48 +908,25 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
       <ItemModal
         open={itemModalOpen}
         onOpenChange={setItemModalOpen}
-        item={itemEditing}
+        drafts={itemDrafts}
         categories={categories}
         currency={currency}
         onSave={(saved) => {
           setItems((prev) => {
-            const idx = prev.findIndex((p) => p.draft_id === saved.draft_id);
-            if (idx >= 0) {
-              const copy = [...prev];
-              copy[idx] = saved;
-              return copy;
-            }
-            return [...prev, saved];
+            const next = [...prev];
+            saved.forEach((s) => {
+              const idx = next.findIndex((p) => p.draft_id === s.draft_id);
+              if (idx >= 0) next[idx] = s;
+              else next.push(s);
+            });
+            return next;
           });
           setItemModalOpen(false);
-          setItemEditing(null);
-        }}
-        // Keep the modal open and reset the draft so the user can chain
-        // multiple item entries without re-clicking "Add Item" — common
-        // when declaring many small items at once.
-        onSaveAndNext={(saved) => {
-          setItems((prev) => {
-            const idx = prev.findIndex((p) => p.draft_id === saved.draft_id);
-            if (idx >= 0) {
-              const copy = [...prev];
-              copy[idx] = saved;
-              return copy;
-            }
-            return [...prev, saved];
-          });
-          setItemEditing({
-            draft_id: `new_${Date.now()}`,
-            category_id: saved.category_id, // carry-forward the category for fast input
-            subcategory_id: saved.subcategory_id,
-            product_name: "",
-            product_url: "",
-            quantity: 1,
-            unit_price: 0,
-          });
+          setItemDrafts([]);
         }}
         onCancel={() => {
           setItemModalOpen(false);
-          setItemEditing(null);
+          setItemDrafts([]);
         }}
       />
     </div>
@@ -972,162 +951,273 @@ function FieldGroup({
 function ItemModal({
   open,
   onOpenChange,
-  item,
+  drafts,
   categories,
   currency,
   onSave,
-  onSaveAndNext,
   onCancel,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  item: ItemDraft | null;
+  drafts: ItemDraft[];
   categories: Category[];
   currency: string;
-  onSave: (it: ItemDraft) => void;
-  onSaveAndNext: (it: ItemDraft) => void;
+  onSave: (items: ItemDraft[]) => void;
   onCancel: () => void;
 }) {
   const t = useTranslations();
-  const [draft, setDraft] = useState<ItemDraft | null>(item);
+  const blankRow = (): ItemDraft => ({
+    draft_id: `new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    category_id: "",
+    subcategory_id: "",
+    product_name: "",
+    product_url: "",
+    quantity: 1,
+    unit_price: 0,
+  });
+  const [rows, setRows] = useState<ItemDraft[]>([]);
 
+  // Sync incoming drafts → local rows whenever the modal opens. Local
+  // edits are isolated until "Save" so cancel cleanly discards them.
   useEffect(() => {
-    setDraft(item);
-  }, [item]);
+    if (open) {
+      setRows(
+        drafts.length > 0
+          ? drafts.map((d) => ({ ...d }))
+          : [blankRow()]
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
-  if (!draft) return null;
-  const cat = categories.find((c) => c._id === draft.category_id);
-  const valid =
-    draft.category_id &&
-    draft.subcategory_id &&
-    draft.product_name &&
-    draft.quantity >= 1 &&
-    draft.unit_price >= 0;
-  const subtotal = draft.quantity * draft.unit_price;
+  const isBlank = (r: ItemDraft) =>
+    !r.category_id &&
+    !r.subcategory_id &&
+    !r.product_name &&
+    !r.product_url &&
+    !r.unit_price &&
+    (r.quantity === 1 || !r.quantity);
+
+  const isValid = (r: ItemDraft) =>
+    !!r.category_id &&
+    !!r.subcategory_id &&
+    !!r.product_name &&
+    r.quantity >= 1 &&
+    r.unit_price >= 0;
+
+  const filledRows = rows.filter((r) => !isBlank(r));
+  const canSave =
+    filledRows.length > 0 && filledRows.every(isValid);
+  const total = filledRows.reduce(
+    (s, r) => s + r.quantity * r.unit_price,
+    0
+  );
+
+  const patchRow = (id: string, patch: Partial<ItemDraft>) =>
+    setRows((prev) =>
+      prev.map((r) => (r.draft_id === id ? { ...r, ...patch } : r))
+    );
+  const removeRow = (id: string) =>
+    setRows((prev) =>
+      prev.length > 1 ? prev.filter((r) => r.draft_id !== id) : prev
+    );
+  const addRow = () => setRows((prev) => [...prev, blankRow()]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {t("inbound_v1.new.item_modal.title")}
           </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>{t("inbound_v1.new.item_modal.category_label")}</Label>
-              <select
-                className="w-full border rounded px-3 py-2"
-                value={draft.category_id}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    category_id: e.target.value,
-                    subcategory_id: "",
-                  })
-                }
-              >
-                <option value="">
-                  {t("inbound_v1.new.item_modal.select_category")}
-                </option>
-                {categories.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name_zh}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>{t("inbound_v1.new.item_modal.subcategory_label")}</Label>
-              <select
-                className="w-full border rounded px-3 py-2"
-                value={draft.subcategory_id}
-                onChange={(e) =>
-                  setDraft({ ...draft, subcategory_id: e.target.value })
-                }
-                disabled={!cat}
-              >
-                <option value="">
-                  {cat
-                    ? t("inbound_v1.new.item_modal.select_category")
-                    : t("inbound_v1.new.item_modal.select_subcategory")}
-                </option>
-                {cat?.subcategories.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name_zh}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse min-w-[900px]">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr>
+                  <th className="text-left font-medium p-2 w-[14%]">
+                    {t("inbound_v1.new.item_modal.category_label")}
+                  </th>
+                  <th className="text-left font-medium p-2 w-[14%]">
+                    {t("inbound_v1.new.item_modal.subcategory_label")}
+                  </th>
+                  <th className="text-left font-medium p-2">
+                    {t("inbound_v1.new.item_modal.product_name_label")}
+                  </th>
+                  <th className="text-left font-medium p-2 w-[9%]">
+                    {t("inbound_v1.new.item_modal.quantity_label")}
+                  </th>
+                  <th className="text-left font-medium p-2 w-[12%]">
+                    {t("inbound_v1.new.item_modal.unit_price_label")} (
+                    {currency})
+                  </th>
+                  <th className="text-right font-medium p-2 w-[11%]">
+                    {t("inbound_v1.new.item_modal.subtotal_label")}
+                  </th>
+                  <th className="p-2 w-[40px]"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const cat = categories.find(
+                    (c) => c._id === r.category_id
+                  );
+                  const rowSubtotal = r.quantity * r.unit_price;
+                  const rowError = !isBlank(r) && !isValid(r);
+                  return (
+                    <tr
+                      key={r.draft_id}
+                      className={`border-t ${rowError ? "bg-red-50" : ""}`}
+                    >
+                      <td className="p-2 align-top">
+                        <select
+                          className="w-full border rounded px-2 py-1.5"
+                          value={r.category_id}
+                          onChange={(e) =>
+                            patchRow(r.draft_id, {
+                              category_id: e.target.value,
+                              subcategory_id: "",
+                            })
+                          }
+                        >
+                          <option value="">
+                            {t(
+                              "inbound_v1.new.item_modal.select_category"
+                            )}
+                          </option>
+                          {categories.map((c) => (
+                            <option key={c._id} value={c._id}>
+                              {c.name_zh}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2 align-top">
+                        <select
+                          className="w-full border rounded px-2 py-1.5"
+                          value={r.subcategory_id}
+                          onChange={(e) =>
+                            patchRow(r.draft_id, {
+                              subcategory_id: e.target.value,
+                            })
+                          }
+                          disabled={!cat}
+                        >
+                          <option value="">
+                            {cat
+                              ? t(
+                                  "inbound_v1.new.item_modal.select_category"
+                                )
+                              : t(
+                                  "inbound_v1.new.item_modal.select_subcategory"
+                                )}
+                          </option>
+                          {cat?.subcategories.map((s) => (
+                            <option key={s._id} value={s._id}>
+                              {s.name_zh}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2 align-top">
+                        <div className="grid gap-1">
+                          <Input
+                            value={r.product_name}
+                            placeholder={t(
+                              "inbound_v1.new.item_modal.product_name_label"
+                            )}
+                            onChange={(e) =>
+                              patchRow(r.draft_id, {
+                                product_name: e.target.value,
+                              })
+                            }
+                            maxLength={200}
+                          />
+                          <Input
+                            type="url"
+                            value={r.product_url}
+                            placeholder="https://..."
+                            onChange={(e) =>
+                              patchRow(r.draft_id, {
+                                product_url: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                      </td>
+                      <td className="p-2 align-top">
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={
+                            r.quantity === 1 ? "" : r.quantity || ""
+                          }
+                          placeholder="1"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) =>
+                            patchRow(r.draft_id, {
+                              quantity:
+                                parseInt(e.target.value, 10) || 1,
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="p-2 align-top">
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={r.unit_price || ""}
+                          placeholder="0"
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) =>
+                            patchRow(r.draft_id, {
+                              unit_price:
+                                parseFloat(e.target.value) || 0,
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="p-2 align-top text-right whitespace-nowrap font-medium">
+                        {currency} {rowSubtotal.toLocaleString()}
+                      </td>
+                      <td className="p-2 align-top">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 h-9 w-9 p-0"
+                          onClick={() => removeRow(r.draft_id)}
+                          disabled={rows.length === 1}
+                          aria-label={t(
+                            "inbound_v1.new.item_modal.delete_btn"
+                          )}
+                          title={t(
+                            "inbound_v1.new.item_modal.delete_btn"
+                          )}
+                        >
+                          ✕
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div>
-            <Label>{t("inbound_v1.new.item_modal.product_name_label")}</Label>
-            <Input
-              value={draft.product_name}
-              onChange={(e) =>
-                setDraft({ ...draft, product_name: e.target.value })
-              }
-              maxLength={200}
-            />
-          </div>
-          <div>
-            <Label>{t("inbound_v1.new.item_modal.product_url_label")}</Label>
-            <Input
-              type="url"
-              value={draft.product_url}
-              onChange={(e) =>
-                setDraft({ ...draft, product_url: e.target.value })
-              }
-              placeholder="https://..."
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>{t("inbound_v1.new.item_modal.quantity_label")}</Label>
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                // Display empty when value is the initial default (1) so the
-                // user can type without colliding with a sticky "1" prefix.
-                // Marco's bug: typing 1000 produced "01000".
-                value={draft.quantity === 1 ? "" : draft.quantity || ""}
-                placeholder="1"
-                onFocus={(e) => e.target.select()}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    quantity: parseInt(e.target.value, 10) || 1,
-                  })
-                }
-              />
+          <div className="flex justify-between items-center pt-1">
+            <Button variant="outline" size="sm" onClick={addRow}>
+              {t("inbound_v1.new.add_item_btn")}
+            </Button>
+            <div className="text-sm">
+              <span className="text-gray-600 mr-2">
+                {t("inbound_v1.new.item_total")}
+              </span>
+              <span className="font-semibold">
+                {currency} {total.toLocaleString()}
+              </span>
             </div>
-            <div>
-              <Label>
-                {t("inbound_v1.new.item_modal.unit_price_label")} ({currency})
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                value={draft.unit_price || ""}
-                placeholder="0"
-                onFocus={(e) => e.target.select()}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    unit_price: parseFloat(e.target.value) || 0,
-                  })
-                }
-              />
-            </div>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>{t("inbound_v1.new.item_modal.subtotal_label")}</span>
-            <span className="font-semibold">
-              {currency} {subtotal.toLocaleString()}
-            </span>
           </div>
         </div>
         <DialogFooter>
@@ -1135,14 +1225,9 @@ function ItemModal({
             {t("inbound_v1.new.item_modal.cancel_btn")}
           </Button>
           <Button
-            variant="secondary"
-            onClick={() => valid && onSaveAndNext(draft)}
-            disabled={!valid}
-            title="保存並開始下一個申報項目"
+            onClick={() => canSave && onSave(filledRows)}
+            disabled={!canSave}
           >
-            {t("inbound_v1.new.item_modal.save_and_next_btn")}
-          </Button>
-          <Button onClick={() => valid && onSave(draft)} disabled={!valid}>
             {t("inbound_v1.new.item_modal.save_btn")}
           </Button>
         </DialogFooter>
