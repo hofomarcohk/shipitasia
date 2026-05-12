@@ -873,7 +873,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                                   {inLib
                                     ? "📚 已存品項"
                                     : it.opt_out_library
-                                    ? "＋ 全新 · 一次性（唔入庫）"
+                                    ? "＋ 全新 · 一次性（不入庫）"
                                     : "＋ 全新 · 將入庫"}
                                 </span>
                               </div>
@@ -1534,14 +1534,14 @@ function ItemModal({
                 className="ml-auto"
                 onClick={addManual}
               >
-                ＋ 手動加（唔喺庫）
+                ＋ 手動加（不在庫）
               </Button>
             </div>
 
             {isEmptyState && savedItemPool.length > 0 ? (
               <div className="border-2 border-dashed rounded-md p-8 text-center bg-gray-50 text-gray-500 text-sm">
                 <div className="text-2xl mb-2">↑</div>
-                喺品項庫揀 (＋) 或者按右上「手動加」開新一件
+                在品項庫選 (＋) 或按右上「手動加」開新一項
               </div>
             ) : (
               <div className="grid gap-2">
@@ -1600,7 +1600,7 @@ function ItemModal({
                             >
                               {lineage === "lib"
                                 ? priceDiffers
-                                  ? "📚 同名命中庫 · 改咗價"
+                                  ? "📚 同名命中庫 · 已改價"
                                   : "📚 已存品項"
                                 : r.opt_out_library
                                 ? "＋ 全新 · 一次性"
@@ -1676,7 +1676,7 @@ function ItemModal({
                                   })
                                 }
                               />
-                              一次性 · 唔入庫
+                              一次性 · 不入庫
                             </label>
                           )}
                         </div>

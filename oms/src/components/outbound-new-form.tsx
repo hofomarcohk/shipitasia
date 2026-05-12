@@ -404,7 +404,7 @@ export const OutboundNewForm = () => {
             </div>
           </div>
 
-          {/* ── Section 1 · 揀預報 ── */}
+          {/* ── Section 1 · 選擇預報 ── */}
           <SectionCard
             n={1}
             title={t("outbound_v1.new.section1_title")}
