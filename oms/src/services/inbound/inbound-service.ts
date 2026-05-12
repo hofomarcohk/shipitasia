@@ -8,6 +8,7 @@ import {
 import { connectToDatabase, getMongoClient } from "@/lib/mongo";
 import { logAudit } from "@/services/audit/log";
 import { createNotification } from "@/services/notification/notification";
+import { upsertSavedItemByName } from "@/services/saved-items/saved-item-service";
 import { nextDailyId } from "@/services/util/daily-counter";
 import { validateCategoryPair } from "@/services/inbound/master-data";
 import {
@@ -120,11 +121,16 @@ interface CreateOptions {
   created_by_staff_id?: string; // set when admin creates on behalf
 }
 
+export interface LibraryChange {
+  product_name: string;
+  action: "updated" | "created";
+}
+
 export async function createInbound(
   raw: unknown,
   ctx: ClientContext,
   opts: CreateOptions = {}
-): Promise<{ inbound_id: string }> {
+): Promise<{ inbound_id: string; library_changes: LibraryChange[] }> {
   const input = CreateInboundInputSchema.parse(raw);
 
   if (input.declared_items.length > 50) {
@@ -292,7 +298,45 @@ export async function createInbound(
     user_agent: ctx.user_agent,
   });
 
-  return { inbound_id };
+  // ── P10 item-dialog redesign: silently upsert each declared item into
+  // the customer's saved-item library by normalize(product_name). Skipped
+  // when the row carries opt_out_library, or when an admin is creating
+  // the inbound on behalf of the customer (their library shouldn't be
+  // mutated by staff actions).
+  const library_changes = await syncDeclaredItemsToLibrary(
+    ctx.client_id,
+    input.declared_items,
+    opts
+  );
+
+  return { inbound_id, library_changes };
+}
+
+async function syncDeclaredItemsToLibrary(
+  client_id: string,
+  items: InboundDeclaredItemInput[],
+  opts: CreateOptions
+): Promise<LibraryChange[]> {
+  if (opts.created_by_staff_id) return [];
+  const changes: LibraryChange[] = [];
+  for (const it of items) {
+    if ((it as any).opt_out_library) continue;
+    try {
+      const r = await upsertSavedItemByName(client_id, {
+        product_name: it.product_name,
+        category_id: it.category_id,
+        subcategory_id: it.subcategory_id,
+        product_url: it.product_url ?? null,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+      });
+      changes.push({ product_name: r.doc.product_name, action: r.action });
+    } catch {
+      // Library hiccup must never sink the inbound submit. Swallow and
+      // continue — the inbound is already persisted at this point.
+    }
+  }
+  return changes;
 }
 
 // ── list / get ─────────────────────────────────────────────
@@ -553,6 +597,11 @@ export async function updateInbound(
     ip_address: ctx.ip_address,
     user_agent: ctx.user_agent,
   });
+
+  // Run library upsert on the new item set, same rules as createInbound.
+  if (input.declared_items) {
+    await syncDeclaredItemsToLibrary(ctx.client_id, input.declared_items, {});
+  }
 
   return await getMyInbound(id, ctx);
 }

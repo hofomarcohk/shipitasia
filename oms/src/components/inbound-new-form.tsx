@@ -53,6 +53,10 @@ interface ItemDraft {
   product_url: string;
   quantity: number;
   unit_price: number;
+  /** Per the v0.3 item-dialog redesign: by default every row silently
+   *  upserts into the customer's saved-item library by product_name. This
+   *  flag lets the customer opt-out per row (rare). */
+  opt_out_library?: boolean;
 }
 
 interface SavedItem {
@@ -184,17 +188,9 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
   }
   const [savedItemPool, setSavedItemPool] = useState<SavedItem[]>([]);
   // draft_id → saved_item_id : which rows came from the library (so the
-  // submit handler can bump `used_count` + the ⟲ sync action knows the
-  // target saved-item).
-  const [linkedToSavedItem, setLinkedToSavedItem] = useState<
-    Record<string, string>
-  >({});
-  // draft_id → true : rows the customer hit ☆ on (already saved into
-  // library this session; suppresses the link re-appearing).
-  const [savedToLibrary, setSavedToLibrary] = useState<Record<string, boolean>>(
-    {}
-  );
   const [applied, setApplied] = useState<AppliedFromInbound | null>(null);
+  // Post-submit toast surface for the silent library upsert/inserts.
+  const [libraryToast, setLibraryToast] = useState<string | null>(null);
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -374,49 +370,24 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     setSavedAddressId("");
     setSaveAsDefault(false);
     setItems([]);
-    setLinkedToSavedItem({});
-    setSavedToLibrary({});
     setCustomerRemarks("");
     setError("");
   };
 
-  // ☆ Save a manually-entered row into the library so it can be re-used
-  // on later inbounds.
-  const saveItemToLibrary = async (it: ItemDraft) => {
-    const body = {
-      category_id: it.category_id,
-      subcategory_id: it.subcategory_id,
-      product_name: it.product_name,
-      product_url: it.product_url || undefined,
-      default_quantity: it.quantity,
-      default_unit_price: it.unit_price,
-    };
-    const r = await http_request("POST", "/api/cms/saved-items", body);
-    const d = await r.json();
-    if (d.status === 200) {
-      setSavedItemPool((prev) => [d.data, ...prev]);
-      setLinkedToSavedItem((prev) => ({ ...prev, [it.draft_id]: d.data._id }));
-      setSavedToLibrary((prev) => ({ ...prev, [it.draft_id]: true }));
-    }
-  };
+  // Normalize product name client-side using the same NFKC + casefold
+  // recipe as the server's saved-item upsert. Used by the item-dialog
+  // chip computation so the UI labels match the server's commit decision.
+  const normalizeName = (raw: string): string =>
+    raw.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 
-  // ⟲ Push the current row's qty/price back to the library's defaults.
-  const syncDefaultsToLibrary = async (it: ItemDraft) => {
-    const sid = linkedToSavedItem[it.draft_id];
-    if (!sid) return;
-    const r = await http_request("PATCH", `/api/cms/saved-items/${sid}`, {
-      action: "sync_defaults",
-      default_quantity: it.quantity,
-      default_unit_price: it.unit_price,
-    });
-    const d = await r.json();
-    if (d.status === 200) {
-      setSavedItemPool((prev) =>
-        prev.map((p) => (p._id === sid ? d.data : p))
-      );
-      setSavedToLibrary((prev) => ({ ...prev, [it.draft_id]: true }));
+  const savedItemByName = useMemo(() => {
+    const m = new Map<string, SavedItem>();
+    for (const s of savedItemPool) {
+      const k = normalizeName(s.product_name);
+      if (k) m.set(k, s);
     }
-  };
+    return m;
+  }, [savedItemPool]);
 
   // tracking dedupe onBlur
   const checkDuplicate = async () => {
@@ -454,8 +425,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     setTrackingNo("");
     setTrackingNoOther("");
     setItems([]);
-    setLinkedToSavedItem({});
-    setSavedToLibrary({});
     setCustomerRemarks("");
     setRecipientName("");
     setRecipientPhone("");
@@ -500,9 +469,10 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
       shipment_type: shipmentType,
       customer_remarks: customerRemarks || undefined,
       declared_items: items.map(
-        ({ draft_id: _, product_url, ...rest }) => ({
+        ({ draft_id: _, product_url, opt_out_library, ...rest }) => ({
           ...rest,
           product_url: product_url || undefined,
+          ...(opt_out_library ? { opt_out_library: true } : {}),
         })
       ),
     };
@@ -535,14 +505,17 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
       const d = await res.json();
       if (res.ok && d.status === 200) {
         const newId = editMode ? inboundId : d.data.inbound_id;
-        // Fire-and-forget: bump `used_count` on every saved-item that was
-        // actually included in this inbound. Doesn't block the redirect.
-        const usedIds = Array.from(new Set(Object.values(linkedToSavedItem)));
-        if (usedIds.length > 0) {
-          http_request("POST", "/api/cms/saved-items/bulk", {
-            action: "mark_used",
-            ids: usedIds,
-          }).catch(() => {});
+        // Server returns `library_changes` describing every silent upsert
+        // it did. Format a toast so the customer sees what was learned.
+        const changes: Array<{ product_name: string; action: string }> =
+          d.data?.library_changes ?? [];
+        if (changes.length > 0) {
+          const u = changes.filter((c) => c.action === "updated").length;
+          const c = changes.filter((c) => c.action === "created").length;
+          const parts: string[] = [];
+          if (u > 0) parts.push(`更新 ${u} 件`);
+          if (c > 0) parts.push(`新增 ${c} 件`);
+          setLibraryToast(`品項庫已${parts.join(" · ")}`);
         }
         if (continueAfter && !editMode) {
           resetForNext(newId);
@@ -872,8 +845,11 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                         const sub = cat?.subcategories.find(
                           (s) => s._id === it.subcategory_id
                         );
-                        const fromLibrary = !!linkedToSavedItem[it.draft_id];
-                        const savedNow = !!savedToLibrary[it.draft_id];
+                        // Lineage chip per v0.3 redesign: 📚 if the name
+                        // hits a saved-item (commit will upsert defaults);
+                        // ＋ if it's a new name (commit will insert).
+                        const nameKey = normalizeName(it.product_name);
+                        const inLib = nameKey && savedItemByName.has(nameKey);
                         return (
                           <tr key={it.draft_id} className="border-t">
                             <td className="p-2 align-top">
@@ -884,22 +860,22 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                             </td>
                             <td className="p-2 align-top">
                               <div className="font-medium">{it.product_name}</div>
-                              <div className="text-xs text-gray-500 flex items-center gap-1">
-                                {fromLibrary ? (
-                                  <>📚 已存品項</>
-                                ) : savedNow ? (
-                                  <span className="text-emerald-600">
-                                    {t("saved_items.save_to_library_done")}
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="underline hover:text-blue-600"
-                                    onClick={() => saveItemToLibrary(it)}
-                                  >
-                                    {t("saved_items.save_to_library_link")}
-                                  </button>
-                                )}
+                              <div className="text-xs mt-0.5">
+                                <span
+                                  className={
+                                    inLib
+                                      ? "text-gray-600 font-mono"
+                                      : it.opt_out_library
+                                      ? "text-gray-400 font-mono"
+                                      : "text-blue-700 font-mono"
+                                  }
+                                >
+                                  {inLib
+                                    ? "📚 已存品項"
+                                    : it.opt_out_library
+                                    ? "＋ 全新 · 一次性（唔入庫）"
+                                    : "＋ 全新 · 將入庫"}
+                                </span>
                               </div>
                             </td>
                             <td className="p-2 align-top text-right">
@@ -912,16 +888,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                               {(it.quantity * it.unit_price).toLocaleString()}
                             </td>
                             <td className="p-2 align-top text-right whitespace-nowrap">
-                              {fromLibrary && !savedNow && (
-                                <button
-                                  type="button"
-                                  className="text-xs text-blue-600 hover:underline mr-2"
-                                  onClick={() => syncDefaultsToLibrary(it)}
-                                  title={t("saved_items.sync_to_library_btn")}
-                                >
-                                  ⟲
-                                </button>
-                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -942,11 +908,6 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                                       (x) => x.draft_id !== it.draft_id
                                     )
                                   );
-                                  setLinkedToSavedItem((prev) => {
-                                    const next = { ...prev };
-                                    delete next[it.draft_id];
-                                    return next;
-                                  });
                                 }}
                               >
                                 ×
@@ -1179,6 +1140,18 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                   </button>
                 </div>
               )}
+              {libraryToast && (
+                <div className="text-sm bg-blue-50 text-blue-800 border border-blue-200 rounded p-3 flex items-center justify-between gap-3">
+                  <span>📚 {libraryToast}</span>
+                  <button
+                    type="button"
+                    onClick={() => setLibraryToast(null)}
+                    className="text-xs hover:underline"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2 flex-wrap">
                 <Link href="/zh-hk/inbound/list">
@@ -1271,20 +1244,23 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
         categories={categories}
         currency={currency}
         savedItemPool={savedItemPool}
-        existingLinkedSavedIds={new Set(Object.values(linkedToSavedItem))}
-        onSave={(saved, addedLinks) => {
+        onSave={(saved) => {
           setItems((prev) => {
+            // Replace the whole items list with the modal's filtered rows
+            // when the modal was opened fresh (no incoming drafts), or
+            // patch-in by draft_id when editing a single existing row.
+            // Drafts always carry their original draft_id, so a merge by
+            // draft_id covers both flows.
             const next = [...prev];
+            const seen = new Set<string>();
             saved.forEach((s) => {
+              seen.add(s.draft_id);
               const idx = next.findIndex((p) => p.draft_id === s.draft_id);
               if (idx >= 0) next[idx] = s;
               else next.push(s);
             });
             return next;
           });
-          if (Object.keys(addedLinks).length > 0) {
-            setLinkedToSavedItem((prev) => ({ ...prev, ...addedLinks }));
-          }
           setItemModalOpen(false);
           setItemDrafts([]);
         }}
@@ -1312,7 +1288,22 @@ function FieldGroup({
   );
 }
 
-
+// ─────────────────────────────────────────────────────────────────────
+// ItemModal — v0.3 redesign per item-dialog-redesign.html
+//
+// Mental model: product_name = library identifier. Two row lineages,
+// computed at render time from a name-keyed lookup:
+//
+//   📚 LIB  — normalize(name) hits a saved-item. Commit silently upserts
+//             (overwrites the saved-item's default qty/price).
+//   ＋ NEW  — name doesn't hit anything. Commit silently inserts as a
+//             new saved-item, unless the row has opt_out_library set.
+//
+// No save-banner, no batch-confirm modal, no "save-to-library" button.
+// The shelf at the top is the only entry point besides 「＋ 手動加」, and
+// its ＋ button never disables — re-picking the same item adds another
+// independent row (same name → still 📚; commit applies the latest).
+// ─────────────────────────────────────────────────────────────────────
 function ItemModal({
   open,
   onOpenChange,
@@ -1320,7 +1311,6 @@ function ItemModal({
   categories,
   currency,
   savedItemPool,
-  existingLinkedSavedIds,
   onSave,
   onCancel,
 }: {
@@ -1330,16 +1320,13 @@ function ItemModal({
   categories: Category[];
   currency: string;
   savedItemPool: SavedItem[];
-  /** Saved-item IDs already represented in the parent's items list (so
-   *  the picker dropdown can disable them). */
-  existingLinkedSavedIds: Set<string>;
-  onSave: (
-    items: ItemDraft[],
-    newLinks: Record<string, string>
-  ) => void;
+  onSave: (items: ItemDraft[]) => void;
   onCancel: () => void;
 }) {
   const t = useTranslations();
+  const normalizeName = (raw: string): string =>
+    raw.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+
   const blankRow = (): ItemDraft => ({
     draft_id: `new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     category_id: "",
@@ -1350,15 +1337,8 @@ function ItemModal({
     unit_price: 0,
   });
   const [rows, setRows] = useState<ItemDraft[]>([]);
-  // Per-row linkage to a saved-item id, populated when a row is added via
-  // the in-modal picker. Returned to the parent on save so used_count can
-  // be bumped + ⟲ sync knows the target.
-  const [newLinks, setNewLinks] = useState<Record<string, string>>({});
-  const [pickerQ, setPickerQ] = useState("");
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [shelfSearch, setShelfSearch] = useState("");
 
-  // Sync incoming drafts → local rows whenever the modal opens. Local
-  // edits are isolated until "Save" so cancel cleanly discards them.
   useEffect(() => {
     if (open) {
       setRows(
@@ -1366,9 +1346,7 @@ function ItemModal({
           ? drafts.map((d) => ({ ...d }))
           : [blankRow()]
       );
-      setNewLinks({});
-      setPickerQ("");
-      setPickerOpen(false);
+      setShelfSearch("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -1389,8 +1367,7 @@ function ItemModal({
     r.unit_price >= 0;
 
   const filledRows = rows.filter((r) => !isBlank(r));
-  const canSave =
-    filledRows.length > 0 && filledRows.every(isValid);
+  const canSave = filledRows.length > 0 && filledRows.every(isValid);
   const total = filledRows.reduce(
     (s, r) => s + r.quantity * r.unit_price,
     0
@@ -1404,28 +1381,40 @@ function ItemModal({
     setRows((prev) =>
       prev.length > 1 ? prev.filter((r) => r.draft_id !== id) : prev
     );
-  const addRow = () => setRows((prev) => [...prev, blankRow()]);
 
-  // Picker: filter pool by free-text + already-used dedupe.
-  const addedFromLibThisModal = new Set(Object.values(newLinks));
-  const dimmedSavedIds = new Set([
-    ...Array.from(existingLinkedSavedIds),
-    ...Array.from(addedFromLibThisModal),
-  ]);
-  const filteredPool = savedItemPool
-    .filter((s) =>
-      pickerQ.trim()
-        ? s.product_name.toLowerCase().includes(pickerQ.trim().toLowerCase())
-        : true
-    )
-    .slice(0, 8);
+  // Build the normalize-name → saved-item map so chip computation +
+  // shelf "在單內 ×N" counts stay in sync.
+  const libByName = new Map<string, SavedItem>();
+  for (const s of savedItemPool) {
+    const k = normalizeName(s.product_name);
+    if (k) libByName.set(k, s);
+  }
+  const lineageOf = (r: ItemDraft): "lib" | "new" => {
+    if (!r.product_name) return "new";
+    return libByName.has(normalizeName(r.product_name)) ? "lib" : "new";
+  };
+  const inListCount = (s: SavedItem) => {
+    const k = normalizeName(s.product_name);
+    return rows.filter(
+      (r) => r.product_name && normalizeName(r.product_name) === k
+    ).length;
+  };
 
-  const addFromLibrary = (s: SavedItem) => {
-    const draftId = `lib_${s._id}_${Date.now()}_${Math.random()
-      .toString(36)
-      .slice(2, 5)}`;
+  const filteredShelf = (
+    shelfSearch.trim()
+      ? savedItemPool.filter((s) =>
+          s.product_name
+            .toLowerCase()
+            .includes(shelfSearch.trim().toLowerCase())
+        )
+      : savedItemPool
+  ).slice(0, 12);
+
+  const addFromShelf = (s: SavedItem) => {
     const newRow: ItemDraft = {
-      draft_id: draftId,
+      draft_id: `lib_${s._id}_${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(2, 5)}`,
       category_id: s.category_id,
       subcategory_id: s.subcategory_id,
       product_name: s.product_name,
@@ -1434,299 +1423,366 @@ function ItemModal({
       unit_price: s.default_unit_price,
     };
     setRows((prev) => {
-      // If the only existing row is blank (fresh modal), replace it
-      // rather than append — keeps the row count tidy.
+      // Replace the placeholder blank row if that's all we have so far.
       if (prev.length === 1 && isBlank(prev[0])) return [newRow];
       return [...prev, newRow];
     });
-    setNewLinks((prev) => ({ ...prev, [draftId]: s._id }));
-    setPickerQ("");
-    setPickerOpen(false);
   };
+
+  const addManual = () => setRows((prev) => [...prev, blankRow()]);
+
+  const catName = (s: SavedItem) =>
+    categories.find((c) => c._id === s.category_id)?.name_zh ?? "";
+
+  // Show "row 是預設 placeholder + 完全空" state for the empty-state visual.
+  const isEmptyState = rows.length === 1 && isBlank(rows[0]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto p-0">
+        <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>
             {t("inbound_v1.new.item_modal.title")}
           </DialogTitle>
         </DialogHeader>
 
-        {/* In-modal picker — search the saved-items library and add a
-            prefilled row in one click. */}
-        {savedItemPool.length > 0 && (
-          <div className="flex items-center gap-2 pb-2 border-b">
-            <span className="text-xs text-gray-500 whitespace-nowrap">
-              📚 {t("saved_items.picker_title")}
-            </span>
-            <div className="relative flex-1 max-w-md">
-              <Input
-                placeholder={t("saved_items.picker_search_placeholder")}
-                value={pickerQ}
-                onChange={(e) => {
-                  setPickerQ(e.target.value);
-                  setPickerOpen(true);
-                }}
-                onFocus={() => setPickerOpen(true)}
-                onBlur={() => {
-                  // Delay closing so the row click registers before the
-                  // suggestions disappear.
-                  setTimeout(() => setPickerOpen(false), 150);
-                }}
-              />
-              {pickerOpen && filteredPool.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded shadow-md z-10 max-h-72 overflow-y-auto">
-                  {filteredPool.map((s) => {
-                    const dimmed = dimmedSavedIds.has(s._id);
-                    const cat = categories.find(
-                      (c) => c._id === s.category_id
-                    );
+        <div className="px-6 py-4 grid gap-4">
+          {/* ── Shelf ── */}
+          {savedItemPool.length > 0 && (
+            <div className="border rounded-lg bg-gradient-to-b from-gray-50 to-white p-3">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-7 h-7 rounded-md bg-gray-900 text-white grid place-items-center text-sm">
+                  📚
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">
+                    {t("saved_items.picker_title")}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {savedItemPool.length} 件已存 · 按 ＋ 加入下面申報單
+                  </div>
+                </div>
+                <Input
+                  placeholder={t("saved_items.picker_search_placeholder")}
+                  value={shelfSearch}
+                  onChange={(e) => setShelfSearch(e.target.value)}
+                  className="max-w-xs h-9 bg-white"
+                />
+              </div>
+              {filteredShelf.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-4">
+                  無匹配品項
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {filteredShelf.map((s) => {
+                    const cnt = inListCount(s);
+                    const inList = cnt > 0;
                     return (
-                      <button
+                      <div
                         key={s._id}
-                        type="button"
-                        disabled={dimmed}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => !dimmed && addFromLibrary(s)}
-                        className="block w-full text-left px-3 py-2 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed border-b last:border-b-0"
+                        className={`border rounded-md p-2.5 flex items-center gap-3 ${
+                          inList
+                            ? "bg-emerald-50 border-emerald-300"
+                            : "bg-white"
+                        }`}
                       >
-                        <div className="font-medium text-sm">
-                          {s.product_name}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {s.product_name}
+                          </div>
+                          <div
+                            className={`text-xs font-mono ${
+                              inList ? "text-emerald-700" : "text-gray-500"
+                            }`}
+                          >
+                            {inList
+                              ? `在單內 ×${cnt} · 再加`
+                              : `${catName(s)} · ${currency} ${s.default_unit_price.toLocaleString()} · ${s.used_count} 次`}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {cat?.name_zh ?? s.category_id} · ×
-                          {s.default_quantity} · {currency}{" "}
-                          {s.default_unit_price.toLocaleString()}
-                          {dimmed && (
-                            <span className="ml-2 text-emerald-600">
-                              · {t("saved_items.picker_already_added")}
-                            </span>
-                          )}
-                        </div>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => addFromShelf(s)}
+                          className={`flex-none w-7 h-7 rounded-full grid place-items-center text-sm shadow-sm transition hover:scale-105 ${
+                            inList
+                              ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                              : "bg-gray-900 text-white"
+                          }`}
+                          aria-label="加入"
+                        >
+                          ＋
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="grid gap-3">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-[900px]">
-              <thead className="bg-gray-50 text-gray-600">
-                <tr>
-                  <th className="text-left font-medium p-2 w-[14%]">
-                    {t("inbound_v1.new.item_modal.category_label")}
-                  </th>
-                  <th className="text-left font-medium p-2 w-[14%]">
-                    {t("inbound_v1.new.item_modal.subcategory_label")}
-                  </th>
-                  <th className="text-left font-medium p-2">
-                    {t("inbound_v1.new.item_modal.product_name_label")}
-                  </th>
-                  <th className="text-left font-medium p-2 w-[9%]">
-                    {t("inbound_v1.new.item_modal.quantity_label")}
-                  </th>
-                  <th className="text-left font-medium p-2 w-[12%]">
-                    {t("inbound_v1.new.item_modal.unit_price_label")} (
-                    {currency})
-                  </th>
-                  <th className="text-right font-medium p-2 w-[11%]">
-                    {t("inbound_v1.new.item_modal.subtotal_label")}
-                  </th>
-                  <th className="p-2 w-[40px]"></th>
-                </tr>
-              </thead>
-              <tbody>
+          {/* ── Declared rows ── */}
+          <div>
+            <div className="flex items-baseline gap-3 mb-3">
+              <h3 className="text-sm font-semibold">申報品項</h3>
+              <span className="text-xs font-mono text-gray-500">
+                {filledRows.length} 件 · {currency} {total.toLocaleString()}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto"
+                onClick={addManual}
+              >
+                ＋ 手動加（唔喺庫）
+              </Button>
+            </div>
+
+            {isEmptyState && savedItemPool.length > 0 ? (
+              <div className="border-2 border-dashed rounded-md p-8 text-center bg-gray-50 text-gray-500 text-sm">
+                <div className="text-2xl mb-2">↑</div>
+                喺品項庫揀 (＋) 或者按右上「手動加」開新一件
+              </div>
+            ) : (
+              <div className="grid gap-2">
                 {rows.map((r) => {
                   const cat = categories.find(
                     (c) => c._id === r.category_id
                   );
+                  const lineage = lineageOf(r);
+                  const matched = lineage === "lib"
+                    ? libByName.get(normalizeName(r.product_name))
+                    : null;
+                  const priceDiffers =
+                    matched && matched.default_unit_price !== r.unit_price;
                   const rowSubtotal = r.quantity * r.unit_price;
                   const rowError = !isBlank(r) && !isValid(r);
                   return (
-                    <tr
+                    <div
                       key={r.draft_id}
-                      className={`border-t ${rowError ? "bg-red-50" : ""}`}
+                      className={`border rounded-md p-3 ${
+                        rowError ? "bg-red-50 border-red-200" : "bg-white"
+                      } ${lineage === "new" ? "border-l-4 border-l-gray-900" : ""}`}
                     >
-                      <td className="p-2 align-top">
-                        <select
-                          className="w-full border rounded px-2 py-1.5"
-                          value={r.category_id}
-                          onChange={(e) =>
-                            patchRow(r.draft_id, {
-                              category_id: e.target.value,
-                              subcategory_id: "",
-                            })
-                          }
+                      <div className="grid grid-cols-[32px_minmax(0,1fr)_72px_104px_96px_36px] gap-3 items-start">
+                        {/* lineage chip */}
+                        <div
+                          className={`w-7 h-7 rounded-md grid place-items-center text-sm ${
+                            lineage === "lib"
+                              ? "bg-gray-900 text-white"
+                              : "bg-gray-100 text-gray-700 border border-dashed"
+                          }`}
+                          title={lineage === "lib" ? "同名命中庫" : "新名"}
                         >
-                          <option value="">
-                            {t(
-                              "inbound_v1.new.item_modal.select_category"
-                            )}
-                          </option>
-                          {categories.map((c) => (
-                            <option key={c._id} value={c._id}>
-                              {c.name_zh}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="p-2 align-top">
-                        <select
-                          className="w-full border rounded px-2 py-1.5"
-                          value={r.subcategory_id}
-                          onChange={(e) =>
-                            patchRow(r.draft_id, {
-                              subcategory_id: e.target.value,
-                            })
-                          }
-                          disabled={!cat}
-                        >
-                          <option value="">
-                            {cat
-                              ? t(
-                                  "inbound_v1.new.item_modal.select_category"
-                                )
-                              : t(
-                                  "inbound_v1.new.item_modal.select_subcategory"
-                                )}
-                          </option>
-                          {cat?.subcategories.map((s) => (
-                            <option key={s._id} value={s._id}>
-                              {s.name_zh}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="p-2 align-top">
-                        <div className="grid gap-1">
-                          <Input
-                            value={r.product_name}
-                            placeholder={t(
-                              "inbound_v1.new.item_modal.product_name_label"
-                            )}
-                            onChange={(e) =>
-                              patchRow(r.draft_id, {
-                                product_name: e.target.value,
-                              })
-                            }
-                            maxLength={200}
-                          />
-                          <Input
-                            type="url"
-                            value={r.product_url}
-                            placeholder="https://..."
-                            onChange={(e) =>
-                              patchRow(r.draft_id, {
-                                product_url: e.target.value,
-                              })
-                            }
-                          />
-                          {newLinks[r.draft_id] && (
-                            <span className="text-xs text-emerald-600">
-                              📚 由品項庫加入（可即場改）
+                          {lineage === "lib" ? "📚" : "＋"}
+                        </div>
+
+                        {/* who */}
+                        <div className="min-w-0 grid gap-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Input
+                              value={r.product_name}
+                              onChange={(e) =>
+                                patchRow(r.draft_id, {
+                                  product_name: e.target.value,
+                                })
+                              }
+                              placeholder="商品名 *"
+                              maxLength={200}
+                              className="max-w-md h-9 font-medium"
+                            />
+                            <span
+                              className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                lineage === "lib"
+                                  ? "bg-gray-50 text-gray-700 border-gray-200"
+                                  : "bg-blue-50 text-blue-800 border-blue-200"
+                              }`}
+                            >
+                              {lineage === "lib"
+                                ? priceDiffers
+                                  ? "📚 同名命中庫 · 改咗價"
+                                  : "📚 已存品項"
+                                : r.opt_out_library
+                                ? "＋ 全新 · 一次性"
+                                : "＋ 全新 · 將入庫"}
                             </span>
+                          </div>
+                          <div className="flex gap-2 items-center flex-wrap">
+                            <select
+                              className="border rounded h-7 px-2 text-xs bg-white"
+                              value={r.category_id}
+                              onChange={(e) =>
+                                patchRow(r.draft_id, {
+                                  category_id: e.target.value,
+                                  subcategory_id: "",
+                                })
+                              }
+                            >
+                              <option value="">類別 *</option>
+                              {categories.map((c) => (
+                                <option key={c._id} value={c._id}>
+                                  {c.name_zh}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              className="border rounded h-7 px-2 text-xs bg-white"
+                              value={r.subcategory_id}
+                              disabled={!cat}
+                              onChange={(e) =>
+                                patchRow(r.draft_id, {
+                                  subcategory_id: e.target.value,
+                                })
+                              }
+                            >
+                              <option value="">
+                                {cat ? "子類別 *" : "請先選類別"}
+                              </option>
+                              {cat?.subcategories.map((s) => (
+                                <option key={s._id} value={s._id}>
+                                  {s.name_zh}
+                                </option>
+                              ))}
+                            </select>
+                            <Input
+                              type="url"
+                              value={r.product_url}
+                              placeholder="URL（選填）"
+                              onChange={(e) =>
+                                patchRow(r.draft_id, {
+                                  product_url: e.target.value,
+                                })
+                              }
+                              className="h-7 text-xs flex-1 min-w-[160px] max-w-xs"
+                            />
+                          </div>
+                          {priceDiffers && (
+                            <div className="text-[11px] font-mono text-amber-700">
+                              · commit 時將以 {currency}{" "}
+                              {r.unit_price.toLocaleString()} 覆蓋庫 default（庫 default ={" "}
+                              {currency}{" "}
+                              {matched!.default_unit_price.toLocaleString()}
+                              ）
+                            </div>
+                          )}
+                          {lineage === "new" && !isBlank(r) && (
+                            <label className="text-[11px] text-gray-500 inline-flex gap-1.5 items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!r.opt_out_library}
+                                onChange={(e) =>
+                                  patchRow(r.draft_id, {
+                                    opt_out_library: e.target.checked,
+                                  })
+                                }
+                              />
+                              一次性 · 唔入庫
+                            </label>
                           )}
                         </div>
-                      </td>
-                      <td className="p-2 align-top">
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={
-                            r.quantity === 1 ? "" : r.quantity || ""
-                          }
-                          placeholder="1"
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) =>
-                            patchRow(r.draft_id, {
-                              quantity:
-                                parseInt(e.target.value, 10) || 1,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="p-2 align-top">
-                        <Input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={r.unit_price || ""}
-                          placeholder="0"
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) =>
-                            patchRow(r.draft_id, {
-                              unit_price:
-                                parseFloat(e.target.value) || 0,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="p-2 align-top text-right whitespace-nowrap font-medium">
-                        {currency} {rowSubtotal.toLocaleString()}
-                      </td>
-                      <td className="p-2 align-top">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 h-9 w-9 p-0"
-                          onClick={() => removeRow(r.draft_id)}
-                          disabled={rows.length === 1}
-                          aria-label={t(
-                            "inbound_v1.new.item_modal.delete_btn"
-                          )}
-                          title={t(
-                            "inbound_v1.new.item_modal.delete_btn"
-                          )}
-                        >
-                          ✕
-                        </Button>
-                      </td>
-                    </tr>
+
+                        {/* qty */}
+                        <div className="text-right">
+                          <div className="text-[10px] font-mono uppercase text-gray-500 mb-1">
+                            數量
+                          </div>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={r.quantity === 1 ? "" : r.quantity || ""}
+                            placeholder="1"
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) =>
+                              patchRow(r.draft_id, {
+                                quantity: parseInt(e.target.value, 10) || 1,
+                              })
+                            }
+                            className="text-right h-9"
+                          />
+                        </div>
+
+                        {/* price */}
+                        <div className="text-right">
+                          <div className="text-[10px] font-mono uppercase text-gray-500 mb-1">
+                            單件售價 {currency}
+                          </div>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={r.unit_price || ""}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) =>
+                              patchRow(r.draft_id, {
+                                unit_price:
+                                  parseFloat(e.target.value) || 0,
+                              })
+                            }
+                            className={`text-right h-9 ${
+                              priceDiffers
+                                ? "bg-amber-50 border-amber-300 text-amber-900 font-medium"
+                                : ""
+                            }`}
+                          />
+                        </div>
+
+                        {/* subtotal */}
+                        <div className="text-right">
+                          <div className="text-[10px] font-mono uppercase text-gray-500 mb-1">
+                            小計 {currency}
+                          </div>
+                          <div className="font-semibold text-base h-9 grid place-items-end content-center pr-0">
+                            {rowSubtotal.toLocaleString()}
+                          </div>
+                        </div>
+
+                        {/* actions */}
+                        <div className="grid place-items-center pt-5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 h-8 w-8 p-0"
+                            onClick={() => removeRow(r.draft_id)}
+                            disabled={rows.length === 1}
+                            aria-label={t(
+                              "inbound_v1.new.item_modal.delete_btn"
+                            )}
+                            title={t(
+                              "inbound_v1.new.item_modal.delete_btn"
+                            )}
+                          >
+                            ✕
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex justify-between items-center pt-1">
-            <Button variant="outline" size="sm" onClick={addRow}>
-              {t("inbound_v1.new.add_item_btn")}
-            </Button>
-            <div className="text-sm">
-              <span className="text-gray-600 mr-2">
-                {t("inbound_v1.new.item_total")}
-              </span>
-              <span className="font-semibold">
-                {currency} {total.toLocaleString()}
-              </span>
-            </div>
+              </div>
+            )}
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            {t("inbound_v1.new.item_modal.cancel_btn")}
-          </Button>
-          <Button
-            onClick={() => {
-              if (!canSave) return;
-              // Filter out blanks from newLinks too — only saved rows
-              // count toward used_count bumps.
-              const keptIds = new Set(filledRows.map((r) => r.draft_id));
-              const keptLinks: Record<string, string> = {};
-              for (const [k, v] of Object.entries(newLinks)) {
-                if (keptIds.has(k)) keptLinks[k] = v;
-              }
-              onSave(filledRows, keptLinks);
-            }}
-            disabled={!canSave}
-          >
-            {t("inbound_v1.new.item_modal.save_btn")}
-          </Button>
+
+        <DialogFooter className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            申報總值
+            <b className="text-base ml-2 text-gray-900">
+              {currency} {total.toLocaleString()}
+            </b>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel}>
+              {t("inbound_v1.new.item_modal.cancel_btn")}
+            </Button>
+            <Button
+              onClick={() => canSave && onSave(filledRows)}
+              disabled={!canSave}
+            >
+              確認加入申報 →
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

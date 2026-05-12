@@ -55,6 +55,26 @@ function project(doc: any): SavedItemPublic {
   };
 }
 
+/**
+ * Normalize a product name into the lookup key used by the saved-item
+ * library. Per the v0.3 item-dialog spec (OQ-G):
+ *   - NFKC fold (collapses 全形/半形 numerics, ASCII punctuation, kana)
+ *   - trim outer whitespace
+ *   - collapse internal whitespace to a single space
+ *   - lowercase (CJK characters are unaffected by .toLowerCase())
+ *
+ * Customers see their original casing/spacing in the UI; only the lookup
+ * uses the normalized form, so re-displaying `product_name` stays loyal
+ * to the typed input.
+ */
+function normalizeName(raw: string): string {
+  return raw
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
 export interface ListSavedItemsParams {
   search?: string;
   category_id?: string;
@@ -216,6 +236,79 @@ export async function markSavedItemsUsed(
       $set: { last_used_at: now, updatedAt: now },
     }
   );
+}
+
+/**
+ * Upsert a library entry keyed by normalize(product_name). Per the v0.3
+ * item-dialog redesign: every committed inbound item runs this — same
+ * normalized name silently updates the existing entry's defaults +
+ * bumps used_count; new name silently inserts.
+ *
+ * Returns the action so the inbound submit response can surface a "品項庫
+ * 已更新: X、新增 Y" toast.
+ */
+export async function upsertSavedItemByName(
+  client_id: string,
+  row: {
+    product_name: string;
+    category_id: string;
+    subcategory_id: string;
+    product_url?: string | null;
+    quantity: number;
+    unit_price: number;
+  }
+): Promise<{ action: "updated" | "created"; doc: SavedItemPublic }> {
+  const normalized_name = normalizeName(row.product_name);
+  if (!normalized_name) {
+    throw new ApiError("SAVED_ITEM_EMPTY_NAME");
+  }
+  const db = await connectToDatabase();
+  const now = new Date();
+  const existing = await db
+    .collection(collections.SAVED_ITEM)
+    .findOne({ client_id, normalized_name });
+  if (existing) {
+    await db.collection(collections.SAVED_ITEM).updateOne(
+      { _id: existing._id, client_id },
+      {
+        $set: {
+          // Keep original casing of the latest commit so the UI matches
+          // what the customer last typed.
+          product_name: row.product_name,
+          category_id: row.category_id,
+          subcategory_id: row.subcategory_id,
+          product_url: row.product_url ?? existing.product_url ?? null,
+          default_quantity: row.quantity,
+          default_unit_price: row.unit_price,
+          last_used_at: now,
+          updatedAt: now,
+        },
+        $inc: { used_count: 1 },
+      }
+    );
+    const after = await db
+      .collection(collections.SAVED_ITEM)
+      .findOne({ _id: existing._id });
+    return { action: "updated", doc: project(after) };
+  }
+  const ins = await db.collection(collections.SAVED_ITEM).insertOne({
+    client_id,
+    normalized_name,
+    category_id: row.category_id,
+    subcategory_id: row.subcategory_id,
+    product_name: row.product_name,
+    product_url: row.product_url ?? null,
+    default_quantity: row.quantity,
+    default_unit_price: row.unit_price,
+    used_count: 1,
+    last_used_at: now,
+    createdAt: now,
+    updatedAt: now,
+  } as any);
+  const created = await db
+    .collection(collections.SAVED_ITEM)
+    .findOne({ _id: ins.insertedId });
+  return { action: "created", doc: project(created) };
 }
 
 /**

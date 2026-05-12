@@ -135,4 +135,20 @@ export const ACCOUNT_ERROR = {
     zh_hk: "已有同名的常用地址",
     zh_cn: "已有同名的常用地址",
   },
+  SAVED_ITEM_NOT_FOUND: {
+    status: 404,
+    sys_code: "1000032",
+    message: "Saved item not found",
+    en: "Saved item not found",
+    zh_hk: "找不到此品項範本",
+    zh_cn: "找不到此品项模板",
+  },
+  SAVED_ITEM_EMPTY_NAME: {
+    status: 400,
+    sys_code: "1000033",
+    message: "Saved item name must not be empty",
+    en: "Saved item name must not be empty",
+    zh_hk: "品項名稱不能為空",
+    zh_cn: "品项名称不能为空",
+  },
 };

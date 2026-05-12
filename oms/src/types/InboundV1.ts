@@ -131,6 +131,11 @@ export const InboundDeclaredItemInputSchema = z
       }),
     quantity: z.coerce.number().int().positive(),
     unit_price: z.coerce.number().nonnegative(),
+    // Per the v0.3 item-dialog redesign: every commit silently upserts
+    // the row into the customer's saved-item library, keyed by
+    // normalize(product_name). This flag is the explicit opt-out for
+    // one-off items the customer doesn't want auto-saved.
+    opt_out_library: z.boolean().optional(),
   })
   .strict();
 export type InboundDeclaredItemInput = z.infer<typeof InboundDeclaredItemInputSchema>;
