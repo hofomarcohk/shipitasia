@@ -68,6 +68,10 @@ export const collections = {
 
   // Bugfix wave 3 — client saved address book
   SAVED_ADDRESS: "saved_addresses",
+
+  // P10 — client-managed saved item library (per-customer template store
+  // for declared items, picked at inbound time to skip re-typing).
+  SAVED_ITEM: "saved_items",
 };
 
 export const ID_Prefix: {
