@@ -165,6 +165,41 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     unit_price: 0,
   });
 
+  // ── P10 redesign · saved-items library + apply-last-inbound ──
+  interface SavedItem {
+    _id: string;
+    category_id: string;
+    subcategory_id: string;
+    product_name: string;
+    product_url: string | null;
+    default_quantity: number;
+    default_unit_price: number;
+    used_count: number;
+  }
+  interface AppliedFromInbound {
+    inbound_id: string;
+    applied: Array<"package_attrs" | "recipient" | "carrier_account" | "items">;
+  }
+  const [savedItemPool, setSavedItemPool] = useState<SavedItem[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
+  // draft_id → saved_item_id : which rows came from the library (so the
+  // submit handler can bump `used_count` + the ⟲ sync action knows the
+  // target saved-item).
+  const [linkedToSavedItem, setLinkedToSavedItem] = useState<
+    Record<string, string>
+  >({});
+  // draft_id → true : rows the customer hit ☆ on (already saved into
+  // library this session; suppresses the link re-appearing).
+  const [savedToLibrary, setSavedToLibrary] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [applied, setApplied] = useState<AppliedFromInbound | null>(null);
+  // user-driven override on section collapsing: when set, that section is
+  // forced expanded even if its data is valid.
+  const [editingSection, setEditingSection] = useState<number | null>(null);
+
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [continueFlash, setContinueFlash] = useState<{
@@ -247,6 +282,185 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     })();
   }, [inboundId, editMode]);
 
+  // ── Apply latest inbound (new-mode only). Pre-fills package attrs +
+  //    recipient + carrier_account + items from the customer's most recent
+  //    inbound. Skips tracking_no (OQ-1: each new inbound has fresh
+  //    tracking). Skips when in edit mode (the inbound being edited is
+  //    the source of truth).
+  useEffect(() => {
+    if (editMode || loadingMaster) return;
+    (async () => {
+      const r = await http_request("GET", "/api/cms/inbound/latest", {});
+      const dd = await r.json();
+      if (dd.status !== 200 || !dd.data) return;
+      const inb = dd.data.inbound;
+      const declared = dd.data.declared_items ?? [];
+      // package attrs
+      if (inb.warehouseCode) setWarehouseCode(inb.warehouseCode);
+      if (inb.carrier_inbound_code) setCarrierInbound(inb.carrier_inbound_code);
+      setSource(inb.inbound_source);
+      setSizeEstimate(inb.size_estimate);
+      setContainsLiquid(inb.contains_liquid);
+      setContainsBattery(inb.contains_battery);
+      setShipmentType(inb.shipment_type);
+      // tracking_no is intentionally NOT copied — every inbound has its own.
+      // recipient + carrier_account
+      const appliedKinds: AppliedFromInbound["applied"] = ["package_attrs"];
+      if (inb.shipment_type === "single" && inb.single_shipping) {
+        const a = inb.single_shipping.receiver_address;
+        setRecipientName(a.name);
+        setRecipientPhone(a.phone);
+        setRecipientCountry(a.country_code);
+        setRecipientCity(a.city);
+        setRecipientDistrict(a.district ?? "");
+        setRecipientAddress(a.address);
+        setRecipientPostal(a.postal_code ?? "");
+        setCarrierAccountId(inb.single_shipping.carrier_account_id);
+        appliedKinds.push("recipient", "carrier_account");
+      }
+      // items
+      if (declared.length > 0) {
+        setItems(
+          declared.map((d: any, i: number) => ({
+            draft_id: `applied_${i}_${Date.now()}`,
+            category_id: d.category_id,
+            subcategory_id: d.subcategory_id,
+            product_name: d.product_name,
+            product_url: d.product_url ?? "",
+            quantity: d.quantity,
+            unit_price: d.unit_price,
+          }))
+        );
+        appliedKinds.push("items");
+      }
+      setApplied({ inbound_id: inb._id, applied: appliedKinds });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editMode, loadingMaster]);
+
+  // Load saved-items pool once for the picker drawer (no need to re-fetch
+  // on every keystroke — small/medium catalog, filter in-memory).
+  useEffect(() => {
+    if (editMode) return;
+    (async () => {
+      const r = await http_request(
+        "GET",
+        "/api/cms/saved-items?sort=used",
+        {}
+      );
+      const d = await r.json();
+      if (d.status === 200) setSavedItemPool(d.data ?? []);
+    })();
+  }, [editMode]);
+
+  // Reset every form field to a blank slate when the customer clicks
+  // "清空" on the apply-banner.
+  const clearApplied = () => {
+    setApplied(null);
+    setWarehouseCode(warehouses[0]?.warehouseCode ?? "");
+    setCarrierInbound("");
+    setTrackingNo("");
+    setTrackingNoOther("");
+    setTrackingDuplicate(false);
+    setSource("regular");
+    setSizeEstimate("medium");
+    setContainsLiquid(false);
+    setContainsBattery(false);
+    setShipmentType("consolidated");
+    setRecipientName("");
+    setRecipientPhone("");
+    setRecipientCountry("HK");
+    setRecipientCity("");
+    setRecipientDistrict("");
+    setRecipientAddress("");
+    setRecipientPostal("");
+    setCarrierAccountId("");
+    setSavedAddressId("");
+    setSaveAsDefault(false);
+    setItems([]);
+    setLinkedToSavedItem({});
+    setSavedToLibrary({});
+    setCustomerRemarks("");
+    setError("");
+  };
+
+  // Push picker-selected saved items into the items list. Skips IDs that
+  // are already present (by saved-item linkage) so re-opening the picker
+  // doesn't duplicate.
+  const addFromPicker = () => {
+    const alreadyLinked = new Set(Object.values(linkedToSavedItem));
+    const toAdd = Array.from(pickerSelected).filter(
+      (id) => !alreadyLinked.has(id)
+    );
+    if (toAdd.length === 0) {
+      setPickerOpen(false);
+      setPickerSelected(new Set());
+      return;
+    }
+    const newRows: ItemDraft[] = [];
+    const newLinks: Record<string, string> = {};
+    for (const sid of toAdd) {
+      const s = savedItemPool.find((x) => x._id === sid);
+      if (!s) continue;
+      const draftId = `lib_${sid}_${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(2, 5)}`;
+      newRows.push({
+        draft_id: draftId,
+        category_id: s.category_id,
+        subcategory_id: s.subcategory_id,
+        product_name: s.product_name,
+        product_url: s.product_url ?? "",
+        quantity: s.default_quantity,
+        unit_price: s.default_unit_price,
+      });
+      newLinks[draftId] = sid;
+    }
+    setItems((prev) => [...prev, ...newRows]);
+    setLinkedToSavedItem((prev) => ({ ...prev, ...newLinks }));
+    setPickerOpen(false);
+    setPickerSelected(new Set());
+    setPickerSearch("");
+  };
+
+  // ☆ Save a manually-entered row into the library so it can be re-used
+  // on later inbounds.
+  const saveItemToLibrary = async (it: ItemDraft) => {
+    const body = {
+      category_id: it.category_id,
+      subcategory_id: it.subcategory_id,
+      product_name: it.product_name,
+      product_url: it.product_url || undefined,
+      default_quantity: it.quantity,
+      default_unit_price: it.unit_price,
+    };
+    const r = await http_request("POST", "/api/cms/saved-items", body);
+    const d = await r.json();
+    if (d.status === 200) {
+      setSavedItemPool((prev) => [d.data, ...prev]);
+      setLinkedToSavedItem((prev) => ({ ...prev, [it.draft_id]: d.data._id }));
+      setSavedToLibrary((prev) => ({ ...prev, [it.draft_id]: true }));
+    }
+  };
+
+  // ⟲ Push the current row's qty/price back to the library's defaults.
+  const syncDefaultsToLibrary = async (it: ItemDraft) => {
+    const sid = linkedToSavedItem[it.draft_id];
+    if (!sid) return;
+    const r = await http_request("PATCH", `/api/cms/saved-items/${sid}`, {
+      action: "sync_defaults",
+      default_quantity: it.quantity,
+      default_unit_price: it.unit_price,
+    });
+    const d = await r.json();
+    if (d.status === 200) {
+      setSavedItemPool((prev) =>
+        prev.map((p) => (p._id === sid ? d.data : p))
+      );
+      setSavedToLibrary((prev) => ({ ...prev, [it.draft_id]: true }));
+    }
+  };
+
   // tracking dedupe onBlur
   const checkDuplicate = async () => {
     if (!trackingNo || !carrierInbound) {
@@ -283,6 +497,8 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     setTrackingNo("");
     setTrackingNoOther("");
     setItems([]);
+    setLinkedToSavedItem({});
+    setSavedToLibrary({});
     setCustomerRemarks("");
     setRecipientName("");
     setRecipientPhone("");
@@ -362,6 +578,15 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
       const d = await res.json();
       if (res.ok && d.status === 200) {
         const newId = editMode ? inboundId : d.data.inbound_id;
+        // Fire-and-forget: bump `used_count` on every saved-item that was
+        // actually included in this inbound. Doesn't block the redirect.
+        const usedIds = Array.from(new Set(Object.values(linkedToSavedItem)));
+        if (usedIds.length > 0) {
+          http_request("POST", "/api/cms/saved-items/bulk", {
+            action: "mark_used",
+            ids: usedIds,
+          }).catch(() => {});
+        }
         if (continueAfter && !editMode) {
           resetForNext(newId);
           return;
@@ -392,59 +617,171 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     );
   }
 
+  // ── Section completion derived from validated fields. The form is a
+  //    4-section "漸進解鎖" flow per the v2 design — sections lock until
+  //    the previous one is valid, but the user can always click ✎ on a
+  //    done section to re-expand it.
+  const s1Complete =
+    !!warehouseCode &&
+    !!carrierInbound &&
+    !!trackingNo &&
+    !trackingDuplicate &&
+    (carrierInbound !== "other" || !!trackingNoOther);
+  const s2Complete = items.length >= 1;
+  const s3Complete =
+    shipmentType !== "single" ||
+    (!!recipientName &&
+      !!recipientPhone &&
+      !!recipientCity &&
+      !!recipientAddress &&
+      !!carrierAccountId);
+  const sectionList = shipmentType === "single" ? [1, 2, 3, 4] : [1, 2, 4];
+  const completes: Record<number, boolean> = {
+    1: s1Complete,
+    2: s2Complete,
+    3: s3Complete,
+    4: false,
+  };
+  const sectionStatus = (n: number): "editing" | "done" | "locked" => {
+    if (editingSection === n) return "editing";
+    const idx = sectionList.indexOf(n);
+    if (idx === -1) return "locked";
+    const prev = idx === 0 ? null : sectionList[idx - 1];
+    if (prev !== null && !completes[prev]) return "locked";
+    if (completes[n]) return "done";
+    return "editing";
+  };
+  const finalSection = sectionList[sectionList.length - 1];
+  const canSubmit =
+    !submitting && s1Complete && s2Complete && s3Complete;
+
+  // Saved-item picker — filter pool in-memory by search.
+  const visiblePoolItems = savedItemPool.filter((s) => {
+    if (!pickerSearch.trim()) return true;
+    const q = pickerSearch.trim().toLowerCase();
+    return s.product_name.toLowerCase().includes(q);
+  });
+  const alreadyAddedSavedIds = new Set(Object.values(linkedToSavedItem));
+
+  const expanded = (n: number) => sectionStatus(n) === "editing";
+
   return (
     <div className="max-w-6xl mx-auto py-6 px-4">
-      <div className="grid lg:grid-cols-3 gap-4">
-        {/* Main form — left/centre */}
-        <div className="lg:col-span-2 grid gap-4">
-          <Card>
-            <CardHeader>
-              <h2 className="text-2xl font-semibold">
-                {t(editMode ? "inbound_v1.actions.edit" : "inbound_v1.new.title")}
-              </h2>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <FieldGroup
-                label={t("inbound_v1.new.warehouse_label")}
-              >
-                <select
-                  className="w-full border rounded px-3 py-2"
-                  value={warehouseCode}
-                  onChange={(e) => setWarehouseCode(e.target.value)}
-                >
-                  {warehouses.map((w) => (
-                    <option key={w.warehouseCode} value={w.warehouseCode}>
-                      {w.name_zh}
-                    </option>
-                  ))}
-                </select>
-                {selectedWarehouse && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {selectedWarehouse.address_zh}
-                  </p>
-                )}
-              </FieldGroup>
+      {/* Apply-from-last-inbound banner (new mode only). Lists what was
+          pulled in and explicitly calls out tracking_no as NOT applied. */}
+      {!editMode && applied && (
+        <div className="mb-4 rounded-md border bg-blue-50 border-blue-200 px-4 py-3 text-sm text-blue-900 flex items-start gap-3">
+          <span className="text-base leading-tight">📌</span>
+          <div className="flex-1">
+            <div>
+              <b>{t("inbound_v1.new.applied_banner_title")}</b>
+              {" — "}
+              {applied.applied
+                .map((k) => t(`inbound_v1.new.applied_kind.${k}` as any))
+                .join(" · ")}
+            </div>
+            <div className="text-amber-700 text-xs mt-1">
+              ⚠ {t("inbound_v1.new.applied_banner_skip_tracking")}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="text-blue-700 underline text-xs"
+            onClick={clearApplied}
+          >
+            {t("inbound_v1.new.applied_clear")}
+          </button>
+        </div>
+      )}
 
-              <FieldGroup label={t("inbound_v1.new.carrier_label")}>
-                <select
-                  className="w-full border rounded px-3 py-2"
-                  value={carrierInbound}
-                  onChange={(e) => {
-                    setCarrierInbound(e.target.value);
-                    setTrackingDuplicate(false);
-                  }}
-                >
-                  <option value="">--</option>
-                  {carriers.map((c) => (
-                    <option
-                      key={c.carrier_inbound_code}
-                      value={c.carrier_inbound_code}
-                    >
-                      {c.name_zh}
-                    </option>
-                  ))}
-                </select>
-              </FieldGroup>
+      <div className="grid lg:grid-cols-[1fr_220px] gap-6">
+        <div className="grid gap-4 min-w-0">
+          <h1 className="text-2xl font-semibold">
+            {t(editMode ? "inbound_v1.actions.edit" : "inbound_v1.new.title")}
+          </h1>
+
+          {/* ── Section 1 · 包裹屬性 ── */}
+          <SectionCard
+            n={1}
+            title={t("inbound_v1.new.section1_title")}
+            status={sectionStatus(1)}
+            summary={
+              s1Complete ? (
+                <div className="grid grid-cols-[120px_1fr] gap-y-1 text-sm">
+                  <span className="text-gray-500">
+                    {t("inbound_v1.new.warehouse_label")}
+                  </span>
+                  <span>{selectedWarehouse?.name_zh ?? warehouseCode}</span>
+                  <span className="text-gray-500">
+                    {t("inbound_v1.new.carrier_label")}
+                  </span>
+                  <span>
+                    {carriers.find(
+                      (c) => c.carrier_inbound_code === carrierInbound
+                    )?.name_zh ?? carrierInbound}
+                  </span>
+                  <span className="text-gray-500">
+                    {t("inbound_v1.new.tracking_no_label")}
+                  </span>
+                  <span className="font-mono">{trackingNo}</span>
+                  <span className="text-gray-500">
+                    {t("inbound_v1.new.shipment_type_label")}
+                  </span>
+                  <span>
+                    {t(`inbound_v1.shipment_type.${shipmentType}` as any)}
+                    {" · "}
+                    {t(`inbound_v1.size_estimate.${sizeEstimate}` as any)}
+                    {containsLiquid ? " · 含液體" : ""}
+                    {containsBattery ? " · 含電池" : ""}
+                  </span>
+                </div>
+              ) : null
+            }
+            onEdit={() => setEditingSection(1)}
+            onDone={() => setEditingSection(null)}
+          >
+            <div className="grid gap-4">
+              <div className="grid md:grid-cols-2 gap-3">
+                <FieldGroup label={t("inbound_v1.new.warehouse_label")}>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={warehouseCode}
+                    onChange={(e) => setWarehouseCode(e.target.value)}
+                  >
+                    {warehouses.map((w) => (
+                      <option key={w.warehouseCode} value={w.warehouseCode}>
+                        {w.name_zh}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedWarehouse && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {selectedWarehouse.address_zh}
+                    </p>
+                  )}
+                </FieldGroup>
+
+                <FieldGroup label={t("inbound_v1.new.carrier_label")}>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={carrierInbound}
+                    onChange={(e) => {
+                      setCarrierInbound(e.target.value);
+                      setTrackingDuplicate(false);
+                    }}
+                  >
+                    <option value="">--</option>
+                    {carriers.map((c) => (
+                      <option
+                        key={c.carrier_inbound_code}
+                        value={c.carrier_inbound_code}
+                      >
+                        {c.name_zh}
+                      </option>
+                    ))}
+                  </select>
+                </FieldGroup>
+              </div>
 
               <FieldGroup label={t("inbound_v1.new.tracking_no_label")}>
                 <Input
@@ -568,171 +905,478 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                   ))}
                 </div>
               </FieldGroup>
+            </div>
+          </SectionCard>
 
-              {shipmentType === "single" && (
-                <div className="grid gap-3 rounded-md border p-4 bg-gray-50">
-                  <h3 className="font-semibold">
-                    {t("inbound_v1.new.receiver_address_label")}
-                  </h3>
-                  {/* Saved-address picker — hydrate the entire receiver
-                      block in one click. The "manage" link opens the
-                      address-book in a new tab. */}
-                  <div className="flex items-center gap-2 mb-2 text-sm">
-                    <Label className="text-xs text-gray-500 whitespace-nowrap">
-                      {t("addresses.picker_label")}
-                    </Label>
-                    <select
-                      className="flex-1 border rounded h-9 px-2 text-sm"
-                      value={savedAddressId}
-                      onChange={(e) => {
-                        const id = e.target.value;
-                        setSavedAddressId(id);
-                        if (!id) return;
-                        const a = savedAddresses.find((x) => x._id === id);
-                        if (!a) return;
-                        setRecipientName(a.name);
-                        setRecipientPhone(a.phone);
-                        setRecipientCountry(a.country_code);
-                        setRecipientCity(a.city);
-                        setRecipientDistrict(a.district ?? "");
-                        setRecipientAddress(a.address);
-                        setRecipientPostal(a.postal_code ?? "");
-                      }}
-                    >
-                      <option value="">
-                        {savedAddresses.length === 0
-                          ? t("addresses.picker_empty")
-                          : "—"}
-                      </option>
-                      {savedAddresses.map((a) => (
-                        <option key={a._id} value={a._id}>
-                          {a.label}
-                          {a.is_default ? " ⭐" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <Link
-                      href="/zh-hk/addresses"
-                      target="_blank"
-                      className="text-blue-600 text-xs whitespace-nowrap"
-                    >
-                      {t("addresses.picker_manage")}
-                    </Link>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      placeholder="Name"
-                      value={recipientName}
-                      onChange={(e) => setRecipientName(e.target.value)}
-                    />
-                    {/* Phone with dial-code prefix derived from country */}
-                    <div className="flex">
-                      <span className="inline-flex items-center px-2 border border-r-0 rounded-l bg-gray-50 text-sm text-gray-600 whitespace-nowrap">
-                        {DIAL_CODES[recipientCountry] ?? "+"}
-                      </span>
-                      <Input
-                        placeholder="Phone (no country code)"
-                        className="rounded-l-none"
-                        value={recipientPhone}
-                        onChange={(e) => setRecipientPhone(e.target.value)}
-                      />
-                    </div>
-                    <select
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      value={recipientCountry}
-                      onChange={(e) => {
-                        setRecipientCountry(e.target.value);
-                        // Reset HK-specific district picks when leaving HK
-                        if (e.target.value !== "HK") {
-                          setRecipientDistrict("");
-                        }
-                      }}
-                    >
-                      {Object.keys(DIAL_CODES).map((code) => (
-                        <option key={code} value={code}>
-                          {code} ({DIAL_CODES[code]})
-                        </option>
-                      ))}
-                    </select>
-                    <Input
-                      placeholder="City"
-                      value={recipientCity}
-                      onChange={(e) => setRecipientCity(e.target.value)}
-                    />
-                    {recipientCountry === "HK" ? (
-                      <select
-                        className="w-full border rounded px-3 py-2 text-sm"
-                        value={recipientDistrict}
-                        onChange={(e) => setRecipientDistrict(e.target.value)}
-                      >
-                        <option value="">區域 (選填)</option>
-                        {HK_DISTRICTS.map((d) => (
-                          <option key={d.code} value={d.zh}>
-                            {d.zh}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Input
-                        placeholder="District (optional)"
-                        value={recipientDistrict}
-                        onChange={(e) => setRecipientDistrict(e.target.value)}
-                      />
-                    )}
-                    <Input
-                      placeholder="Postal code (optional)"
-                      value={recipientPostal}
-                      onChange={(e) => setRecipientPostal(e.target.value)}
-                    />
-                  </div>
-                  <Input
-                    placeholder="Detailed address"
-                    value={recipientAddress}
-                    onChange={(e) => setRecipientAddress(e.target.value)}
-                  />
-                  <FieldGroup
-                    label={t("inbound_v1.new.carrier_account_label")}
+          {/* ── Section 2 · 申報品項 ── */}
+          <SectionCard
+            n={2}
+            title={t("inbound_v1.new.section2_title")}
+            status={sectionStatus(2)}
+            summary={
+              s2Complete ? (
+                <div className="text-sm">
+                  {t("inbound_v1.new.items_panel_title")}：
+                  <b>{items.length} {t("inbound_v1.new.section2_count_unit")}</b>
+                  {" · "}
+                  {currency} {total.toLocaleString()}
+                </div>
+              ) : null
+            }
+            onEdit={() => setEditingSection(2)}
+            onDone={() => setEditingSection(null)}
+            headerActions={
+              expanded(2) ? (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPickerOpen((p) => !p)}
+                    disabled={savedItemPool.length === 0}
+                    title={
+                      savedItemPool.length === 0
+                        ? t("saved_items.empty")
+                        : undefined
+                    }
                   >
-                    {carrierAccounts.length === 0 ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-amber-700">
-                          {t("inbound_v1.new.no_carrier_account_warning")}
-                        </span>
-                        <Link
-                          href="/zh-hk/carrier-accounts/new"
-                          className="underline text-blue-600 text-sm"
-                        >
-                          {t("inbound_v1.new.go_link_carrier_account")}
-                        </Link>
-                      </div>
-                    ) : (
-                      <select
-                        className="w-full border rounded px-3 py-2"
-                        value={carrierAccountId}
-                        onChange={(e) => setCarrierAccountId(e.target.value)}
-                      >
-                        <option value="">--</option>
-                        {carrierAccounts.map((a) => (
-                          <option key={a._id} value={a._id}>
-                            {a.nickname} ({a.carrier_code})
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </FieldGroup>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="save_default"
-                      checked={saveAsDefault}
-                      onCheckedChange={(v) => setSaveAsDefault(v === true)}
+                    {t("saved_items.picker_open_btn")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setItemDrafts([blankItem()]);
+                      setItemModalOpen(true);
+                    }}
+                  >
+                    {t("inbound_v1.new.add_item_btn")}
+                  </Button>
+                </div>
+              ) : null
+            }
+          >
+            <div className="grid gap-3">
+              {/* Inline picker drawer */}
+              {pickerOpen && (
+                <div className="border rounded-md bg-gray-50 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <b className="text-sm">{t("saved_items.picker_title")}</b>
+                    <Input
+                      placeholder={t("saved_items.picker_search_placeholder")}
+                      value={pickerSearch}
+                      onChange={(e) => setPickerSearch(e.target.value)}
+                      className="flex-1 max-w-xs bg-white"
                     />
-                    <Label htmlFor="save_default" className="font-normal">
-                      {t("inbound_v1.new.save_as_default_address")}
-                    </Label>
+                    <span className="text-xs text-gray-500 ml-auto">
+                      {t("saved_items.selected_count", {
+                        n: pickerSelected.size,
+                      })}
+                    </span>
+                    <Button size="sm" onClick={addFromPicker}>
+                      {t("saved_items.picker_confirm")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setPickerOpen(false);
+                        setPickerSelected(new Set());
+                        setPickerSearch("");
+                      }}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                  <div className="bg-white rounded border max-h-64 overflow-y-auto">
+                    {visiblePoolItems.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-6">
+                        {t("saved_items.empty")}
+                      </p>
+                    ) : (
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {visiblePoolItems.map((s) => {
+                            const alreadyAdded = alreadyAddedSavedIds.has(s._id);
+                            const checked = pickerSelected.has(s._id);
+                            return (
+                              <tr
+                                key={s._id}
+                                className={`border-b last:border-b-0 ${
+                                  alreadyAdded ? "opacity-50" : ""
+                                }`}
+                              >
+                                <td className="p-2 w-8">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={alreadyAdded}
+                                    onChange={() =>
+                                      setPickerSelected((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(s._id)) next.delete(s._id);
+                                        else next.add(s._id);
+                                        return next;
+                                      })
+                                    }
+                                  />
+                                </td>
+                                <td className="p-2">
+                                  <div className="font-medium">
+                                    {s.product_name}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {categories.find(
+                                      (c) => c._id === s.category_id
+                                    )?.name_zh ?? s.category_id}
+                                  </div>
+                                </td>
+                                <td className="p-2 text-right whitespace-nowrap text-xs text-gray-600">
+                                  ×{s.default_quantity} ·{" "}
+                                  {s.default_unit_price.toLocaleString()}
+                                </td>
+                                <td className="p-2 text-xs text-gray-500 whitespace-nowrap">
+                                  {alreadyAdded
+                                    ? t("saved_items.picker_already_added")
+                                    : t("saved_items.used_count", {
+                                        n: s.used_count,
+                                      })}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
               )}
 
+              {/* Items list */}
+              {items.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">
+                  {t("inbound_v1.new.no_items_yet")}
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="text-left p-2 w-[18%]">
+                          {t("inbound_v1.new.item_modal.category_label")}
+                        </th>
+                        <th className="text-left p-2">
+                          {t("inbound_v1.new.item_modal.product_name_label")}
+                        </th>
+                        <th className="text-right p-2 w-[8%]">數量</th>
+                        <th className="text-right p-2 w-[12%]">
+                          {t("inbound_v1.new.item_modal.unit_price_label")} ({currency})
+                        </th>
+                        <th className="text-right p-2 w-[12%]">
+                          {t("inbound_v1.new.item_modal.subtotal_label")}
+                        </th>
+                        <th className="p-2 w-[120px]"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((it) => {
+                        const cat = categories.find(
+                          (c) => c._id === it.category_id
+                        );
+                        const sub = cat?.subcategories.find(
+                          (s) => s._id === it.subcategory_id
+                        );
+                        const fromLibrary = !!linkedToSavedItem[it.draft_id];
+                        const savedNow = !!savedToLibrary[it.draft_id];
+                        return (
+                          <tr key={it.draft_id} className="border-t">
+                            <td className="p-2 align-top">
+                              <div>{cat?.name_zh ?? it.category_id}</div>
+                              <div className="text-xs text-gray-500">
+                                {sub?.name_zh ?? it.subcategory_id}
+                              </div>
+                            </td>
+                            <td className="p-2 align-top">
+                              <div className="font-medium">{it.product_name}</div>
+                              <div className="text-xs text-gray-500 flex items-center gap-1">
+                                {fromLibrary ? (
+                                  <>📚 已存品項</>
+                                ) : savedNow ? (
+                                  <span className="text-emerald-600">
+                                    {t("saved_items.save_to_library_done")}
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="underline hover:text-blue-600"
+                                    onClick={() => saveItemToLibrary(it)}
+                                  >
+                                    {t("saved_items.save_to_library_link")}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-2 align-top text-right">
+                              {it.quantity}
+                            </td>
+                            <td className="p-2 align-top text-right">
+                              {it.unit_price.toLocaleString()}
+                            </td>
+                            <td className="p-2 align-top text-right font-semibold">
+                              {(it.quantity * it.unit_price).toLocaleString()}
+                            </td>
+                            <td className="p-2 align-top text-right whitespace-nowrap">
+                              {fromLibrary && !savedNow && (
+                                <button
+                                  type="button"
+                                  className="text-xs text-blue-600 hover:underline mr-2"
+                                  onClick={() => syncDefaultsToLibrary(it)}
+                                  title={t("saved_items.sync_to_library_btn")}
+                                >
+                                  ⟲
+                                </button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setItemDrafts([{ ...it }]);
+                                  setItemModalOpen(true);
+                                }}
+                              >
+                                ✎
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600"
+                                onClick={() => {
+                                  setItems(
+                                    items.filter(
+                                      (x) => x.draft_id !== it.draft_id
+                                    )
+                                  );
+                                  setLinkedToSavedItem((prev) => {
+                                    const next = { ...prev };
+                                    delete next[it.draft_id];
+                                    return next;
+                                  });
+                                }}
+                              >
+                                ×
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="flex justify-between items-center pt-2 border-t mt-2">
+                    <span className="text-sm text-gray-500">
+                      {t("inbound_v1.new.item_total")}
+                    </span>
+                    <span className="font-semibold">
+                      {currency} {total.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
+          {/* ── Section 3 · 收件人 + Carrier (single only) ── */}
+          {shipmentType === "single" && (
+            <SectionCard
+              n={3}
+              title={t("inbound_v1.new.section3_title")}
+              status={sectionStatus(3)}
+              summary={
+                s3Complete ? (
+                  <div className="text-sm grid gap-1">
+                    <div>
+                      {recipientName} · {DIAL_CODES[recipientCountry] ?? "+"}
+                      {recipientPhone}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      {recipientCountry} · {recipientCity}
+                      {recipientDistrict ? ` · ${recipientDistrict}` : ""} ·{" "}
+                      {recipientAddress}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      {carrierAccounts.find((a) => a._id === carrierAccountId)
+                        ?.nickname ?? carrierAccountId}
+                    </div>
+                  </div>
+                ) : null
+              }
+              onEdit={() => setEditingSection(3)}
+              onDone={() => setEditingSection(null)}
+            >
+              <div className="grid gap-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Label className="text-xs text-gray-500 whitespace-nowrap">
+                    {t("addresses.picker_label")}
+                  </Label>
+                  <select
+                    className="flex-1 border rounded h-9 px-2 text-sm"
+                    value={savedAddressId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setSavedAddressId(id);
+                      if (!id) return;
+                      const a = savedAddresses.find((x) => x._id === id);
+                      if (!a) return;
+                      setRecipientName(a.name);
+                      setRecipientPhone(a.phone);
+                      setRecipientCountry(a.country_code);
+                      setRecipientCity(a.city);
+                      setRecipientDistrict(a.district ?? "");
+                      setRecipientAddress(a.address);
+                      setRecipientPostal(a.postal_code ?? "");
+                    }}
+                  >
+                    <option value="">
+                      {savedAddresses.length === 0
+                        ? t("addresses.picker_empty")
+                        : "—"}
+                    </option>
+                    {savedAddresses.map((a) => (
+                      <option key={a._id} value={a._id}>
+                        {a.label}
+                        {a.is_default ? " ⭐" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <Link
+                    href="/zh-hk/addresses"
+                    target="_blank"
+                    className="text-blue-600 text-xs whitespace-nowrap"
+                  >
+                    {t("addresses.picker_manage")}
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Name"
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                  />
+                  <div className="flex">
+                    <span className="inline-flex items-center px-2 border border-r-0 rounded-l bg-gray-50 text-sm text-gray-600 whitespace-nowrap">
+                      {DIAL_CODES[recipientCountry] ?? "+"}
+                    </span>
+                    <Input
+                      placeholder="Phone (no country code)"
+                      className="rounded-l-none"
+                      value={recipientPhone}
+                      onChange={(e) => setRecipientPhone(e.target.value)}
+                    />
+                  </div>
+                  <select
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    value={recipientCountry}
+                    onChange={(e) => {
+                      setRecipientCountry(e.target.value);
+                      if (e.target.value !== "HK") {
+                        setRecipientDistrict("");
+                      }
+                    }}
+                  >
+                    {Object.keys(DIAL_CODES).map((code) => (
+                      <option key={code} value={code}>
+                        {code} ({DIAL_CODES[code]})
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    placeholder="City"
+                    value={recipientCity}
+                    onChange={(e) => setRecipientCity(e.target.value)}
+                  />
+                  {recipientCountry === "HK" ? (
+                    <select
+                      className="w-full border rounded px-3 py-2 text-sm"
+                      value={recipientDistrict}
+                      onChange={(e) => setRecipientDistrict(e.target.value)}
+                    >
+                      <option value="">區域 (選填)</option>
+                      {HK_DISTRICTS.map((d) => (
+                        <option key={d.code} value={d.zh}>
+                          {d.zh}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      placeholder="District (optional)"
+                      value={recipientDistrict}
+                      onChange={(e) => setRecipientDistrict(e.target.value)}
+                    />
+                  )}
+                  <Input
+                    placeholder="Postal code (optional)"
+                    value={recipientPostal}
+                    onChange={(e) => setRecipientPostal(e.target.value)}
+                  />
+                </div>
+                <Input
+                  placeholder="Detailed address"
+                  value={recipientAddress}
+                  onChange={(e) => setRecipientAddress(e.target.value)}
+                />
+                <FieldGroup
+                  label={t("inbound_v1.new.carrier_account_label")}
+                >
+                  {carrierAccounts.length === 0 ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-amber-700">
+                        {t("inbound_v1.new.no_carrier_account_warning")}
+                      </span>
+                      <Link
+                        href="/zh-hk/carrier-accounts/new"
+                        className="underline text-blue-600 text-sm"
+                      >
+                        {t("inbound_v1.new.go_link_carrier_account")}
+                      </Link>
+                    </div>
+                  ) : (
+                    <select
+                      className="w-full border rounded px-3 py-2"
+                      value={carrierAccountId}
+                      onChange={(e) => setCarrierAccountId(e.target.value)}
+                    >
+                      <option value="">--</option>
+                      {carrierAccounts.map((a) => (
+                        <option key={a._id} value={a._id}>
+                          {a.nickname} ({a.carrier_code})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </FieldGroup>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="save_default"
+                    checked={saveAsDefault}
+                    onCheckedChange={(v) => setSaveAsDefault(v === true)}
+                  />
+                  <Label htmlFor="save_default" className="font-normal">
+                    {t("inbound_v1.new.save_as_default_address")}
+                  </Label>
+                </div>
+              </div>
+            </SectionCard>
+          )}
+
+          {/* ── Section 4 · 備註 + 確認 ── */}
+          <SectionCard
+            n={finalSection}
+            title={t("inbound_v1.new.section4_title")}
+            status={sectionStatus(finalSection)}
+            summary={null}
+            onEdit={() => setEditingSection(finalSection)}
+            onDone={() => setEditingSection(null)}
+            hideEditButton
+          >
+            <div className="grid gap-3">
               <FieldGroup label={t("inbound_v1.new.customer_remarks_label")}>
                 <Textarea
                   rows={2}
@@ -773,7 +1417,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 flex-wrap">
                 <Link href="/zh-hk/inbound/list">
                   <Button variant="outline" type="button">
                     {t("inbound_v1.new.back")}
@@ -782,13 +1426,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                 <Button
                   type="button"
                   onClick={() => submit(false)}
-                  disabled={
-                    submitting ||
-                    !warehouseCode ||
-                    !carrierInbound ||
-                    !trackingNo ||
-                    items.length === 0
-                  }
+                  disabled={!canSubmit}
                 >
                   {submitting
                     ? t("inbound_v1.new.submitting")
@@ -799,109 +1437,67 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                     type="button"
                     variant="outline"
                     onClick={() => submit(true)}
-                    disabled={
-                      submitting ||
-                      !warehouseCode ||
-                      !carrierInbound ||
-                      !trackingNo ||
-                      items.length === 0
-                    }
+                    disabled={!canSubmit}
                   >
                     {t("inbound_v1.new.submit_and_continue")}
                   </Button>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
         </div>
 
-        {/* Items drawer — right */}
-        <div className="grid gap-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <h3 className="text-lg font-semibold">
-                {t("inbound_v1.new.items_panel_title")}
-              </h3>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setItemDrafts([blankItem()]);
-                  setItemModalOpen(true);
-                }}
-              >
-                {t("inbound_v1.new.add_item_btn")}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {items.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-6">
-                  {t("inbound_v1.new.no_items_yet")}
-                </p>
-              ) : (
-                <div className="grid gap-2">
-                  {items.map((it, idx) => {
-                    const cat = categories.find(
-                      (c) => c._id === it.category_id
-                    );
-                    const sub = cat?.subcategories.find(
-                      (s) => s._id === it.subcategory_id
-                    );
-                    return (
-                      <div
-                        key={it.draft_id}
-                        className="rounded-md border p-3"
-                      >
-                        <div className="font-medium">{it.product_name}</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {cat?.name_zh ?? it.category_id} ›{" "}
-                          {sub?.name_zh ?? it.subcategory_id}
-                        </div>
-                        <div className="text-sm mt-1">
-                          {it.quantity} × {currency}{" "}
-                          {it.unit_price.toLocaleString()} ={" "}
-                          <span className="font-semibold">
-                            {currency}{" "}
-                            {(it.quantity * it.unit_price).toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex gap-1 mt-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setItemDrafts([{ ...it }]);
-                              setItemModalOpen(true);
-                            }}
-                          >
-                            {t("inbound_v1.new.item_modal.edit_title")}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600"
-                            onClick={() =>
-                              setItems(items.filter((x) => x.draft_id !== it.draft_id))
-                            }
-                          >
-                            {t("inbound_v1.new.item_modal.delete_btn")}
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="border-t pt-2 flex justify-between">
-                    <span className="font-semibold">
-                      {t("inbound_v1.new.item_total")}
-                    </span>
-                    <span className="font-semibold">
-                      {currency} {total.toLocaleString()}
-                    </span>
+        {/* Right rail stepper */}
+        <aside className="hidden lg:block sticky top-6 self-start">
+          <div className="text-xs text-gray-500 font-mono uppercase tracking-wider mb-2">
+            Section Index
+          </div>
+          <div className="grid gap-2">
+            {sectionList.map((n, i) => {
+              const status = sectionStatus(n);
+              const labelKey: Record<number, string> = {
+                1: "inbound_v1.new.section1_title",
+                2: "inbound_v1.new.section2_title",
+                3: "inbound_v1.new.section3_title",
+                4: "inbound_v1.new.section4_title",
+              };
+              return (
+                <div
+                  key={n}
+                  className={`flex gap-2 items-start p-2 rounded ${
+                    status === "editing"
+                      ? "bg-blue-50 border border-blue-200"
+                      : status === "done"
+                      ? "bg-emerald-50"
+                      : "bg-gray-50 opacity-60"
+                  }`}
+                >
+                  <div
+                    className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                      status === "done"
+                        ? "bg-emerald-500 text-white"
+                        : status === "editing"
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-300 text-gray-600"
+                    }`}
+                  >
+                    {status === "done" ? "✓" : i + 1}
+                  </div>
+                  <div className="text-xs leading-tight pt-0.5">
+                    <div className="font-medium">{t(labelKey[n] as any)}</div>
+                    <div className="text-gray-500">
+                      {status === "done"
+                        ? t("inbound_v1.new.stepper_done")
+                        : status === "locked"
+                        ? t("inbound_v1.new.stepper_locked")
+                        : t("inbound_v1.new.stepper_active")}
+                    </div>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              );
+            })}
+          </div>
+        </aside>
       </div>
 
       {/* Item modal */}
@@ -944,6 +1540,92 @@ function FieldGroup({
     <div className="grid gap-1">
       <Label>{label}</Label>
       {children}
+    </div>
+  );
+}
+
+/**
+ * SectionCard — one unit of the inbound "unlock sections" flow.
+ *
+ * `status` drives presentation:
+ *   - editing : full body rendered
+ *   - done    : collapsed to KV summary with ✎ edit
+ *   - locked  : faded + body hidden, header shows lock pill
+ *
+ * Hides the ✎ button on the final action section (`hideEditButton`).
+ */
+function SectionCard({
+  n,
+  title,
+  status,
+  summary,
+  onEdit,
+  onDone,
+  headerActions,
+  hideEditButton,
+  children,
+}: {
+  n: number;
+  title: string;
+  status: "editing" | "done" | "locked";
+  summary: React.ReactNode;
+  onEdit: () => void;
+  onDone: () => void;
+  headerActions?: React.ReactNode;
+  hideEditButton?: boolean;
+  children: React.ReactNode;
+}) {
+  const locked = status === "locked";
+  const done = status === "done";
+  return (
+    <div
+      className={`border rounded-md ${
+        locked ? "opacity-60 bg-gray-50" : "bg-white"
+      } ${status === "editing" ? "border-blue-300" : "border-gray-200"}`}
+    >
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold ${
+              done
+                ? "bg-emerald-500 text-white"
+                : status === "editing"
+                ? "bg-blue-500 text-white"
+                : "bg-gray-300 text-gray-600"
+            }`}
+          >
+            {done ? "✓" : n}
+          </span>
+          <h3 className="text-lg font-semibold">{title}</h3>
+          {locked && (
+            <span className="text-xs text-gray-500 font-mono">🔒 locked</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {headerActions}
+          {done && !hideEditButton && (
+            <Button size="sm" variant="ghost" onClick={onEdit}>
+              ✎
+            </Button>
+          )}
+          {status === "editing" && summary && !hideEditButton && (
+            <Button size="sm" variant="ghost" onClick={onDone}>
+              ⌃
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="p-4">
+        {done ? (
+          summary
+        ) : locked ? (
+          <p className="text-sm text-gray-500">
+            完成上一個 section 後解鎖
+          </p>
+        ) : (
+          children
+        )}
+      </div>
     </div>
   );
 }

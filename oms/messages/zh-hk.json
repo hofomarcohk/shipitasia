@@ -899,7 +899,24 @@
       "submitting": "提交中…",
       "continue_success": "已建立 <link>{id}</link>，可繼續新增下一張預報（已保留倉庫 / 快遞 / 體積等設定）",
       "validation_required": "請填寫所有必填欄位",
-      "validation_no_items": "至少需要 1 項申報品項"
+      "validation_no_items": "至少需要 1 項申報品項",
+      "section1_title": "包裹屬性",
+      "section2_title": "申報品項",
+      "section3_title": "收件人 + Carrier",
+      "section4_title": "備註 + 確認預報",
+      "section2_count_unit": "件",
+      "applied_banner_title": "已套用上一單",
+      "applied_banner_skip_tracking": "未套入 tracking no（每次新嘅）— Section 1 嘅 tracking 欄要你重填",
+      "applied_clear": "清空",
+      "applied_kind": {
+        "package_attrs": "包裹屬性",
+        "recipient": "收件人",
+        "carrier_account": "Carrier 帳號",
+        "items": "申報品項"
+      },
+      "stepper_done": "已完成",
+      "stepper_locked": "未解鎖",
+      "stepper_active": "填寫中"
     },
     "detail": {
       "title": "預報詳情",

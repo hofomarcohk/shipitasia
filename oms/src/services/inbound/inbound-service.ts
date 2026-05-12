@@ -391,6 +391,43 @@ export async function getMyInbound(
   };
 }
 
+/**
+ * Returns the customer's most recent non-cancelled inbound (with its
+ * declared items) for the redesign's "已套用上一單" auto-prefill on the
+ * new-inbound form. Skips drafts? Currently keeps everything except
+ * cancelled — drafts are still useful as templates per OQ-1.
+ *
+ * The form layer strips `tracking_no` + `tracking_no_other` before
+ * prefilling (OQ-1: each new inbound has a fresh tracking).
+ */
+export async function getLatestInboundWithItems(
+  ctx: ClientContext
+): Promise<{
+  inbound: InboundRequestV1Public;
+  declared_items: InboundDeclaredItemPublic[];
+} | null> {
+  const db = await connectToDatabase();
+  const doc = await db
+    .collection(collections.INBOUND)
+    .find({
+      client_id: ctx.client_id,
+      status: { $nin: ["cancelled"] },
+    })
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .next();
+  if (!doc) return null;
+  const items = await db
+    .collection(collections.INBOUND_DECLARED_ITEM)
+    .find({ inbound_request_id: doc._id })
+    .sort({ display_order: 1 })
+    .toArray();
+  return {
+    inbound: projectInboundV1(doc),
+    declared_items: items.map(projectDeclaredItem),
+  };
+}
+
 // ── update (pending only) ──────────────────────────────────
 
 export async function updateInbound(
