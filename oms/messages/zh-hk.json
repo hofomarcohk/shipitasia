@@ -1154,7 +1154,20 @@
       "select_carrier": "請選擇物流商",
       "select_account": "請選擇物流商帳號",
       "missing_address": "請填寫完整收件地址",
-      "missing_quote_fields": "請先選擇物流商與目的地"
+      "missing_quote_fields": "請先選擇物流商與目的地",
+      "section1_title": "揀預報",
+      "section2_title": "申報品項覆核",
+      "section3_title": "收件人 + Carrier + 派送速度",
+      "section4_title": "確認摘要 + 落單",
+      "section1_count_unit": "件",
+      "section2_total_value": "申報總值",
+      "section2_aggregated": "由揀選嘅預報自動匯總",
+      "balance_warn_title": "餘額不足以即時出庫",
+      "balance_warn_body": "申報唔受影響 — 倉庫仍會收貨。你可以：(1) 而家儲值之後再返嚟 confirm；(2) 揀慢啲嘅 service；(3) 揀少啲件出。",
+      "balance_short_by": "差 HK${amount}",
+      "go_topup_btn": "前往儲值 →",
+      "submit_disabled_balance": "確認出貨（餘額不足）",
+      "applied_recipient_from_inbound": "已套入 {id} 嘅收件人 — 要改即改"
     },
     "detail": {
       "title": "出庫單詳情",

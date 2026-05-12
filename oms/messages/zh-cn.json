@@ -1154,7 +1154,20 @@
       "select_carrier": "请选择物流商",
       "select_account": "请选择物流商账号",
       "missing_address": "请填写完整收件地址",
-      "missing_quote_fields": "请先选择物流商与目的地"
+      "missing_quote_fields": "请先选择物流商与目的地",
+      "section1_title": "选预报",
+      "section2_title": "申报品项复核",
+      "section3_title": "收件人 + Carrier + 派送速度",
+      "section4_title": "确认摘要 + 落单",
+      "section1_count_unit": "件",
+      "section2_total_value": "申报总值",
+      "section2_aggregated": "由所选预报自动汇总",
+      "balance_warn_title": "余额不足以即时出库",
+      "balance_warn_body": "申报不受影响 — 仓库仍会收货。您可以：(1) 现在储值后再回来 confirm；(2) 选慢些的 service；(3) 选少些件出。",
+      "balance_short_by": "差 HK${amount}",
+      "go_topup_btn": "前往储值 →",
+      "submit_disabled_balance": "确认出货（余额不足）",
+      "applied_recipient_from_inbound": "已套入 {id} 的收件人 — 要改即改"
     },
     "detail": {
       "title": "出库单详情",
