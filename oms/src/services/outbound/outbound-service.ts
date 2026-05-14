@@ -261,6 +261,7 @@ export async function createConsolidatedOutbound(
     receiver_address: input.receiver_address,
     processing_preference: input.processing_preference,
     customer_remarks: input.customer_remarks,
+    disallow_consolidation: input.disallow_consolidation ?? false,
     shipment_type: "consolidated",
   });
 }
@@ -280,8 +281,42 @@ export async function createSingleOutbound(
     receiver_address: input.receiver_address,
     processing_preference: "auto", // single is always auto
     customer_remarks: input.customer_remarks,
+    disallow_consolidation: input.disallow_consolidation ?? false,
     shipment_type: "single",
   });
+}
+
+// ── auto-create outbound on receive (single 直發) ────────────
+//
+// Single-mode inbound carries shipping intent (carrier_account_id +
+// receiver_address) at the inbound stage. When the warehouse marks it
+// received, the system should automatically materialise the outbound so the
+// customer doesn't have to re-enter what they already declared. P7
+// originally promised this; it was deferred and forgotten until P10 testing
+// surfaced the gap.
+
+export async function autoCreateOutboundFromSingleInbound(
+  inbound: any,
+  ctxMeta: { ip_address?: string; user_agent?: string } = {}
+): Promise<OutboundRequestV1Public> {
+  if (inbound.shipment_type !== "single" || !inbound.single_shipping) {
+    throw new ApiError("AUTOCREATE_NOT_SINGLE");
+  }
+  const db = await connectToDatabase();
+  const accountId: string = inbound.single_shipping.carrier_account_id;
+  const account = await lookupClientCarrierAccount(db, inbound.client_id, accountId);
+  return createSingleOutbound(
+    { client_id: inbound.client_id, ...ctxMeta },
+    {
+      inbound_id: String(inbound._id),
+      carrier_code: account.carrier_code,
+      carrier_account_id: accountId,
+      receiver_address: inbound.single_shipping.receiver_address,
+      ...(inbound.customer_remarks
+        ? { customer_remarks: inbound.customer_remarks }
+        : {}),
+    }
+  );
 }
 
 interface CoreCreateInput {
@@ -292,6 +327,7 @@ interface CoreCreateInput {
   receiver_address: any;
   processing_preference: "auto" | "confirm_before_label";
   customer_remarks?: string;
+  disallow_consolidation?: boolean;
   shipment_type: "consolidated" | "single";
 }
 
@@ -323,6 +359,12 @@ async function createOutboundCore(
     throw new ApiError("EMPTY_INBOUND_LIST");
   }
   const warehouseCode = warehouses[0] as string;
+
+  // P10 — derive cargo_categories from inbound master flags (battery /
+  // liquid). Used by OMS UI hint and Phase B consolidation gate.
+  const cargo_categories: string[] = [];
+  if (inbounds.some((i: any) => i.contains_battery)) cargo_categories.push("battery");
+  if (inbounds.some((i: any) => i.contains_liquid)) cargo_categories.push("liquid");
 
   // Rate quote (estimate weight from declared/actual)
   const estWeight = estimateWeightKg(inbounds);
@@ -381,6 +423,9 @@ async function createOutboundCore(
           cancel_reason: null,
           cancelled_by_actor_type: null,
           customer_remarks: input.customer_remarks ?? null,
+          batch_id: null,
+          disallow_consolidation: !!input.disallow_consolidation,
+          cargo_categories,
           createdAt: now,
           updatedAt: now,
         } as any,
@@ -981,6 +1026,7 @@ export const outboundService = {
   previewRateQuote,
   createConsolidatedOutbound,
   createSingleOutbound,
+  autoCreateOutboundFromSingleInbound,
   listMyOutbounds,
   getMyOutbound,
   cancelMyOutbound,

@@ -5,6 +5,7 @@ import { COMMON_ERROR } from "./errors/common-error";
 import { OUTBOUND_ERROR } from "./errors/outbound-error";
 import { OUTBOUND_CREATION_ERROR } from "./errors/outbound-creation-error";
 import { OUTBOUND_WMS_ERROR } from "./errors/outbound-wms-error";
+import { PICK_BATCH_ERROR } from "./errors/pick-batch-error";
 import { SCAN_ERROR } from "./errors/scan-error";
 import { UNCLAIMED_ERROR } from "./errors/unclaimed-error";
 import { WALLET_ERROR } from "./errors/wallet-error";
@@ -20,4 +21,5 @@ export const ApiErrorList = {
   ...UNCLAIMED_ERROR, // 16
   ...OUTBOUND_CREATION_ERROR, // 17 (P7 outbound v1)
   ...OUTBOUND_WMS_ERROR, // 18 (P8 WMS outbound flow)
+  ...PICK_BATCH_ERROR, // 20 (P10 pick batch + pallet label)
 };

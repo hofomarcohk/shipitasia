@@ -78,8 +78,28 @@ export async function registerClient(
   const passwordHash = await bcrypt.hash(input.password, saltRounds);
 
   const now = new Date();
-  const doc: Partial<Client> & { _id?: string } = {
+
+  // Assign next SIA code (skip SIA0000 — admin only). Race conditions on
+  // concurrent signups would re-pick the same code; the unique index on
+  // clients.code makes the loser retry one slot up.
+  const codeRows = await db
+    .collection(collections.CLIENT)
+    .find({ code: { $regex: "^SIA[0-9]{4}$" } })
+    .project({ code: 1 })
+    .toArray();
+  const used = new Set(codeRows.map((r: any) => r.code));
+  let siaCode = "";
+  for (let n = 1; n < 10000; n++) {
+    const candidate = "SIA" + String(n).padStart(4, "0");
+    if (!used.has(candidate)) {
+      siaCode = candidate;
+      break;
+    }
+  }
+
+  const doc: Partial<Client> & { _id?: string; code?: string } = {
     email: input.email,
+    code: siaCode || undefined,
     password: passwordHash,
     client_type: input.client_type,
     display_name: input.display_name,

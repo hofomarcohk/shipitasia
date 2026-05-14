@@ -109,7 +109,9 @@ export const PdaReceive = () => {
   };
 
   const reset = () => {
-    setLocationCode("");
+    // Preserve locationCode across receives — the same shelf is usually
+    // re-used for a run of arrivals, and re-picking the dropdown every
+    // time breaks the scan-loop rhythm. Operator changes shelf manually.
     setIdentifier("");
     setMatched(null);
     setBarcodeFile(null);
@@ -121,7 +123,14 @@ export const PdaReceive = () => {
     setAnomalies({});
     setStaffNote("");
     setError("");
-    setTimeout(() => locationRef.current?.focus(), 50);
+    // After a submit, focus jumps to the tracking input (not the shelf
+    // dropdown) so the operator can immediately scan the next package.
+    setTimeout(() => {
+      const trackingEl = document.getElementById(
+        "pda-receive-tracking-input"
+      ) as HTMLInputElement | null;
+      trackingEl?.focus();
+    }, 50);
   };
 
   const submit = async () => {
@@ -270,6 +279,8 @@ export const PdaReceive = () => {
           <Label className="mt-2">{t("wms_scan.scan_inbound_id")}</Label>
           <div className="flex gap-2">
             <Input
+              id="pda-receive-tracking-input"
+              autoFocus={!!locationCode}
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               onKeyDown={(e) => {

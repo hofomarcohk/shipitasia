@@ -1,9 +1,10 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { http_request } from "@/lib/httpRequest";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface OutboundRow {
   _id: string;
@@ -28,6 +29,10 @@ export const OperationsLabelPrint = () => {
   const [flash, setFlash] = useState("");
   const [error, setError] = useState("");
 
+  const [palletInput, setPalletInput] = useState("");
+  const [palletFlash, setPalletFlash] = useState("");
+  const palletRef = useRef<HTMLInputElement | null>(null);
+
   const reload = async () => {
     const r = await http_request(
       "GET",
@@ -43,8 +48,35 @@ export const OperationsLabelPrint = () => {
     const d = await r.json();
     if (d.status === 200) setBoxes(d.data);
   };
+
+  const scanPallet = async () => {
+    if (!palletInput.trim()) return;
+    setError("");
+    setPalletFlash("");
+    const r = await http_request("POST", "/api/wms/pallet-label/scan-back", {
+      pallet_no: palletInput.trim(),
+    });
+    const d = await r.json();
+    if (d.status === 200) {
+      const oid = d.data.outbound_id;
+      const status = d.data.outbound_status;
+      if (status !== "label_obtained") {
+        setError(
+          t("wms_ops.label_print.pallet_wrong_status", { status })
+        );
+      } else {
+        setPalletFlash(t("wms_ops.label_print.pallet_loaded", { oid }));
+        await loadBoxes(oid);
+        setPalletInput("");
+      }
+    } else {
+      setError(d.message ?? "scan failed");
+    }
+  };
+
   useEffect(() => {
     reload();
+    palletRef.current?.focus();
   }, []);
 
   const printAll = (urls: (string | null)[]) => {
@@ -72,6 +104,38 @@ export const OperationsLabelPrint = () => {
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4 grid gap-4">
+      <Card>
+        <CardContent className="py-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              scanPallet();
+            }}
+            className="flex gap-2 items-end"
+          >
+            <div className="flex-1">
+              <div className="text-xs text-gray-500 mb-1">
+                {t("wms_ops.label_print.scan_pallet_label")}
+              </div>
+              <Input
+                ref={palletRef}
+                value={palletInput}
+                onChange={(e) => setPalletInput(e.target.value)}
+                placeholder={t(
+                  "wms_ops.label_print.scan_pallet_placeholder"
+                )}
+                autoComplete="off"
+              />
+            </div>
+            <Button type="submit">
+              {t("wms_ops.label_print.scan_pallet_btn")}
+            </Button>
+          </form>
+          {palletFlash && (
+            <p className="text-xs text-emerald-700 mt-2">{palletFlash}</p>
+          )}
+        </CardContent>
+      </Card>
       {list.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center text-gray-500">

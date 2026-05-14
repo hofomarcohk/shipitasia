@@ -3,7 +3,7 @@
 // Mobile-first chrome for PDA pages. Replaces the desktop PageLayout
 // (sidebar + breadcrumbs + footer) with a top app bar + bottom tab bar,
 // the way native scanning apps work. The PDA workers don't need the
-// rest of the OMS / WMS — they live in this 3-tab world.
+// rest of the OMS / WMS — they live in this 4-tab world.
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { http_request } from "@/lib/httpRequest";
 import {
+  IconLayoutGrid,
   IconLogout,
   IconPackageImport,
   IconScan,
@@ -47,6 +48,12 @@ const TABS: TabDef[] = [
     match: /\/wms\/pda\/scan\/inbound-receive(\/|$)/,
     icon: IconPackageImport,
     labelKey: "pda_layout.tab_receive",
+  },
+  {
+    href: "/wms/pda/scan/shelf",
+    match: /\/wms\/pda\/scan\/shelf(\/|$)/,
+    icon: IconLayoutGrid,
+    labelKey: "pda_layout.tab_pick",
   },
   {
     href: "/wms/pda/scan/depart",
@@ -130,7 +137,7 @@ export function PdaLayout({
 
       {/* ── Bottom tab bar (sticky) ──────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-20 border-t bg-white">
-        <ul className="grid grid-cols-3">
+        <ul className="grid grid-cols-4">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = tab.match.test(pathname);

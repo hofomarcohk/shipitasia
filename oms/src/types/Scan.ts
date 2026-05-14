@@ -201,8 +201,12 @@ export const ArriveInputSchema = z
     inbound_id: z.string().optional(), // optional fast-path
     weight: z.coerce.number().optional(),
     dimension: DimensionSchema.optional(),
-    photo_barcode_paths: z.array(z.string().min(1)).min(1),
-    photo_package_paths: z.array(z.string().min(1)).min(1),
+    // Arrive is the warehouse "到貨簽收" scan-loop — no data entry, no
+    // photos. The full capture (photos / weight / dimensions / anomalies)
+    // happens at receive time. Schema accepts empty arrays so the PDA can
+    // POST tracking_no alone.
+    photo_barcode_paths: z.array(z.string().min(1)).default([]),
+    photo_package_paths: z.array(z.string().min(1)).default([]),
     anomalies: AnomalyInputSchema.array().default([]),
     staff_note: z.string().max(200).optional(),
   })

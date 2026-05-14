@@ -382,7 +382,27 @@ export async function listAllInboundsForStaff(params: {
     .skip(offset)
     .limit(limit)
     .toArray();
-  return { items: docs.map(projectInboundV1), total };
+  // Join shelf code from item_locations so the inbound-history table can
+  // show "上架到哪個貨架" without a second roundtrip.
+  const ids = docs.map((d: any) => String(d._id));
+  const locs = ids.length
+    ? await db
+        .collection(collections.ITEM_LOCATION)
+        .find({ itemCode: { $in: ids } })
+        .toArray()
+    : [];
+  const locByInb = new Map<string, string | null>(
+    locs.map((l: any) => [String(l.itemCode), l.locationCode ?? null])
+  );
+  // Join SIA client code for display.
+  const { getClientCodeMap } = await import("@/services/clients/code_lookup");
+  const codeMap = await getClientCodeMap(docs.map((d: any) => d.client_id));
+  const items = docs.map((d: any) => ({
+    ...projectInboundV1(d),
+    locationCode: locByInb.get(String(d._id)) ?? null,
+    client_code: codeMap.get(String(d.client_id)) ?? null,
+  }));
+  return { items, total };
 }
 
 export async function listMyInbounds(

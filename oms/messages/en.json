@@ -167,6 +167,7 @@
     "admin_topup": "Topup Approval",
     "operations": "WMS Operations",
     "ops_pick": "Desktop Pick",
+    "ops_pick_batch": "Pick Batch",
     "ops_pack": "Desktop Pack",
     "ops_weigh": "Desktop Reweigh",
     "ops_label_print": "Label Print",
@@ -176,6 +177,7 @@
     "ops_abandoned": "Abandoned",
     "ops_inbound_history": "Inbound Overview",
     "scan": "PDA Scan",
+    "scan_shelf": "PDA Shelf-Pick",
     "scan_arrive": "PDA Arrive",
     "scan_receive": "PDA Receive",
     "scan_depart": "PDA Depart",
@@ -1065,6 +1067,23 @@
     "msg_accepted": "Accepted, shipment received, HK$5 charged",
     "msg_rejected": "Rejected"
   },
+  "wms_pda": {
+    "shelf_pick": {
+      "page_title": "Shelf-scan pick",
+      "location_label": "Scan shelf barcode",
+      "location_placeholder": "e.g. A001",
+      "scan_btn": "Look up",
+      "location_summary_label": "Shelf",
+      "pending_summary": "{pending}/{total} pending",
+      "client_summary": "{count} clients",
+      "shelf_cleared": "Shelf cleared, on to the next",
+      "empty": "Nothing to pick on this shelf",
+      "client_outbound": "Cust {client} · Outb {outbound}",
+      "pick_btn": "Pick",
+      "picked_badge": "Picked",
+      "picked_flash": "Picked, continue"
+    }
+  },
   "outbound_v1": {
     "page_title": "Outbound",
     "page_subtitle": "Manage your outbound shipments and carrier labels",
@@ -1136,7 +1155,12 @@
       "select_carrier": "Please select a carrier",
       "select_account": "Please select a carrier account",
       "missing_address": "Please complete the receiver address",
-      "missing_quote_fields": "Pick a carrier and destination first"
+      "missing_quote_fields": "Pick a carrier and destination first",
+      "disallow_consolidation_label": "Do not consolidate with other outbounds (even same receiver address)",
+      "disallow_consolidation_hint_default": "By default, outbounds for the same client + same receiver address may be consolidated to save shipping cost. Tick to opt out.",
+      "disallow_consolidation_hint_with_cargo": "This outbound includes restricted item types — consolidation may slow customs:",
+      "cargo_battery": "Battery",
+      "cargo_liquid": "Liquid"
     },
     "detail": {
       "title": "Outbound detail",
@@ -1246,7 +1270,13 @@
       "complete_all": "All weigh-verified (push to OMS)",
       "complete_auto": "Verified + system auto-fetching label",
       "complete_pending": "Verified, waiting for client confirm on OMS",
-      "error_actual": "Enter actual weight"
+      "error_actual": "Enter actual weight",
+      "pallet_title": "Pallet Label",
+      "pallet_instruction": "Print and stick this label on the pallet; scan it later at the label-print station to retrieve.",
+      "pallet_print_btn": "Print pallet label",
+      "pallet_reprint_btn": "Reprint",
+      "pallet_done_btn": "Stuck, next",
+      "pallet_reprinted": "Pallet label reprinted"
     },
     "label_print": {
       "page_title": "Print / paste labels",
@@ -1257,7 +1287,55 @@
       "print_all": "Print all",
       "print_invoice": "Print invoice",
       "complete": "Mark labels printed",
-      "done": "Marked printed"
+      "done": "Marked printed",
+      "scan_pallet_label": "Scan pallet barcode to retrieve",
+      "scan_pallet_placeholder": "Scan PL-YYYYMMDD-NNNN",
+      "scan_pallet_btn": "Retrieve",
+      "pallet_loaded": "Loaded {oid}",
+      "pallet_wrong_status": "Outbound status is {status}; not at print-label stage"
+    },
+    "pick_batch": {
+      "page_title": "Pick Batch",
+      "page_subtitle": "Group today's outbounds into a picking wave for PDA shelf-scan picking",
+      "detail_page_title": "Pick Batch Detail",
+      "new_section_title": "Create new batch",
+      "new_section_subtitle": "Tick today's outbounds, create the batch, then press Start to begin picking",
+      "note_placeholder": "Note (optional)",
+      "create_btn": "Create batch ({n})",
+      "empty_candidates": "No outbounds available for batching",
+      "empty_batches": "No batches",
+      "start_btn": "Start batch",
+      "close_btn": "Close batch",
+      "cancel_btn": "Cancel batch",
+      "cancel_reason_prompt": "Cancel reason",
+      "outbound_list_title": "Outbounds in batch",
+      "progress": "Pick progress",
+      "started_at": "Started at",
+      "col": {
+        "outbound": "Outbound",
+        "client": "Client",
+        "carrier": "Carrier",
+        "dest": "Dest.",
+        "inbounds": "Inbounds",
+        "created": "Created",
+        "batch_no": "Batch No.",
+        "status": "Status",
+        "outbounds_count": "Outbounds",
+        "note": "Note"
+      },
+      "filter": {
+        "active": "Active",
+        "closed": "Closed",
+        "cancelled": "Cancelled",
+        "all": "All"
+      },
+      "status": {
+        "draft": "Draft",
+        "picking": "Picking",
+        "picked": "Picked",
+        "closed": "Closed",
+        "cancelled": "Cancelled"
+      }
     },
     "depart": {
       "page_title": "Depart (Desktop)",

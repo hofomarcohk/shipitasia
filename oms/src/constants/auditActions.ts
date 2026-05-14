@@ -100,6 +100,18 @@ export const AUDIT_ACTIONS = {
   outbound_cancelled_after_label: "outbound_cancelled_after_label",
   outbound_label_client_confirmed: "outbound_label_client_confirmed",
   outbound_admin_retry_label: "outbound_admin_retry_label",
+
+  // ── Phase 10 — pick batch + pallet label ───────────────────
+  pick_batch_created: "pick_batch_created",
+  pick_batch_started: "pick_batch_started",
+  pick_batch_outbound_added: "pick_batch_outbound_added",
+  pick_batch_outbound_removed: "pick_batch_outbound_removed",
+  pick_batch_picked: "pick_batch_picked",
+  pick_batch_closed: "pick_batch_closed",
+  pick_batch_cancelled: "pick_batch_cancelled",
+  pallet_label_printed: "pallet_label_printed",
+  pallet_label_reprinted: "pallet_label_reprinted",
+  pallet_label_scanned_back: "pallet_label_scanned_back",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -129,6 +141,8 @@ export const AUDIT_TARGET_TYPES = {
   staff: "staff",
   unclaimed_inbound: "unclaimed_inbound",
   topup_request: "topup_request",
+  pick_batch: "pick_batch",
+  pallet_label: "pallet_label",
 } as const;
 
 export type AuditTargetType =

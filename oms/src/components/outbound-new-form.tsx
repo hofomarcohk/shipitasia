@@ -90,6 +90,8 @@ export const OutboundNewForm = () => {
     "auto"
   );
   const [remarks, setRemarks] = useState("");
+  // P10 — opt-out of cross-outbound consolidation (default allow).
+  const [disallowConsolidation, setDisallowConsolidation] = useState(false);
 
   // Quote state
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -329,6 +331,7 @@ export const OutboundNewForm = () => {
         },
         processing_preference: preference,
         customer_remarks: remarks || undefined,
+        disallow_consolidation: disallowConsolidation,
       });
       const data = await res.json();
       if (data.status === 200) {
@@ -765,6 +768,49 @@ export const OutboundNewForm = () => {
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                 />
+              </div>
+
+              {/* P10 — consolidation opt-out. Default ALLOW (faster, cheaper
+                  shipping if same client / same destination). Customer opts
+                  out for shipments that shouldn't ride with others (e.g.
+                  battery items dragging plain cargo through stricter customs). */}
+              <div className="rounded-md border bg-gray-50 px-4 py-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={disallowConsolidation}
+                    onChange={(e) =>
+                      setDisallowConsolidation(e.target.checked)
+                    }
+                  />
+                  <div className="text-sm">
+                    <div className="font-medium">
+                      {t("outbound_v1.new.disallow_consolidation_label")}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {aggregated &&
+                      (aggregated.contains_battery ||
+                        aggregated.contains_liquid) ? (
+                        <>
+                          {t("outbound_v1.new.disallow_consolidation_hint_with_cargo")}{" "}
+                          {aggregated.contains_battery && (
+                            <span className="inline-block mr-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                              {t("outbound_v1.new.cargo_battery")}
+                            </span>
+                          )}
+                          {aggregated.contains_liquid && (
+                            <span className="inline-block mr-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                              {t("outbound_v1.new.cargo_liquid")}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        t("outbound_v1.new.disallow_consolidation_hint_default")
+                      )}
+                    </div>
+                  </div>
+                </label>
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}

@@ -67,6 +67,10 @@ export const ClientSchema = z
   .object({
     // ── v1 primary identity ───────────────────────────────────
     email: z.string().email(),
+    // Display code (e.g. "SIA0001"). SIA0000 is reserved for admin.
+    // Backfilled by migration 20260514000001; new signups get the next
+    // available slot assigned in do_register.
+    code: z.string().regex(/^SIA\d{4}$/).optional(),
     password: z.string().nullable(), // bcrypt hash; null for Google-only
     client_type: z.enum(["business", "end_user"]),
     display_name: z.string().min(1).max(100),

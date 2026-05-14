@@ -25,6 +25,19 @@ interface BoxRow {
   status: string;
 }
 
+interface PalletInfo {
+  _id: string;
+  pallet_no: string;
+  outbound_id: string;
+  client_id: string;
+  box_count: number;
+  total_weight_kg: number;
+  carrier_code: string;
+  destination_country: string;
+  printed_at: string;
+  reprint_count: number;
+}
+
 export const OperationsWeigh = () => {
   const t = useTranslations();
   const [list, setList] = useState<OutboundRow[]>([]);
@@ -35,6 +48,7 @@ export const OperationsWeigh = () => {
   >({});
   const [flash, setFlash] = useState("");
   const [error, setError] = useState("");
+  const [pallet, setPallet] = useState<PalletInfo | null>(null);
 
   const reload = async () => {
     const r = await http_request("GET", "/api/wms/outbound/weighable", {});
@@ -111,12 +125,38 @@ export const OperationsWeigh = () => {
           ? t("wms_ops.weigh.complete_auto")
           : t("wms_ops.weigh.complete_pending")
       );
+      // P10 — fetch the auto-minted pallet so staff can print it.
+      try {
+        const pr = await http_request(
+          "POST",
+          "/api/wms/pallet-label/print",
+          { outbound_id: selected }
+        );
+        const pd = await pr.json();
+        if (pd.status === 200) setPallet(pd.data);
+      } catch {}
       await reload();
-      setSelected(null);
-      setBoxes([]);
     } else {
       setError(d.message ?? "fail");
     }
+  };
+
+  const reprintPallet = async () => {
+    if (!selected) return;
+    const r = await http_request("POST", "/api/wms/pallet-label/print", {
+      outbound_id: selected,
+    });
+    const d = await r.json();
+    if (d.status === 200) {
+      setPallet(d.data);
+      setFlash(t("wms_ops.weigh.pallet_reprinted"));
+    }
+  };
+
+  const dismissPallet = () => {
+    setPallet(null);
+    setSelected(null);
+    setBoxes([]);
   };
 
   const allWeighed = boxes.length > 0 && boxes.every((b) => b.weight_actual);
@@ -220,6 +260,43 @@ export const OperationsWeigh = () => {
               <Button onClick={completeWeigh} disabled={!allWeighed}>
                 {t("wms_ops.weigh.complete_all")}
               </Button>
+            </div>
+          )}
+          {pallet && (
+            <div className="mt-4 border-2 border-emerald-500 rounded p-4 bg-emerald-50">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <div className="text-xs text-emerald-700 font-semibold">
+                    {t("wms_ops.weigh.pallet_title")}
+                  </div>
+                  <div className="text-2xl font-mono mt-1">
+                    {pallet.pallet_no}
+                  </div>
+                </div>
+                <div className="text-right text-xs text-gray-600">
+                  <div>{pallet.box_count} 箱 · {pallet.total_weight_kg.toFixed(2)} kg</div>
+                  <div>{pallet.carrier_code} · {pallet.destination_country}</div>
+                  {pallet.reprint_count > 0 && (
+                    <div className="text-amber-700">
+                      reprint × {pallet.reprint_count}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="text-xs text-gray-700 mb-3">
+                {t("wms_ops.weigh.pallet_instruction")}
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => window.print()} size="sm">
+                  {t("wms_ops.weigh.pallet_print_btn")}
+                </Button>
+                <Button onClick={reprintPallet} variant="outline" size="sm">
+                  {t("wms_ops.weigh.pallet_reprint_btn")}
+                </Button>
+                <Button onClick={dismissPallet} variant="outline" size="sm">
+                  {t("wms_ops.weigh.pallet_done_btn")}
+                </Button>
+              </div>
             </div>
           )}
           {flash && <p className="text-sm text-emerald-700">{flash}</p>}

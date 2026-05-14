@@ -167,6 +167,7 @@
     "admin_topup": "充值审批",
     "operations": "仓内作业 (员工)",
     "ops_pick": "桌面拣货",
+    "ops_pick_batch": "拣货批次",
     "ops_pack": "桌面装箱",
     "ops_weigh": "桌面复重",
     "ops_label_print": "面单列印 / 贴箱",
@@ -176,6 +177,7 @@
     "ops_abandoned": "弃件处理",
     "ops_inbound_history": "入库总览",
     "scan": "PDA 扫描",
+    "scan_shelf": "PDA 扫货架拣货",
     "scan_arrive": "PDA 到货",
     "scan_receive": "PDA 收货上架",
     "scan_depart": "PDA 离仓",
@@ -1083,6 +1085,23 @@
     "msg_accepted": "已接受，貨物上架，扣 HK$5",
     "msg_rejected": "已拒收"
   },
+  "wms_pda": {
+    "shelf_pick": {
+      "page_title": "扫货架拣货",
+      "location_label": "扫货架 barcode",
+      "location_placeholder": "例如 A001",
+      "scan_btn": "查询",
+      "location_summary_label": "货架",
+      "pending_summary": "{pending}/{total} 件待拣",
+      "client_summary": "{count} 个客户",
+      "shelf_cleared": "此架已拣完，可进下一个",
+      "empty": "此架没有待拣件",
+      "client_outbound": "客 {client} · 单 {outbound}",
+      "pick_btn": "拣此件",
+      "picked_badge": "已拣",
+      "picked_flash": "已拣，继续下一件"
+    }
+  },
   "outbound_v1": {
     "page_title": "出库管理",
     "page_subtitle": "管理您的出库单与物流面单",
@@ -1167,7 +1186,12 @@
       "balance_short_by": "差 HK${amount}",
       "go_topup_btn": "前往储值 →",
       "submit_disabled_balance": "确认出货（余额不足）",
-      "applied_recipient_from_inbound": "已套入 {id} 的收件人 — 要改即改"
+      "applied_recipient_from_inbound": "已套入 {id} 的收件人 — 要改即改",
+      "disallow_consolidation_label": "不要与其他出库单合并（即使同收货地址）",
+      "disallow_consolidation_hint_default": "预设情况下，同客户 + 同收货地的出库单可能会被合并以省运费。勾选此项可避免合并。",
+      "disallow_consolidation_hint_with_cargo": "此单包含特殊品项，合并可能影响清关速度：",
+      "cargo_battery": "含带电",
+      "cargo_liquid": "含液体"
     },
     "detail": {
       "title": "出库单详情",
@@ -1277,7 +1301,13 @@
       "complete_all": "全部复重通过 (推 OMS)",
       "complete_auto": "已通过 + 系统自动取运单中",
       "complete_pending": "已通过，等客户于 OMS 确认取运单",
-      "error_actual": "请输入实重"
+      "error_actual": "请输入实重",
+      "pallet_title": "板位 Label",
+      "pallet_instruction": "请列印此 label 贴到板上，等客户确认后再扫此 barcode 找回出库单。",
+      "pallet_print_btn": "列印板位 Label",
+      "pallet_reprint_btn": "重印",
+      "pallet_done_btn": "已贴好，下一张",
+      "pallet_reprinted": "已重印板位 Label"
     },
     "label_print": {
       "page_title": "面单列印 / 贴箱",
@@ -1288,7 +1318,55 @@
       "print_all": "列印全部",
       "print_invoice": "列印发票",
       "complete": "贴 label 完成",
-      "done": "已标记列印完成"
+      "done": "已标记列印完成",
+      "scan_pallet_label": "扫描板位 barcode 找回",
+      "scan_pallet_placeholder": "扫描 PL-YYYYMMDD-NNNN",
+      "scan_pallet_btn": "找回",
+      "pallet_loaded": "已载入 {oid}",
+      "pallet_wrong_status": "板位对应的出库单状态为 {status}，目前未到列印面单阶段"
+    },
+    "pick_batch": {
+      "page_title": "拣货批次",
+      "page_subtitle": "建立拣货批次（一天 1 次或多天 1 次），用于 PDA 按货架扫描拣货",
+      "detail_page_title": "拣货批次详情",
+      "new_section_title": "建立新批次",
+      "new_section_subtitle": "勾选今天要做的出库单，建立后到批次内按「开始」进入拣货",
+      "note_placeholder": "备注（可留空）",
+      "create_btn": "建立批次 ({n})",
+      "empty_candidates": "目前没有可加入批次的出库单",
+      "empty_batches": "目前没有批次",
+      "start_btn": "开始批次",
+      "close_btn": "关闭批次",
+      "cancel_btn": "取消批次",
+      "cancel_reason_prompt": "请输入取消原因",
+      "outbound_list_title": "批次内出库单",
+      "progress": "拣货进度",
+      "started_at": "开始时间",
+      "col": {
+        "outbound": "出库单",
+        "client": "客户",
+        "carrier": "物流商",
+        "dest": "目的地",
+        "inbounds": "件数",
+        "created": "建立时间",
+        "batch_no": "批次编号",
+        "status": "状态",
+        "outbounds_count": "出库单数",
+        "note": "备注"
+      },
+      "filter": {
+        "active": "进行中",
+        "closed": "已关闭",
+        "cancelled": "已取消",
+        "all": "全部"
+      },
+      "status": {
+        "draft": "草稿",
+        "picking": "拣货中",
+        "picked": "已拣完",
+        "closed": "已关闭",
+        "cancelled": "已取消"
+      }
     },
     "depart": {
       "page_title": "桌面离仓",

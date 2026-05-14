@@ -1,187 +1,315 @@
 "use client";
+// Desktop 揀貨 — shelf-keyed, picker-first view. Per the WMS rule:
+//   picker only sees (shelf, tracking). Outbound / client groupings
+//   show up at pack/weigh time, not here.
+// Top barcode input scans a tracking_no to mark it picked; the page
+// re-loads to reflect new pending counts and items.
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { http_request } from "@/lib/httpRequest";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-interface OutboundRow {
-  _id: string;
-  carrier_code: string;
-  destination_country: string;
-  inbound_count: number;
-  status: string;
-  createdAt: string;
+interface ShelfItem {
+  inbound_id: string;
+  tracking_no: string;
+  declared_name: string | null;
+  thumbnail_path: string | null;
+  status: "pending" | "picked";
 }
 
-interface InboundRow {
+interface ShelfBlock {
+  locationCode: string;
+  pending_count: number;
+  total_count: number;
+  items: ShelfItem[];
+}
+
+interface BatchRow {
   _id: string;
-  tracking_no: string;
   status: string;
-  actualWeight: number | null;
-  locationCode: string | null;
+  outbound_ids: string[];
+}
+
+interface ShelfResponse {
+  locationCode: string;
+  batch_id: string;
+  total_items: number;
+  pending_items: number;
+  items: Array<{
+    inbound_id: string;
+    tracking_no: string;
+    declared_name: string | null;
+    thumbnail_path: string | null;
+    status: "pending" | "picked";
+  }>;
 }
 
 export const OperationsPick = () => {
   const t = useTranslations();
-  const [list, setList] = useState<OutboundRow[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [detail, setDetail] = useState<InboundRow[]>([]);
-  const [picked, setPicked] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [flash, setFlash] = useState("");
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [batchOptions, setBatchOptions] = useState<BatchRow[]>([]);
+  const [shelves, setShelves] = useState<ShelfBlock[]>([]);
+  const [scanInput, setScanInput] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [flash, setFlash] = useState("");
+  const scanRef = useRef<HTMLInputElement | null>(null);
 
-  const reloadList = async () => {
-    const r = await http_request("GET", "/api/wms/outbound/pickable", {});
-    const d = await r.json();
-    if (d.status === 200) setList(d.data ?? []);
+  const loadAll = async (id: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await http_request(
+        "GET",
+        `/api/wms/pick-batch/${encodeURIComponent(id)}/shelves`,
+        {}
+      );
+      const d = await r.json();
+      if (d.status !== 200) {
+        setError(d.message ?? "load failed");
+        setShelves([]);
+        return;
+      }
+      const overview: { locationCode: string; pending_count: number; total_count: number }[] =
+        d.data.shelves ?? [];
+      // For each shelf fetch the items in parallel.
+      const detailed = await Promise.all(
+        overview.map(async (s) => {
+          const rr = await http_request(
+            "GET",
+            `/api/wms/pick-batch/by-location/${encodeURIComponent(s.locationCode)}?batchId=${encodeURIComponent(id)}`,
+            {}
+          );
+          const dd = await rr.json();
+          const items: ShelfItem[] =
+            dd.status === 200
+              ? (dd.data as ShelfResponse).items.map((it) => ({
+                  inbound_id: it.inbound_id,
+                  tracking_no: it.tracking_no,
+                  declared_name: it.declared_name,
+                  thumbnail_path: it.thumbnail_path,
+                  status: it.status,
+                }))
+              : [];
+          return {
+            locationCode: s.locationCode,
+            pending_count: s.pending_count,
+            total_count: s.total_count,
+            items,
+          };
+        })
+      );
+      setShelves(detailed);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setBusy(false);
+      setTimeout(() => scanRef.current?.focus(), 0);
+    }
   };
 
-  const loadDetail = async (id: string) => {
-    setLoading(true);
-    setSelected(id);
-    setDetail([]);
-    setPicked([]);
-    const r = await http_request(
-      "GET",
-      `/api/wms/outbound/${id}/pick-detail`,
-      {}
-    );
-    const d = await r.json();
-    if (d.status === 200) {
-      setDetail(d.data.inbounds);
+  const loadBatches = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await http_request(
+        "GET",
+        "/api/wms/pick-batch?status=picking",
+        {}
+      );
+      const d = await r.json();
+      if (d.status !== 200) {
+        setError(d.message ?? "load batches failed");
+        return;
+      }
+      const rows: BatchRow[] = d.data ?? [];
+      setBatchOptions(rows);
+      if (rows.length === 1) {
+        setBatchId(rows[0]._id);
+        await loadAll(rows[0]._id);
+      } else if (rows.length === 0) {
+        setBatchId(null);
+        setShelves([]);
+      }
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setBusy(false);
     }
-    setLoading(false);
+  };
+
+  const pickByScan = async () => {
+    const tracking = scanInput.trim();
+    if (!tracking || busy || !batchId) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await http_request("POST", "/api/wms/outbound/pick-by-tracking", {
+        tracking_no: tracking,
+        batch_id: batchId,
+      });
+      const d = await r.json();
+      if (d.status === 200) {
+        setFlash(t("wms_ops.pick.picked_flash"));
+        setTimeout(() => setFlash(""), 1200);
+        setScanInput("");
+        await loadAll(batchId);
+      } else {
+        setError(d.message ?? "pick failed");
+      }
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setBusy(false);
+      setTimeout(() => scanRef.current?.focus(), 0);
+    }
   };
 
   useEffect(() => {
-    reloadList();
+    loadBatches();
   }, []);
 
-  const doBatchPick = async () => {
-    if (!selected || picked.length === 0) return;
-    setError("");
-    const r = await http_request(
-      "POST",
-      `/api/wms/outbound/${selected}/pick-batch`,
-      { inbound_ids: picked }
-    );
-    const d = await r.json();
-    if (d.status === 200) {
-      setFlash(`已揀 ${d.data.picked} 件`);
-      await reloadList();
-      await loadDetail(selected);
-    } else {
-      setError(d.message ?? "fail");
-    }
-  };
-
   return (
-    <div className="max-w-6xl mx-auto py-6 px-4 grid grid-cols-3 gap-4">
-      <Card className="col-span-1">
-        <CardHeader>
-          <h2 className="font-semibold">{t("wms_ops.pick.list_title")}</h2>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {list.length === 0 ? (
-            <p className="text-sm text-gray-500">{t("wms_ops.pick.empty")}</p>
-          ) : (
-            list.map((o) => (
-              <button
-                key={o._id}
-                onClick={() => loadDetail(o._id)}
-                className={`w-full text-left border rounded p-2 hover:bg-gray-50 ${
-                  selected === o._id ? "border-blue-500 bg-blue-50" : ""
-                }`}
+    <div className="max-w-5xl mx-auto py-6 px-4 grid gap-4">
+      <Card>
+        <CardContent className="pt-4 grid gap-3">
+          {batchOptions.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">
+                {t("wms_ops.pick.batch_select_label")}
+              </span>
+              <select
+                className="border rounded h-9 px-2 text-sm"
+                value={batchId ?? ""}
+                onChange={(e) => {
+                  setBatchId(e.target.value);
+                  if (e.target.value) loadAll(e.target.value);
+                }}
               >
-                <div className="font-mono text-xs">{o._id}</div>
-                <div className="text-xs text-gray-500">
-                  {o.carrier_code} → {o.destination_country} · {o.inbound_count}{" "}
-                  件 · {o.status}
-                </div>
-              </button>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="col-span-2">
-        <CardHeader>
-          <h2 className="font-semibold">
-            {selected
-              ? `${selected} — ${t("wms_ops.pick.detail_title")}`
-              : t("wms_ops.pick.choose_prompt")}
-          </h2>
-        </CardHeader>
-        <CardContent>
-          {loading && (
-            <p className="text-gray-500">{t("common.loading")}</p>
-          )}
-          {!selected && (
-            <p className="text-gray-500">{t("wms_ops.pick.choose_prompt")}</p>
-          )}
-          {detail.length > 0 && (
-            <div className="grid gap-2">
-              {detail.map((i) => {
-                const isPicked = i.status !== "received";
-                return (
-                  <label
-                    key={i._id}
-                    className={`flex items-center gap-3 border rounded p-2 ${
-                      isPicked ? "bg-gray-100 opacity-60" : ""
-                    }`}
-                  >
-                    <Checkbox
-                      disabled={isPicked}
-                      checked={picked.includes(i._id) || isPicked}
-                      onCheckedChange={(v) =>
-                        setPicked((prev) =>
-                          v ? [...prev, i._id] : prev.filter((x) => x !== i._id)
-                        )
-                      }
-                    />
-                    <div className="flex-1">
-                      <div className="font-mono text-xs">{i._id}</div>
-                      <div className="text-xs text-gray-500">
-                        {i.tracking_no} ·{" "}
-                        {i.locationCode
-                          ? `庫位 ${i.locationCode}`
-                          : "庫位 ?"}{" "}
-                        ·{" "}
-                        {i.actualWeight
-                          ? `${i.actualWeight}kg`
-                          : "weight TBD"}{" "}
-                        · {i.status}
-                      </div>
-                    </div>
-                  </label>
-                );
-              })}
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    setPicked(
-                      detail
-                        .filter((i) => i.status === "received")
-                        .map((i) => i._id)
-                    )
-                  }
-                >
-                  {t("wms_ops.pick.select_all")}
-                </Button>
-                <Button onClick={doBatchPick} disabled={picked.length === 0}>
-                  {t("wms_ops.pick.batch_pick_btn", { count: picked.length })}
-                </Button>
-              </div>
+                <option value="">—</option>
+                {batchOptions.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b._id}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
-          {flash && <p className="mt-3 text-sm text-emerald-700">{flash}</p>}
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {batchId ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-mono">{batchId}</span>
+              <span className="text-xs text-gray-400">·</span>
+              <span className="text-xs text-gray-500">
+                {t("wms_ops.pick.shelves_count", { n: shelves.length })}
+              </span>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">
+              {t("wms_ops.pick.no_active_batch")}
+            </div>
+          )}
+          {batchId && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                pickByScan();
+              }}
+              className="flex gap-2"
+            >
+              <Input
+                ref={scanRef}
+                autoFocus
+                value={scanInput}
+                onChange={(e) => setScanInput(e.target.value)}
+                placeholder={t("wms_ops.pick.scan_tracking_placeholder")}
+                autoComplete="off"
+                autoCapitalize="characters"
+                className="flex-1 font-mono"
+              />
+              <Button type="submit" disabled={busy || !scanInput.trim()}>
+                {t("wms_ops.pick.scan_btn")}
+              </Button>
+            </form>
+          )}
+          {flash && (
+            <div className="text-sm text-emerald-700 bg-emerald-50 rounded p-2">
+              {flash}
+            </div>
+          )}
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 rounded p-2">
+              {error}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {shelves.length === 0 && batchId && !busy && (
+        <div className="text-sm text-gray-400 text-center py-12">
+          {t("wms_ops.pick.no_shelves")}
+        </div>
+      )}
+
+      {shelves.map((shelf) => (
+        <Card key={shelf.locationCode}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold text-base font-mono">
+                {shelf.locationCode}
+              </div>
+              <div className="text-xs text-gray-500">
+                {shelf.pending_count === 0
+                  ? t("wms_ops.pick.shelf_done_label")
+                  : t("wms_ops.pick.shelf_pending_label", {
+                      n: shelf.pending_count,
+                    })}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {shelf.items.map((it) => (
+                <div
+                  key={it.inbound_id}
+                  className={`border rounded p-2 grid grid-cols-[56px_1fr] gap-2 ${
+                    it.status === "picked"
+                      ? "opacity-50 line-through"
+                      : "bg-white"
+                  }`}
+                >
+                  <div className="w-14 h-14 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                    {it.thumbnail_path ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={it.thumbnail_path}
+                        alt={it.tracking_no}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-[10px] text-gray-400">no photo</span>
+                    )}
+                  </div>
+                  <div className="grid gap-0.5">
+                    <div className="font-mono text-xs">{it.tracking_no}</div>
+                    {it.declared_name && (
+                      <div className="text-xs text-gray-600 truncate">
+                        {it.declared_name}
+                      </div>
+                    )}
+                    {it.status === "picked" && (
+                      <div className="text-xs text-emerald-700 font-medium">
+                        ✓
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 };

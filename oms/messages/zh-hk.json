@@ -167,6 +167,7 @@
     "wms_outbound_group": "出庫功能",
     "wms_manage_group": "管理功能",
     "ops_pick": "桌面揀貨",
+    "ops_pick_batch": "揀貨批次",
     "ops_pack": "桌面裝箱",
     "ops_weigh": "桌面複重",
     "ops_label_print": "面單列印 / 貼箱",
@@ -176,6 +177,7 @@
     "ops_abandoned": "棄件處理",
     "ops_inbound_history": "入庫總覽",
     "scan": "PDA 掃描",
+    "scan_shelf": "PDA 掃貨架揀貨",
     "scan_arrive": "PDA 到貨",
     "scan_receive": "PDA 收貨上架",
     "scan_depart": "PDA 離倉",
@@ -1083,6 +1085,34 @@
     "msg_accepted": "已接受，貨物上架，扣 HK$5",
     "msg_rejected": "已拒收"
   },
+  "wms_pda": {
+    "shelf_pick": {
+      "page_title": "掃貨架揀貨",
+      "location_label": "掃貨架 barcode",
+      "location_placeholder": "例如 A001",
+      "scan_btn": "查詢",
+      "scan_tracking_placeholder": "掃 / 輸入貨件 tracking",
+      "location_summary_label": "貨架",
+      "pending_summary": "{pending}/{total} 件待揀",
+      "client_summary": "{count} 個客戶",
+      "shelf_cleared": "此架已揀完，可進下一個",
+      "empty": "此架沒有待揀件",
+      "client_outbound": "客 {client} · 單 {outbound}",
+      "pick_btn": "揀此件",
+      "picked_badge": "已揀",
+      "picked_flash": "已揀，繼續下一件",
+      "no_active_batch": "目前沒有進行中的揀貨批次",
+      "choose_batch_title": "選擇揀貨批次",
+      "batch_row_outbounds": "{n} 張出庫單",
+      "shelves_title": "貨架總表",
+      "shelves_subtitle": "批次 {batchId}",
+      "shelf_pending_label": "{n} 件待揀",
+      "shelf_done_label": "已揀完",
+      "no_shelves": "此批次尚無上架的貨件",
+      "back_to_shelves": "← 返回貨架總表",
+      "switch_batch": "切換批次"
+    }
+  },
   "outbound_v1": {
     "page_title": "出庫管理",
     "page_subtitle": "管理您的出庫單與物流面單",
@@ -1167,7 +1197,12 @@
       "balance_short_by": "差 HK${amount}",
       "go_topup_btn": "前往儲值 →",
       "submit_disabled_balance": "確認出貨（餘額不足）",
-      "applied_recipient_from_inbound": "已套入 {id} 的收件人 — 可即時修改"
+      "applied_recipient_from_inbound": "已套入 {id} 的收件人 — 可即時修改",
+      "disallow_consolidation_label": "不要與其他出庫單合併（即使同收貨地址）",
+      "disallow_consolidation_hint_default": "預設情況下，同客戶 + 同收貨地的出庫單可能會被合併以省運費。勾選此項可避免合併。",
+      "disallow_consolidation_hint_with_cargo": "此單包含特殊品項，合併可能影響清關速度：",
+      "cargo_battery": "含帶電",
+      "cargo_liquid": "含液體"
     },
     "detail": {
       "title": "出庫單詳情",
@@ -1237,13 +1272,22 @@
   "wms_ops": {
     "pick": {
       "page_title": "桌面揀貨",
-      "page_subtitle": "倉內批次揀貨（visual confirm）",
+      "page_subtitle": "按貨架揀貨 — 掃 tracking 標揀",
       "list_title": "待揀清單",
       "detail_title": "待揀入庫單",
       "choose_prompt": "請先選擇要揀的出庫單",
       "empty": "目前沒有可揀的出庫單",
       "select_all": "全部勾選",
-      "batch_pick_btn": "批次揀 ({count})"
+      "batch_pick_btn": "批次揀 ({count})",
+      "batch_select_label": "揀貨批次：",
+      "scan_tracking_placeholder": "掃 / 輸入貨件 tracking",
+      "scan_btn": "標揀",
+      "picked_flash": "已揀，可繼續掃",
+      "no_active_batch": "目前沒有進行中的揀貨批次",
+      "no_shelves": "此批次尚無上架的貨件",
+      "shelves_count": "{n} 個貨架",
+      "shelf_pending_label": "{n} 件待揀",
+      "shelf_done_label": "已揀完"
     },
     "pack": {
       "page_title": "桌面裝箱",
@@ -1277,7 +1321,13 @@
       "complete_all": "全部複重通過 (推 OMS)",
       "complete_auto": "已通過 + 系統自動取運單中",
       "complete_pending": "已通過，等客戶於 OMS 確認取運單",
-      "error_actual": "請輸入實重"
+      "error_actual": "請輸入實重",
+      "pallet_title": "板位 Label",
+      "pallet_instruction": "請列印此 label 貼到板上，等客戶確認後再掃此 barcode 找回出庫單。",
+      "pallet_print_btn": "列印板位 Label",
+      "pallet_reprint_btn": "重印",
+      "pallet_done_btn": "已貼好，下一張",
+      "pallet_reprinted": "已重印板位 Label"
     },
     "label_print": {
       "page_title": "面單列印 / 貼箱",
@@ -1288,7 +1338,70 @@
       "print_all": "列印全部",
       "print_invoice": "列印發票",
       "complete": "貼 label 完成",
-      "done": "已標記列印完成"
+      "done": "已標記列印完成",
+      "scan_pallet_label": "掃描板位 barcode 找回",
+      "scan_pallet_placeholder": "掃描 PL-YYYYMMDD-NNNN",
+      "scan_pallet_btn": "找回",
+      "pallet_loaded": "已載入 {oid}",
+      "pallet_wrong_status": "板位對應的出庫單狀態為 {status}，目前未到列印面單階段"
+    },
+    "pick_batch": {
+      "page_title": "揀貨批次",
+      "page_subtitle": "建立揀貨批次（一天 1 次或多天 1 次），用於 PDA 按貨架掃描揀貨",
+      "detail_page_title": "揀貨批次詳情",
+      "new_section_title": "建立新批次",
+      "new_section_subtitle": "勾選今天要做的出庫單，建立後到批次內按「開始」進入揀貨",
+      "select_all": "真全選",
+      "client_select_all": "客人全選",
+      "print_pick_sheet_btn": "印實體揀貨單",
+      "print_title": "揀貨批次 — 實體揀貨單",
+      "print_batch_no": "批次編號",
+      "print_total_items": "待揀總件數",
+      "print_generated_at": "列印時間",
+      "print_shelf_count": "共 {n} 件",
+      "print_col_tracking": "貨件 tracking",
+      "print_col_item": "品名",
+      "print_col_check": "勾",
+      "print_no_pending": "此批次沒有待揀件",
+      "print_footer_hint": "揀完請回「桌面揀貨」逐件掃 tracking 確認，系統才會推進狀態。",
+      "print_btn": "列印 / 儲存 PDF",
+      "note_placeholder": "備註（可留空）",
+      "create_btn": "建立批次 ({n})",
+      "empty_candidates": "目前沒有可加入批次的出庫單",
+      "empty_batches": "目前沒有批次",
+      "start_btn": "開始批次",
+      "close_btn": "關閉批次",
+      "cancel_btn": "取消批次",
+      "cancel_reason_prompt": "請輸入取消原因",
+      "outbound_list_title": "批次內出庫單",
+      "progress": "揀貨進度",
+      "started_at": "開始時間",
+      "col": {
+        "outbound": "出庫單",
+        "client": "客戶",
+        "carrier": "物流商",
+        "dest": "目的地",
+        "inbounds": "件數",
+        "created": "建立時間",
+        "batch_no": "批次編號",
+        "status": "狀態",
+        "outbounds_count": "出庫單數",
+        "note": "備註",
+        "actions": "動作"
+      },
+      "filter": {
+        "active": "進行中",
+        "closed": "已關閉",
+        "cancelled": "已取消",
+        "all": "全部"
+      },
+      "status": {
+        "draft": "草稿",
+        "picking": "揀貨中",
+        "picked": "已揀完",
+        "closed": "已關閉",
+        "cancelled": "已取消"
+      }
     },
     "depart": {
       "page_title": "桌面離倉",
@@ -1361,6 +1474,7 @@
     "col_tracking": "追蹤號",
     "col_items": "申報件數",
     "col_weight": "實重",
+    "col_location": "貨架",
     "col_arrived": "到倉時間",
     "col_received": "上架時間",
     "col_created": "建立時間"
@@ -1415,6 +1529,7 @@
   "pda_layout": {
     "tab_arrive": "到貨簽收",
     "tab_receive": "收貨上架",
+    "tab_pick": "揀貨任務",
     "tab_depart": "離倉"
   },
   "saved_items": {

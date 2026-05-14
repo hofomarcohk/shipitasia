@@ -16,9 +16,11 @@ export async function getMenu(context: "oms" | "wms" | "pda" = "oms") {
     ])
   ).map((item) => ({
     title: "menu." + item.name,
+    name: item.name,
     url: "#",
     items: item.items.map((i: { name: string; icon: string; url: string }) => ({
       title: "menu." + i.name,
+      name: i.name,
       icon: i.icon,
       url: i.url,
     })),

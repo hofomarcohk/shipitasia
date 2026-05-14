@@ -72,6 +72,10 @@ export const collections = {
   // P10 — client-managed saved item library (per-customer template store
   // for declared items, picked at inbound time to skip re-typing).
   SAVED_ITEM: "saved_items",
+
+  // P10 — WMS pick batch (wave) + pallet label (post-weigh staging)
+  PICK_BATCH: "pick_batches",
+  PALLET_LABEL: "pallet_labels",
 };
 
 export const ID_Prefix: {

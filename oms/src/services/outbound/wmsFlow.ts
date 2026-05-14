@@ -23,6 +23,8 @@ import {
   getCarrierAdapter,
   rateQuoteWithLog,
 } from "@/services/carrier/carrierAdapter";
+import { pickBatchService } from "@/services/pickBatch/pickBatchService";
+import { palletLabelService } from "@/services/pallet/palletLabelService";
 import {
   OutboundBoxPublic,
   OutboundStatusV1,
@@ -200,6 +202,20 @@ export async function pickInbound(
     });
   }
 
+  // P10 — if outbound is assigned to a batch, that batch must be picking.
+  // (Outbounds without batch_id remain picking-anywhere — back-compat for
+  // legacy and ad-hoc desktop flow that bypasses the batch builder.)
+  if (ob.batch_id) {
+    const batch = await db
+      .collection(collections.PICK_BATCH)
+      .findOne({ _id: ob.batch_id as any });
+    if (!batch || batch.status !== "picking") {
+      throw new ApiError("OUTBOUND_NOT_IN_ACTIVE_BATCH", {
+        outboundId: input.outbound_id,
+      });
+    }
+  }
+
   // PDA path: optionally verify locationCode. Skip if not provided (desktop).
   if (input.locationCode) {
     const itemLoc = await db
@@ -307,6 +323,14 @@ export async function pickInbound(
         details: { method: input.method },
         warehouse_code: ctx.warehouseCode,
       });
+      // P10 — if outbound belongs to a batch, check whether the batch is
+      // now fully picked and auto-advance.
+      try {
+        await pickBatchService.checkBatchPickComplete(input.outbound_id);
+      } catch (err) {
+        // Non-fatal: pick succeeded, batch roll-up failure can be reconciled.
+        console.error("pick_batch advance failed:", err);
+      }
     }
   } else {
     await appendActionLog(db, {
@@ -325,6 +349,69 @@ export async function pickInbound(
     .collection(collections.OUTBOUND)
     .findOne({ _id: input.outbound_id as any });
   return { outbound: projectOutboundV1(after), outbound_picked };
+}
+
+// ── pick by tracking_no (PDA/desktop barcode scan-loop) ─────
+//
+// Picker doesn't think in outbounds — they see "what's on this shelf"
+// and scan the tracking barcode. This helper resolves tracking → inbound
+// → outbound link, validates the shelf if supplied, and dispatches to
+// pickInbound. Used by both PDA `wms/pda/scan/shelf` and desktop
+// `wms/operations/pick` after the picker-vs-packer split.
+
+export async function pickByTracking(
+  ctx: StaffContext,
+  params: {
+    tracking_no: string;
+    locationCode?: string;
+    batch_id?: string;
+  }
+): Promise<{ outbound_id: string; inbound_id: string; outbound_picked: boolean }> {
+  const db = await connectToDatabase();
+  const { normalizeTrackingNo } = await import("@/types/InboundV1");
+  const normalized = normalizeTrackingNo(params.tracking_no);
+  // 1) inbound match. Scope to warehouse to avoid cross-warehouse collisions.
+  const inb = await db.collection(collections.INBOUND).findOne({
+    tracking_no_normalized: normalized,
+    warehouseCode: ctx.warehouseCode,
+  });
+  if (!inb) throw new ApiError("INBOUND_NOT_FOUND");
+
+  // 2) find the active (unlinked_at:null) outbound link
+  const link = await db.collection(collections.OUTBOUND_INBOUND_LINK).findOne({
+    inbound_id: String(inb._id),
+    unlinked_at: null,
+  });
+  if (!link) {
+    throw new ApiError("INBOUND_NOT_IN_OUTBOUND", {
+      inboundId: String(inb._id),
+      outboundId: "(none)",
+    });
+  }
+
+  // 3) optional batch scope check
+  if (params.batch_id) {
+    const ob = await getOutbound(db, link.outbound_id);
+    if (ob.batch_id !== params.batch_id) {
+      throw new ApiError("OUTBOUND_NOT_IN_ACTIVE_BATCH", {
+        outboundId: link.outbound_id,
+      });
+    }
+  }
+
+  // 4) dispatch to pickInbound — it handles shelf-location guard,
+  //    status checks, transactional flips and audit / action log.
+  const result = await pickInbound(ctx, {
+    outbound_id: link.outbound_id,
+    inbound_id: String(inb._id),
+    locationCode: params.locationCode,
+    method: "pda_scan",
+  });
+  return {
+    outbound_id: link.outbound_id,
+    inbound_id: String(inb._id),
+    outbound_picked: result.outbound_picked,
+  };
 }
 
 export async function listPickableOutbounds(warehouseCode?: string) {
@@ -900,6 +987,19 @@ export async function completeWeighing(
     details: { total_weight_actual, box_count: boxes.length },
     warehouse_code: ctx.warehouseCode,
   });
+
+  // P10 — mint a pallet label so the boxes can be parked physically while
+  // we wait for either auto-label or client confirmation. Best-effort: a
+  // pallet failure must not roll back the weight verification.
+  try {
+    await palletLabelService.printPallet(
+      { staff_id: ctx.staff_id, warehouseCode: ctx.warehouseCode },
+      outbound_id,
+      "system"
+    );
+  } catch (err) {
+    console.error("pallet label mint failed:", err);
+  }
 
   // Branch: auto → trigger label immediately. confirm_before_label →
   // status=pending_client_label + notification.

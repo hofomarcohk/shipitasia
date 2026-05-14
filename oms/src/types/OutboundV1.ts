@@ -122,6 +122,12 @@ export const OutboundRequestV1Schema = z
     // client-supplied
     customer_remarks: z.string().max(500).nullable(),
 
+    // P10 — pick batch assignment + consolidation opt-out + derived cargo
+    // categories (used by OMS to render the opt-out hint to the client).
+    batch_id: z.string().nullable().optional(),
+    disallow_consolidation: z.boolean().default(false).optional(),
+    cargo_categories: z.array(z.string()).default([]).optional(),
+
     createdAt: z.date(),
     updatedAt: z.date(),
   })
@@ -203,6 +209,8 @@ export const CreateConsolidatedOutboundInputSchema = z
     receiver_address: ReceiverAddressSchema,
     processing_preference: z.enum(OUTBOUND_PROCESSING_PREFERENCE),
     customer_remarks: z.string().max(500).optional(),
+    // P10 — opt-out of cross-outbound consolidation (Phase B feature).
+    disallow_consolidation: z.boolean().optional(),
   })
   .strict();
 export type CreateConsolidatedOutboundInput = z.infer<
@@ -217,6 +225,7 @@ export const CreateSingleOutboundInputSchema = z
     service_code: z.string().optional(),
     receiver_address: ReceiverAddressSchema,
     customer_remarks: z.string().max(500).optional(),
+    disallow_consolidation: z.boolean().optional(),
   })
   .strict();
 export type CreateSingleOutboundInput = z.infer<
@@ -270,6 +279,9 @@ export interface OutboundRequestV1Public {
   cancelled_at: Date | null;
   cancel_reason: string | null;
   customer_remarks: string | null;
+  batch_id: string | null;
+  disallow_consolidation: boolean;
+  cargo_categories: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -303,6 +315,9 @@ export function projectOutboundV1(doc: any): OutboundRequestV1Public {
     cancelled_at: doc.cancelled_at ?? null,
     cancel_reason: doc.cancel_reason ?? null,
     customer_remarks: doc.customer_remarks ?? null,
+    batch_id: doc.batch_id ?? null,
+    disallow_consolidation: !!doc.disallow_consolidation,
+    cargo_categories: doc.cargo_categories ?? [],
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -361,6 +376,7 @@ export const OutboundBoxSchema = z
       .enum(["system", "client", "admin", "wms_staff"])
       .nullable(),
     departed_at: z.date().nullable(),
+    pallet_label_id: z.string().nullable().optional(),
     created_by_staff_id: z.string().min(1),
     createdAt: z.date(),
     updatedAt: z.date(),
@@ -384,6 +400,7 @@ export interface OutboundBoxPublic {
   actual_label_fee: number | null;
   label_obtained_at: Date | null;
   departed_at: Date | null;
+  pallet_label_id: string | null;
   createdAt: Date;
 }
 
@@ -404,6 +421,7 @@ export function projectOutboundBox(doc: any): OutboundBoxPublic {
     actual_label_fee: doc.actual_label_fee ?? null,
     label_obtained_at: doc.label_obtained_at ?? null,
     departed_at: doc.departed_at ?? null,
+    pallet_label_id: doc.pallet_label_id ?? null,
     createdAt: doc.createdAt,
   };
 }

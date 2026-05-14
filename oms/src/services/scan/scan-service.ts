@@ -8,6 +8,7 @@ import {
 import { connectToDatabase, getMongoClient } from "@/lib/mongo";
 import { logAudit } from "@/services/audit/log";
 import { createNotification } from "@/services/notification/notification";
+import { autoCreateOutboundFromSingleInbound } from "@/services/outbound/outbound-service";
 import { getLocation } from "@/services/scan/locations";
 import { unlinkPhotos } from "@/services/scan/photo-upload";
 import { nextDailyId } from "@/services/util/daily-counter";
@@ -130,12 +131,7 @@ export async function performArrive(
   }
 ) {
   const input = ArriveInputSchema.parse(raw);
-  if (photos.barcode_paths.length === 0) {
-    throw new ApiError("BARCODE_PHOTO_REQUIRED");
-  }
-  if (photos.package_paths.length === 0) {
-    throw new ApiError("PACKAGE_PHOTO_REQUIRED");
-  }
+  // Photos are optional on arrive — they belong at receive time.
 
   const db = await connectToDatabase();
   const normalized = normalizeTrackingNo(input.tracking_no);
@@ -498,22 +494,29 @@ export async function performReceive(
     });
   }
 
-  // single 模式 placeholder (Marco's pivot): we mark a held outbound so
-  // P7/P8 can pick it up later. Real autoCreateForSingle ships in P7.
-  let single_held = false;
+  // Single 直發 — auto-create the outbound now that the inbound is received.
+  // Failures are non-fatal: receive succeeds, customer is notified, and they
+  // can fall back to building the outbound manually in OMS.
+  let single_outbound_id: string | null = null;
+  let single_autocreate_error: string | null = null;
   if (inbound.shipment_type === "single") {
-    // No-op for now; P5 spec §5.7 already calls for a fail-soft. The
-    // outbound creation lives in P7 — we leave a notification breadcrumb
-    // so dev can verify the trigger fires.
-    single_held = true;
-    await createNotification({
-      client_id: inbound.client_id,
-      type: "outbound_held_insufficient_balance",
-      title: "Single 出庫單暫存",
-      body: `您選擇單一寄送的貨物 ${inbound._id} 已上架，出庫流程於 Phase 7 啟用後自動處理`,
-      reference_type: "inbound",
-      reference_id: String(inbound._id),
-    });
+    try {
+      const out = await autoCreateOutboundFromSingleInbound(inbound, {
+        ip_address: ctx.ip_address,
+        user_agent: ctx.user_agent,
+      });
+      single_outbound_id = out._id;
+    } catch (e: any) {
+      single_autocreate_error = e?.code ?? e?.message ?? "unknown";
+      await createNotification({
+        client_id: inbound.client_id,
+        type: "outbound_held_insufficient_balance",
+        title: "Single 直發出庫單建立失敗",
+        body: `直發貨物 ${inbound._id} 已上架，但自動建立出庫單失敗（${single_autocreate_error}），請手動建立。`,
+        reference_type: "inbound",
+        reference_id: String(inbound._id),
+      });
+    }
   }
 
   await logAudit({
@@ -528,7 +531,8 @@ export async function performReceive(
       is_combined_arrive,
       charged: charged_amount,
       balance_after,
-      single_held,
+      single_outbound_id,
+      single_autocreate_error,
     },
     warehouse_code: ctx.warehouseCode,
     ip_address: ctx.ip_address,
@@ -542,7 +546,8 @@ export async function performReceive(
     is_combined_arrive,
     charged: charged_amount,
     balance_after,
-    single_held,
+    single_outbound_id,
+    single_autocreate_error,
   };
 }
 

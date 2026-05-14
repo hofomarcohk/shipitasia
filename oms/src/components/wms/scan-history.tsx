@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 interface InboundRow {
   _id: string;
   client_id: string;
+  client_code: string | null;
   warehouseCode: string;
   tracking_no: string;
   carrier_inbound_code: string | null;
@@ -16,6 +17,7 @@ interface InboundRow {
   shipment_type: string;
   declared_items_count: number;
   actualWeight: number | null;
+  locationCode: string | null;
   arrivedAt: string | null;
   receivedAt: string | null;
   createdAt: string;
@@ -120,6 +122,7 @@ export const ScanHistory = () => {
                   <th className="py-2 pr-3">{t("wms_inbound_list.col_tracking")}</th>
                   <th className="py-2 pr-3 text-right">{t("wms_inbound_list.col_items")}</th>
                   <th className="py-2 pr-3 text-right">{t("wms_inbound_list.col_weight")}</th>
+                  <th className="py-2 pr-3">{t("wms_inbound_list.col_location")}</th>
                   <th className="py-2 pr-3">{t("wms_inbound_list.col_arrived")}</th>
                   <th className="py-2 pr-3">{t("wms_inbound_list.col_received")}</th>
                   <th className="py-2 pr-3">{t("wms_inbound_list.col_created")}</th>
@@ -136,8 +139,8 @@ export const ScanHistory = () => {
                         {i._id}
                       </Link>
                     </td>
-                    <td className="py-2 pr-3 font-mono text-xs text-gray-600">
-                      {i.client_id}
+                    <td className="py-2 pr-3 font-mono text-xs">
+                      {i.client_code ?? i.client_id}
                     </td>
                     <td className="py-2 pr-3">
                       <span className="text-xs px-2 py-0.5 rounded bg-gray-100">
@@ -153,6 +156,9 @@ export const ScanHistory = () => {
                     </td>
                     <td className="py-2 pr-3 text-right">
                       {i.actualWeight ?? "—"}
+                    </td>
+                    <td className="py-2 pr-3 font-mono text-xs">
+                      {i.locationCode ?? "—"}
                     </td>
                     <td className="py-2 pr-3 text-xs text-gray-500">
                       {i.arrivedAt
