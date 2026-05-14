@@ -128,6 +128,26 @@ export const OutboundRequestV1Schema = z
     disallow_consolidation: z.boolean().default(false).optional(),
     cargo_categories: z.array(z.string()).default([]).optional(),
 
+    // P12 — 秤重置板 denormalized box list (cm + kg) written on palletize
+    // complete so OMS / label-print phase can read shipping dimensions without
+    // hitting pack_boxes_v1. Additive optional; legacy reads safe.
+    boxes: z
+      .array(
+        z
+          .object({
+            box_no: z.string().min(1),
+            length: z.number().nonnegative(),
+            width: z.number().nonnegative(),
+            height: z.number().nonnegative(),
+            weight: z.number().nonnegative(),
+            tracking_no: z.string().nullable().optional(),
+            sealed_at: z.date().nullable().optional(),
+          })
+          .strict()
+      )
+      .optional(),
+    palletized_at: z.date().nullable().optional(),
+
     createdAt: z.date(),
     updatedAt: z.date(),
   })

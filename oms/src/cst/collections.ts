@@ -76,6 +76,14 @@ export const collections = {
   // P10 — WMS pick batch (wave) + pallet label (post-weigh staging)
   PICK_BATCH: "pick_batches",
   PALLET_LABEL: "pallet_labels",
+
+  // P11 — item-driven packing (client-scoped multi-outbound consolidation boxes)
+  PACK_BOX_V1: "pack_boxes_v1",
+  PACK_LOG_V1: "pack_logs_v1",
+  BOX_SEQ: "box_seq_counters",
+
+  // P12 — 秤重置板 (weigh + palletize) session lock (per warehouse single doc)
+  PACK_SESSION_LOCK: "pack_session_locks",
 };
 
 export const ID_Prefix: {

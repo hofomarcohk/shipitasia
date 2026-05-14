@@ -17,9 +17,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { http_request } from "@/lib/httpRequest";
 import {
+  IconBox,
   IconLayoutGrid,
   IconLogout,
   IconPackageImport,
+  IconScale,
   IconScan,
   IconTruckDelivery,
   IconUser,
@@ -54,6 +56,18 @@ const TABS: TabDef[] = [
     match: /\/wms\/pda\/scan\/shelf(\/|$)/,
     icon: IconLayoutGrid,
     labelKey: "pda_layout.tab_pick",
+  },
+  {
+    href: "/wms/pda/outbound/pack",
+    match: /\/wms\/pda\/outbound\/pack(\/|$)/,
+    icon: IconBox,
+    labelKey: "pda_layout.tab_pack",
+  },
+  {
+    href: "/wms/pda/outbound/weigh-palletize",
+    match: /\/wms\/pda\/outbound\/weigh-palletize(\/|$)/,
+    icon: IconScale,
+    labelKey: "pda_layout.tab_weigh_palletize",
   },
   {
     href: "/wms/pda/scan/depart",
@@ -137,7 +151,7 @@ export function PdaLayout({
 
       {/* ── Bottom tab bar (sticky) ──────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-20 border-t bg-white">
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-5">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = tab.match.test(pathname);

@@ -130,7 +130,7 @@ async function upsertClients(db) {
       _id,
       email: c.email,
       code,
-      password_hash: hash,
+      password: hash,
       company_name: c.company_name,
       contact_name: c.contact_name,
       country: "JP",

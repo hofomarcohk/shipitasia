@@ -59,16 +59,45 @@ export async function getWmsBadgeCounts(
     status: "picked",
   });
 
-  // ops_weigh — 裝完待複重
-  const ops_weigh = await outbound.countDocuments({
-    warehouseCode,
-    status: "packed",
-  });
+  // ops_weigh (秤重置板) — distinct outbounds with sealed boxes that
+  // still need weighing OR palletize confirm-scan. Counts the work-in-flight
+  // for the 秤重置板 station; clears to 0 only once every box has been
+  // weighed AND palletize-scanned (i.e. the outbound has advanced past
+  // weight_verified via /complete).
+  const packBoxes = db.collection(collections.PACK_BOX_V1);
+  const pendingBoxes = await packBoxes
+    .find(
+      {
+        status: "sealed",
+        $or: [
+          { weighed_at: null },
+          { weighed_at: { $exists: false } },
+          { palletize_scanned_at: null },
+          { palletize_scanned_at: { $exists: false } },
+        ],
+      },
+      { projection: { "items.outbound_id": 1 } } as any
+    )
+    .toArray();
+  const pendingOutboundIds = new Set<string>();
+  for (const b of pendingBoxes) {
+    for (const it of (b as any).items ?? []) {
+      pendingOutboundIds.add(String(it.outbound_id));
+    }
+  }
+  let ops_weigh = 0;
+  if (pendingOutboundIds.size > 0) {
+    ops_weigh = await outbound.countDocuments({
+      warehouseCode,
+      _id: { $in: [...pendingOutboundIds] as any },
+      status: { $in: ["packed", "weighing", "weight_verified"] },
+    });
+  }
 
-  // ops_label_print — 複重通過待印面單
+  // ops_label_print — 完成置板後客戶可取運單
   const ops_label_print = await outbound.countDocuments({
     warehouseCode,
-    status: "weight_verified",
+    status: "pending_client_label",
   });
 
   // ops_depart — 已印面單 / 已拿 label 待離倉
