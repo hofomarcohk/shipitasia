@@ -24,6 +24,7 @@ import {
   rateQuoteWithLog,
 } from "@/services/carrier/carrierAdapter";
 import { pickBatchService } from "@/services/pickBatch/pickBatchService";
+import { nextDailyId } from "@/services/util/daily-counter";
 import { palletLabelService } from "@/services/pallet/palletLabelService";
 import {
   OutboundBoxPublic,
@@ -155,6 +156,73 @@ async function appendActionLog(
     } as any,
     session ? { session } : {}
   );
+}
+
+/**
+ * Lazy-sync pack_boxes_v1 → outbound_boxes for the given outbound_ids.
+ *
+ * Background: P11/P12 (item-driven pack + 秤重置板) only writes
+ * `pack_boxes_v1`. Legacy label-fetch + depart code paths read
+ * `outbound_boxes` (P8 schema). This helper creates the missing
+ * outbound_boxes rows from pack_boxes data so label-fetch works on v1
+ * outbounds without breaking the depart / shipped / invoice readers.
+ *
+ * Idempotent: re-running for an already-synced outbound is a no-op.
+ * One-pack-box-per-outbound assumption holds in current v1 (Phase B
+ * cross-outbound consolidation is not yet enabled), so the box_no →
+ * (outbound_id, box_no) mapping is unambiguous.
+ */
+async function ensureOutboundBoxesForOutbounds(
+  db: any,
+  outbound_ids: string[]
+) {
+  if (outbound_ids.length === 0) return;
+  const packBoxes = await db
+    .collection(collections.PACK_BOX_V1)
+    .find({ "items.outbound_id": { $in: outbound_ids }, status: "sealed" })
+    .toArray();
+  const now = new Date();
+  for (const pb of packBoxes as any[]) {
+    const obIdsInThisBox = Array.from(
+      new Set(
+        (pb.items ?? [])
+          .map((it: any) => it.outbound_id)
+          .filter((id: string) => outbound_ids.includes(id))
+      )
+    );
+    for (const oid of obIdsInThisBox as string[]) {
+      const existing = await db
+        .collection(collections.OUTBOUND_BOX)
+        .findOne({ outbound_id: oid, box_no: pb.box_no });
+      if (existing) continue;
+      await db.collection(collections.OUTBOUND_BOX).insertOne({
+        _id: `${oid}-${pb.box_no}` as any,
+        outbound_id: oid,
+        box_no: pb.box_no,
+        dimensions: {
+          length: Math.max(1, Math.round(pb.length || 1)),
+          width: Math.max(1, Math.round(pb.width || 1)),
+          height: Math.max(1, Math.round(pb.height || 1)),
+        },
+        weight_estimate: pb.weight || 0.1,
+        weight_actual: pb.weight || 0.1,
+        tare_weight: 1,
+        weight_diff: 0,
+        weight_diff_passed: true,
+        status: "weight_verified",
+        label_pdf_path: null,
+        tracking_no_carrier: null,
+        actual_label_fee: null,
+        label_obtained_at: null,
+        label_obtained_by_operator_type: null,
+        departed_at: null,
+        pallet_label_id: pb.pallet_label_id ?? null,
+        created_by_staff_id: pb.sealed_by ?? pb.opened_by ?? "system",
+        createdAt: now,
+        updatedAt: now,
+      } as any);
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1114,6 +1182,9 @@ export async function fetchLabelMultiBox(
   if (!["weight_verified", "pending_client_label"].includes(ob.status)) {
     throw new ApiError("OUTBOUND_NOT_AVAILABLE_FOR_LABEL", { status: ob.status });
   }
+  // P11/P12 outbounds only have pack_boxes_v1; lazy-sync to outbound_boxes
+  // before reading. No-op for legacy P8 outbounds that already have them.
+  await ensureOutboundBoxesForOutbounds(db, [outbound_id]);
   const boxes = await db
     .collection(collections.OUTBOUND_BOX)
     .find({ outbound_id })
@@ -1361,6 +1432,345 @@ export async function clientConfirmLabel(
   return await fetchLabelMultiBox(outbound_id, "client", client_id);
 }
 
+/**
+ * P13 — 合併取單. Fetch labels for N outbounds in one carrier API call,
+ * grouped under a label_batches doc. All outbounds must share client +
+ * carrier + warehouse + destination_country and be at pending_client_label.
+ *
+ * Atomic per Marco: all succeed or all roll back to pending_client_label.
+ * No partial success state; the batch doc records status=failed with the
+ * carrier-side error so the client can retry.
+ */
+export async function clientConfirmLabelBatch(
+  client_id: string,
+  outbound_ids: string[]
+) {
+  if (outbound_ids.length < 2) {
+    throw new ApiError("BATCH_REQUIRES_AT_LEAST_TWO");
+  }
+  // De-dup defensively
+  const uniqueIds = Array.from(new Set(outbound_ids));
+  if (uniqueIds.length !== outbound_ids.length) {
+    throw new ApiError("BATCH_DUPLICATE_OUTBOUND_IDS");
+  }
+
+  const db = await connectToDatabase();
+  const obs = await db
+    .collection(collections.OUTBOUND)
+    .find({ _id: { $in: uniqueIds as any } })
+    .toArray();
+  if (obs.length !== uniqueIds.length) {
+    throw new ApiError("OUTBOUND_REQUEST_NOT_FOUND", {
+      orderId: uniqueIds.filter((id) => !obs.find((o: any) => o._id === id)).join(","),
+    });
+  }
+  // Cohesion checks
+  for (const o of obs as any[]) {
+    if (o.client_id !== client_id) {
+      throw new ApiError("OUTBOUND_REQUEST_NOT_FOUND", { orderId: o._id });
+    }
+    if (o.status !== "pending_client_label") {
+      throw new ApiError("OUTBOUND_NOT_AVAILABLE_FOR_LABEL", {
+        status: o.status,
+      });
+    }
+  }
+  const carrierCodes = new Set((obs as any[]).map((o) => o.carrier_code));
+  const warehouseCodes = new Set((obs as any[]).map((o) => o.warehouseCode));
+  const destinations = new Set(
+    (obs as any[]).map((o) => o.destination_country)
+  );
+  if (carrierCodes.size !== 1) {
+    throw new ApiError("BATCH_MIXED_CARRIER");
+  }
+  if (warehouseCodes.size !== 1) {
+    throw new ApiError("BATCH_MIXED_WAREHOUSE");
+  }
+  if (destinations.size !== 1) {
+    throw new ApiError("BATCH_MIXED_DESTINATION");
+  }
+  const carrier_code = [...carrierCodes][0]!;
+  const warehouseCode = [...warehouseCodes][0]!;
+  const destination_country = [...destinations][0]!;
+
+  // P11/P12 outbounds only have pack_boxes_v1; lazy-sync first.
+  await ensureOutboundBoxesForOutbounds(db, uniqueIds);
+
+  // Pull all boxes for all outbounds in one go
+  const boxes = await db
+    .collection(collections.OUTBOUND_BOX)
+    .find({ outbound_id: { $in: uniqueIds } })
+    .sort({ outbound_id: 1, box_no: 1 })
+    .toArray();
+  if (boxes.length === 0) {
+    throw new ApiError("OUTBOUND_NOT_AVAILABLE_FOR_LABEL", {
+      status: "no_boxes",
+    });
+  }
+  const boxesByOutbound = new Map<string, any[]>();
+  for (const b of boxes as any[]) {
+    const arr = boxesByOutbound.get(b.outbound_id) ?? [];
+    arr.push(b);
+    boxesByOutbound.set(b.outbound_id, arr);
+  }
+  // Every outbound must have at least one box
+  for (const id of uniqueIds) {
+    if (!boxesByOutbound.has(id)) {
+      throw new ApiError("OUTBOUND_NOT_AVAILABLE_FOR_LABEL", {
+        status: "no_boxes_for_" + id,
+      });
+    }
+  }
+
+  const warehouse = await db
+    .collection(collections.WAREHOUSE)
+    .findOne({ warehouseCode });
+
+  const batch_id = await nextDailyId("BATCH");
+  const now = new Date();
+
+  // Insert the batch doc + atomic claim all outbounds → label_obtaining.
+  await db.collection(collections.LABEL_BATCH).insertOne({
+    _id: batch_id as any,
+    client_id,
+    warehouseCode,
+    carrier_code,
+    destination_country,
+    outbound_ids: uniqueIds,
+    box_count: boxes.length,
+    status: "obtaining",
+    requested_at: now,
+    obtained_at: null,
+    failed_at: null,
+    error_message: null,
+    total_actual_label_fee: 0,
+    createdAt: now,
+    updatedAt: now,
+  } as any);
+
+  const claim = await db.collection(collections.OUTBOUND).updateMany(
+    {
+      _id: { $in: uniqueIds as any },
+      status: "pending_client_label",
+    },
+    {
+      $set: {
+        status: "label_obtaining",
+        label_batch_id: batch_id,
+        updatedAt: now,
+      },
+    }
+  );
+  if (claim.modifiedCount !== uniqueIds.length) {
+    // Someone raced in between
+    await db.collection(collections.OUTBOUND).updateMany(
+      { _id: { $in: uniqueIds as any }, label_batch_id: batch_id },
+      { $set: { status: "pending_client_label", updatedAt: new Date() }, $unset: { label_batch_id: "" } }
+    );
+    await db
+      .collection(collections.LABEL_BATCH)
+      .updateOne(
+        { _id: batch_id as any },
+        {
+          $set: {
+            status: "failed",
+            failed_at: new Date(),
+            error_message: "race condition: outbound status changed",
+            updatedAt: new Date(),
+          },
+        }
+      );
+    throw new ApiError("OUTBOUND_NOT_AVAILABLE_FOR_LABEL", { status: "raced" });
+  }
+
+  await logAudit({
+    action: AUDIT_ACTIONS.outbound_label_client_confirmed,
+    actor_type: AUDIT_ACTOR_TYPES.client,
+    actor_id: client_id,
+    target_type: AUDIT_TARGET_TYPES.outbound,
+    target_id: uniqueIds.join(","),
+    details: { batch_id, outbound_count: uniqueIds.length },
+  });
+
+  try {
+    const adapter = await getCarrierAdapter(carrier_code);
+    const items = (obs as any[]).map((o) => ({
+      outbound_id: String(o._id),
+      receiver_name: o.receiver_address?.name ?? "",
+      receiver_address: [
+        o.receiver_address?.address,
+        o.receiver_address?.city,
+        o.receiver_address?.country_code,
+      ]
+        .filter(Boolean)
+        .join(", "),
+      boxes: (boxesByOutbound.get(String(o._id)) ?? []).map((b: any) => ({
+        box_id: String(b._id),
+        box_no: b.box_no,
+        weight_kg: b.weight_actual ?? b.weight_estimate,
+        dimensions: b.dimensions,
+      })),
+    }));
+    const result = await adapter.fetchLabelBatch({
+      batch_id,
+      destination_country,
+      sender_name: warehouse?.name_zh ?? warehouse?.name_en ?? warehouseCode,
+      sender_address: warehouse?.address_zh ?? warehouse?.address_en ?? "",
+      items,
+    });
+
+    // Persist per-box + per-outbound + batch totals
+    let totalFee = 0;
+    for (const ob of result.per_outbound) {
+      let outboundFee = 0;
+      const tracking_numbers: string[] = [];
+      for (const b of ob.boxes) {
+        await db.collection(collections.OUTBOUND_BOX).updateOne(
+          { _id: b.box_id as any },
+          {
+            $set: {
+              label_pdf_path: b.label_url,
+              tracking_no_carrier: b.tracking_no,
+              actual_label_fee: b.charged_amount,
+              label_obtained_at: now,
+              label_obtained_by_operator_type: "client",
+              status: "label_obtained",
+              updatedAt: now,
+            },
+          }
+        );
+        await appendOutboundScan(db, {
+          outbound_id: ob.outbound_id,
+          box_id: b.box_id,
+          type: "label_obtained",
+          operator_staff_id: client_id,
+          details: {
+            tracking_no: b.tracking_no,
+            fee: b.charged_amount,
+            box_no: b.box_no,
+            batch_id,
+          },
+        });
+        outboundFee += b.charged_amount;
+        tracking_numbers.push(b.tracking_no);
+      }
+      const firstBox = ob.boxes[0];
+      await db.collection(collections.OUTBOUND).updateOne(
+        { _id: ob.outbound_id as any },
+        {
+          $set: {
+            status: "label_obtained",
+            label_url: firstBox?.label_url ?? null,
+            tracking_no: firstBox?.tracking_no ?? null,
+            actual_label_fee: outboundFee,
+            label_obtained_at: now,
+            label_obtained_by_operator_type: "client",
+            label_obtained_by_operator_id: client_id,
+            held_reason: null,
+            held_since: null,
+            held_detail: null,
+            updatedAt: now,
+          },
+        }
+      );
+      await appendActionLog(db, {
+        outbound_id: ob.outbound_id,
+        client_id,
+        action: "label_obtained",
+        from_status: "label_obtaining",
+        to_status: "label_obtained",
+        actor_type: "client",
+        actor_id: client_id,
+        detail: {
+          batch_id,
+          box_count: ob.boxes.length,
+          total_label_fee: outboundFee,
+          tracking_numbers,
+        },
+      });
+      await createNotification({
+        client_id,
+        type: "outbound_label_obtained",
+        title: "出庫面單已取得（合併取單）",
+        body: `出庫單 ${ob.outbound_id} 共 ${ob.boxes.length} 箱面單已取得（批次 ${batch_id}）。`,
+        reference_type: "outbound",
+        reference_id: ob.outbound_id,
+        action_url: `/zh-hk/outbound/${ob.outbound_id}`,
+      });
+      totalFee += outboundFee;
+    }
+
+    await db.collection(collections.LABEL_BATCH).updateOne(
+      { _id: batch_id as any },
+      {
+        $set: {
+          status: "obtained",
+          obtained_at: now,
+          total_actual_label_fee: totalFee,
+          updatedAt: now,
+        },
+      }
+    );
+    await logAudit({
+      action: AUDIT_ACTIONS.outbound_label_obtained,
+      actor_type: AUDIT_ACTOR_TYPES.client,
+      actor_id: client_id,
+      target_type: AUDIT_TARGET_TYPES.outbound,
+      target_id: uniqueIds.join(","),
+      details: {
+        batch_id,
+        outbound_count: uniqueIds.length,
+        total: totalFee,
+        carrier_code,
+      },
+    });
+
+    return {
+      batch_id,
+      outbound_count: uniqueIds.length,
+      box_count: boxes.length,
+      total_label_fee: totalFee,
+    };
+  } catch (err) {
+    // All-or-nothing: rollback every outbound back to pending_client_label
+    // and mark batch failed. Per-box label state untouched since adapter
+    // throws atomically without producing partial writes.
+    const failedAt = new Date();
+    const msg = String((err as any)?.message ?? err);
+    await db.collection(collections.OUTBOUND).updateMany(
+      { _id: { $in: uniqueIds as any }, status: "label_obtaining" },
+      {
+        $set: {
+          status: "pending_client_label",
+          held_detail: msg,
+          updatedAt: failedAt,
+        },
+        $unset: { label_batch_id: "" },
+      }
+    );
+    await db.collection(collections.LABEL_BATCH).updateOne(
+      { _id: batch_id as any },
+      {
+        $set: {
+          status: "failed",
+          failed_at: failedAt,
+          error_message: msg,
+          updatedAt: failedAt,
+        },
+      }
+    );
+    await logAudit({
+      action: AUDIT_ACTIONS.outbound_label_failed,
+      actor_type: AUDIT_ACTOR_TYPES.client,
+      actor_id: client_id,
+      target_type: AUDIT_TARGET_TYPES.outbound,
+      target_id: uniqueIds.join(","),
+      details: { batch_id, error: msg, carrier_code },
+    });
+    throw err;
+  }
+}
+
 export async function labelPrintComplete(
   ctx: StaffContext,
   outbound_id: string
@@ -1436,15 +1846,294 @@ export async function listWeighableOutbounds(warehouseCode?: string) {
 
 export async function listLabelPrintableOutbounds(warehouseCode?: string) {
   const db = await connectToDatabase();
-  const filter: any = { status: "label_obtained" };
+  const filter: any = {
+    status: { $in: ["pending_client_label", "label_obtained", "label_printed"] },
+  };
   if (warehouseCode) filter.warehouseCode = warehouseCode;
   const docs = await db
     .collection(collections.OUTBOUND)
     .find(filter)
-    .sort({ label_obtained_at: 1 })
-    .limit(100)
+    .sort({ updatedAt: 1 })
+    .limit(200)
     .toArray();
-  return docs.map(projectOutboundV1);
+
+  const outboundIds = (docs as any[]).map((d) => String(d._id));
+  const clientIds = Array.from(
+    new Set((docs as any[]).map((d) => d.client_id).filter(Boolean))
+  );
+
+  // Client lookup — clients._id is ObjectId; outbound.client_id is the
+  // string form, so convert before $in.
+  const clientObjectIds = clientIds
+    .map((id) => {
+      try {
+        return new ObjectId(id);
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is ObjectId => x !== null);
+  const clientDocs = clientObjectIds.length
+    ? await db
+        .collection(collections.CLIENT)
+        .find({ _id: { $in: clientObjectIds } })
+        .project({ code: 1, display_name: 1, email: 1 })
+        .toArray()
+    : [];
+  const clientById = new Map<string, any>();
+  for (const c of clientDocs as any[]) {
+    clientById.set(String(c._id), c);
+  }
+
+  // Aggregate hazard flags (contains_battery / contains_liquid) per outbound
+  // by walking outbound_inbound_links → inbound_requests. OR across all
+  // inbounds attached to the outbound; null-safe.
+  const hazardById = new Map<
+    string,
+    { contains_battery: boolean; contains_liquid: boolean }
+  >();
+  if (outboundIds.length > 0) {
+    const links = await db
+      .collection(collections.OUTBOUND_INBOUND_LINK)
+      .find({ outbound_id: { $in: outboundIds }, unlinked_at: null })
+      .project({ outbound_id: 1, inbound_id: 1 })
+      .toArray();
+    const inboundIds = Array.from(
+      new Set((links as any[]).map((l) => l.inbound_id))
+    );
+    const inbounds = inboundIds.length
+      ? await db
+          .collection(collections.INBOUND)
+          .find({ _id: { $in: inboundIds as any } })
+          .project({ contains_battery: 1, contains_liquid: 1 })
+          .toArray()
+      : [];
+    const inboundFlagsById = new Map<
+      string,
+      { contains_battery: boolean; contains_liquid: boolean }
+    >();
+    for (const i of inbounds as any[]) {
+      inboundFlagsById.set(String(i._id), {
+        contains_battery: !!i.contains_battery,
+        contains_liquid: !!i.contains_liquid,
+      });
+    }
+    for (const oid of outboundIds) {
+      hazardById.set(oid, { contains_battery: false, contains_liquid: false });
+    }
+    for (const l of links as any[]) {
+      const flags = inboundFlagsById.get(String(l.inbound_id));
+      if (!flags) continue;
+      const cur = hazardById.get(String(l.outbound_id))!;
+      cur.contains_battery = cur.contains_battery || flags.contains_battery;
+      cur.contains_liquid = cur.contains_liquid || flags.contains_liquid;
+    }
+  }
+
+  // Pack box count per outbound — pack boxes are client-scoped + items[].outbound_id
+  const boxCountById = new Map<string, number>();
+  if (outboundIds.length > 0) {
+    const grouped = await db
+      .collection(collections.PACK_BOX_V1)
+      .aggregate([
+        { $match: { "items.outbound_id": { $in: outboundIds } } },
+        { $unwind: "$items" },
+        { $match: { "items.outbound_id": { $in: outboundIds } } },
+        {
+          $group: {
+            _id: { outbound_id: "$items.outbound_id", box: "$_id" },
+          },
+        },
+        { $group: { _id: "$_id.outbound_id", count: { $sum: 1 } } },
+      ])
+      .toArray();
+    for (const g of grouped as any[]) {
+      boxCountById.set(String(g._id), g.count ?? 0);
+    }
+  }
+
+  const pendingIds = (docs as any[])
+    .filter((d) => d.status === "pending_client_label")
+    .map((d) => String(d._id));
+
+  let notifyStats = new Map<
+    string,
+    { notified_count: number; last_notified_at: Date | null }
+  >();
+  if (pendingIds.length > 0) {
+    const notifs = await db
+      .collection(collections.NOTIFICATION)
+      .aggregate([
+        {
+          $match: {
+            type: "outbound_pending_client_label",
+            reference_type: "outbound",
+            reference_id: { $in: pendingIds },
+          },
+        },
+        {
+          $group: {
+            _id: "$reference_id",
+            count: { $sum: 1 },
+            last: { $max: "$createdAt" },
+          },
+        },
+      ])
+      .toArray();
+    for (const n of notifs as any[]) {
+      notifyStats.set(String(n._id), {
+        notified_count: n.count ?? 0,
+        last_notified_at: n.last ?? null,
+      });
+    }
+  }
+
+  return (docs as any[]).map((d) => {
+    const c = clientById.get(String(d.client_id));
+    const haz = hazardById.get(String(d._id));
+    return {
+      ...projectOutboundV1(d),
+      client_code: c?.code ?? null,
+      client_display_name: c?.display_name ?? null,
+      client_email: c?.email ?? null,
+      box_count: boxCountById.get(String(d._id)) ?? 0,
+      contains_battery: !!haz?.contains_battery,
+      contains_liquid: !!haz?.contains_liquid,
+      notified_count: notifyStats.get(String(d._id))?.notified_count ?? 0,
+      last_notified_at:
+        notifyStats.get(String(d._id))?.last_notified_at ?? null,
+    };
+  });
+}
+
+/**
+ * Detail panel data for the label-print page: every pack box covering this
+ * outbound, the items inside (filtered to this outbound only — pack boxes
+ * are client-scoped and can hold items from sibling outbounds), and per-item
+ * inbound metadata so warehouse staff can verify physical packages.
+ *
+ * For label_obtained / label_printed outbounds we also overlay
+ * `tracking_no_carrier` + `label_pdf_path` from OUTBOUND_BOX (matched by
+ * box_no) so the panel can offer label PDF preview / download.
+ */
+export async function getLabelPrintOutboundDetail(outbound_id: string) {
+  const db = await connectToDatabase();
+  const ob = await getOutbound(db, outbound_id);
+
+  const packBoxes = await db
+    .collection(collections.PACK_BOX_V1)
+    .find({ "items.outbound_id": outbound_id })
+    .sort({ box_no: 1 })
+    .toArray();
+
+  const inboundIds = new Set<string>();
+  for (const b of packBoxes as any[]) {
+    for (const it of b.items ?? []) {
+      if (it.outbound_id === outbound_id) inboundIds.add(it.inbound_id);
+    }
+  }
+  const inbounds = inboundIds.size
+    ? await db
+        .collection(collections.INBOUND)
+        .find({ _id: { $in: [...inboundIds] as any } })
+        .project({
+          _id: 1,
+          tracking_no: 1,
+          actualWeight: 1,
+          carrier_inbound_code: 1,
+          size_estimate: 1,
+        })
+        .toArray()
+    : [];
+  const inboundById = new Map<string, any>();
+  for (const i of inbounds as any[]) inboundById.set(String(i._id), i);
+
+  // Overlay label info from OUTBOUND_BOX (legacy boxes carry label_pdf_path)
+  const outboundBoxes = await db
+    .collection(collections.OUTBOUND_BOX)
+    .find({ outbound_id })
+    .project({ box_no: 1, label_pdf_path: 1, tracking_no_carrier: 1, status: 1 })
+    .toArray();
+  const obBoxByNo = new Map<string, any>();
+  for (const b of outboundBoxes as any[]) obBoxByNo.set(b.box_no, b);
+
+  const boxes = (packBoxes as any[]).map((b) => {
+    const ownItems = (b.items ?? []).filter(
+      (it: any) => it.outbound_id === outbound_id
+    );
+    const obBox = obBoxByNo.get(b.box_no);
+    return {
+      box_no: b.box_no,
+      width: b.width ?? 0,
+      length: b.length ?? 0,
+      height: b.height ?? 0,
+      weight: b.weight ?? 0,
+      sealed_at: b.sealed_at ?? null,
+      label_pdf_path: obBox?.label_pdf_path ?? null,
+      tracking_no_carrier: obBox?.tracking_no_carrier ?? null,
+      items: ownItems.map((it: any) => {
+        const inb = inboundById.get(String(it.inbound_id));
+        return {
+          inbound_id: it.inbound_id,
+          tracking_no: it.tracking_no ?? inb?.tracking_no ?? null,
+          actual_weight: inb?.actualWeight ?? null,
+          carrier_inbound_code: inb?.carrier_inbound_code ?? null,
+        };
+      }),
+    };
+  });
+
+  return {
+    outbound_id,
+    status: ob.status,
+    carrier_code: ob.carrier_code,
+    destination_country: ob.destination_country,
+    inbound_count: ob.inbound_count ?? 0,
+    box_count: boxes.length,
+    boxes,
+  };
+}
+
+/**
+ * Send a "please go obtain label" reminder to the client for an outbound
+ * still sitting at `pending_client_label`. Mock email logged to console;
+ * in-app notification row written; audit log appended. Outbound status
+ * is NOT mutated — client still has to come back to OMS and confirm.
+ */
+export async function notifyClientPendingLabel(
+  ctx: StaffContext,
+  outbound_id: string
+) {
+  const db = await connectToDatabase();
+  const ob = await getOutbound(db, outbound_id);
+  if (ob.status !== "pending_client_label") {
+    throw new ApiError("OUTBOUND_NOT_AVAILABLE_FOR_LABEL", {
+      status: ob.status,
+    });
+  }
+  const { notification_id } = await createNotification({
+    client_id: ob.client_id,
+    type: "outbound_pending_client_label",
+    title: "倉庫提醒：請回 OMS 確認取運單",
+    body: `出庫單 ${outbound_id} 已完成秤重置板，倉庫人員提醒您回 OMS 確認並取運單，以便後續貼標出倉。`,
+    reference_type: "outbound",
+    reference_id: outbound_id,
+    action_url: `/zh-hk/outbound/${outbound_id}/confirm-label`,
+  });
+  // Mock email — real send deferred to production.
+  console.log(
+    `[mock-email] to client_id=${ob.client_id} outbound=${outbound_id} subject="請回 OMS 確認取運單"`
+  );
+  await logAudit({
+    action: AUDIT_ACTIONS.outbound_notify_client_label,
+    actor_type: AUDIT_ACTOR_TYPES.wms_staff,
+    actor_id: ctx.staff_id,
+    target_type: AUDIT_TARGET_TYPES.outbound,
+    target_id: outbound_id,
+    details: { notification_id },
+    warehouse_code: ctx.warehouseCode,
+  });
+  return { outbound_id, notification_id };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1697,4 +2386,7 @@ export const wmsFlow = {
   listLabelPrintableOutbounds,
   listDepartableOutbounds,
   listAllOutboundsForStaff,
+  notifyClientPendingLabel,
+  getLabelPrintOutboundDetail,
+  clientConfirmLabelBatch,
 };

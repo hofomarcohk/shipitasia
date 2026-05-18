@@ -94,16 +94,16 @@ export async function getWmsBadgeCounts(
     });
   }
 
-  // ops_label_print — 完成置板後客戶可取運單
+  // ops_label_print — 未取得面單(待客戶於 OMS 確認) + 已取得面單待貼標
   const ops_label_print = await outbound.countDocuments({
     warehouseCode,
-    status: "pending_client_label",
+    status: { $in: ["pending_client_label", "label_obtained"] },
   });
 
-  // ops_depart — 已印面單 / 已拿 label 待離倉
+  // ops_depart — 已貼標待離倉
   const ops_depart = await outbound.countDocuments({
     warehouseCode,
-    status: { $in: ["label_printed", "label_obtained"] },
+    status: "label_printed",
   });
 
   return {
@@ -118,16 +118,17 @@ export async function getWmsBadgeCounts(
 }
 
 // OMS — counts for the current client. "Waiting on the client" states only.
+// Keys MUST match menu_urls.name so the sidebar renders the badge.
 export async function getOmsBadgeCounts(
   client_id: string
 ): Promise<MenuBadgeCounts> {
   const db = await connectToDatabase();
-  // outbound_v1 — outbound waiting for client confirm-before-label step.
-  const outbound_v1 = await db
+  // outbound_list — outbound waiting for client confirm-before-label step.
+  const outbound_list = await db
     .collection(collections.OUTBOUND)
     .countDocuments({
       client_id,
       status: "pending_client_label",
     });
-  return { outbound_v1 };
+  return { outbound_list };
 }

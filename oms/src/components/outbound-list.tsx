@@ -2,12 +2,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { http_request } from "@/lib/httpRequest";
 import { IconTruck } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface Outbound {
   _id: string;
@@ -20,6 +21,7 @@ interface Outbound {
   held_reason: string | null;
   quoted_amount_hkd: number | null;
   tracking_no: string | null;
+  label_batch_id?: string | null;
   createdAt: string;
 }
 
@@ -51,11 +53,18 @@ const STATUS_CLS: Record<string, string> = {
   cancelled: "bg-gray-50 text-gray-500 border-gray-200",
 };
 
+const groupKey = (o: Outbound) =>
+  `${o.carrier_code}::${o.destination_country}::${o.warehouseCode}`;
+
 export const OutboundList = () => {
   const t = useTranslations();
   const [tab, setTab] = useState<keyof typeof STATUS_GROUPS>("active");
   const [items, setItems] = useState<Outbound[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
+  const [flash, setFlash] = useState("");
+  const [error, setError] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -71,7 +80,85 @@ export const OutboundList = () => {
 
   useEffect(() => {
     load();
+    setSelected(new Set());
+    setFlash("");
+    setError("");
   }, [tab]);
+
+  const selectedItems = useMemo(
+    () => items.filter((o) => selected.has(o._id)),
+    [items, selected]
+  );
+
+  // Active group key = first selected row's group. All other rows from a
+  // different group are disabled so you can't mix carrier/destination.
+  const activeGroup = selectedItems[0] ? groupKey(selectedItems[0]) : null;
+
+  const toggle = (o: Outbound) => {
+    if (o.status !== "pending_client_label") return;
+    const next = new Set(selected);
+    if (next.has(o._id)) {
+      next.delete(o._id);
+    } else {
+      next.add(o._id);
+    }
+    setSelected(next);
+  };
+
+  const submit = async () => {
+    setError("");
+    setFlash("");
+    if (selectedItems.length === 0) return;
+    setSubmitting(true);
+    try {
+      if (selectedItems.length === 1) {
+        const id = selectedItems[0]._id;
+        const r = await http_request(
+          "POST",
+          `/api/cms/outbound/${id}/confirm-label`,
+          {}
+        );
+        const d = await r.json();
+        if (d.status === 200) {
+          setFlash(
+            t("outbound_v1.list.confirm_single_success", { oid: id })
+          );
+          setSelected(new Set());
+          await load();
+        } else {
+          setError(d.message ?? "fail");
+        }
+      } else {
+        const r = await http_request(
+          "POST",
+          "/api/cms/outbound/confirm-label-batch",
+          { outbound_ids: selectedItems.map((o) => o._id) }
+        );
+        const d = await r.json();
+        if (d.status === 200) {
+          setFlash(
+            t("outbound_v1.list.confirm_batch_success", {
+              batch: d.data.batch_id,
+              n: selectedItems.length,
+            })
+          );
+          setSelected(new Set());
+          await load();
+        } else {
+          setError(d.message ?? "fail");
+        }
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isSelectable = (o: Outbound) => o.status === "pending_client_label";
+  const isDisabled = (o: Outbound) => {
+    if (!isSelectable(o)) return true;
+    if (activeGroup && groupKey(o) !== activeGroup) return true;
+    return false;
+  };
 
   return (
     <div className="max-w-6xl mx-auto py-6 px-4 grid gap-4">
@@ -107,6 +194,14 @@ export const OutboundList = () => {
         </TabsList>
       </Tabs>
 
+      {tab === "active" && (
+        <Card className="border-blue-200 bg-blue-50/40">
+          <CardContent className="py-3 text-xs text-gray-700">
+            {t("outbound_v1.list.batch_hint")}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -128,6 +223,7 @@ export const OutboundList = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left border-b bg-gray-50">
+                    {tab === "active" && <th className="py-3 px-3 w-8"></th>}
                     <th className="py-3 px-3">{t("outbound_v1.list.id")}</th>
                     <th className="py-3 px-3">{t("outbound_v1.list.shipment_type")}</th>
                     <th className="py-3 px-3 text-right">
@@ -144,57 +240,126 @@ export const OutboundList = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((o) => (
-                    <tr key={o._id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-3 font-mono text-xs">
-                        <Link
-                          href={`/zh-hk/outbound/${o._id}`}
-                          className="text-blue-600 underline"
-                        >
-                          {o._id}
-                        </Link>
-                      </td>
-                      <td className="py-3 px-3">
-                        <Badge
-                          variant={
-                            o.shipment_type === "single" ? "default" : "secondary"
-                          }
-                        >
-                          {t(`outbound_v1.shipment_type.${o.shipment_type}` as any)}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-3 text-right">{o.inbound_count}</td>
-                      <td className="py-3 px-3">{o.carrier_code}</td>
-                      <td className="py-3 px-3">{o.destination_country}</td>
-                      <td className="py-3 px-3 text-right">
-                        {o.quoted_amount_hkd
-                          ? `HK$${o.quoted_amount_hkd.toLocaleString()}`
-                          : "—"}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded border text-xs ${
-                            STATUS_CLS[o.status] ?? "bg-gray-50 border-gray-200"
-                          }`}
-                        >
-                          {t(`outbound_v1.status.${o.status}` as any)}
-                          {o.held_reason ? ` · ${o.held_reason}` : ""}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-xs">
-                        {o.tracking_no ?? "—"}
-                      </td>
-                      <td className="py-3 px-3 text-xs text-gray-500">
-                        {new Date(o.createdAt).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((o) => {
+                    const checked = selected.has(o._id);
+                    const disabled = isDisabled(o);
+                    return (
+                      <tr
+                        key={o._id}
+                        className={`border-b hover:bg-gray-50 ${
+                          checked ? "bg-blue-50/60" : ""
+                        }`}
+                      >
+                        {tab === "active" && (
+                          <td className="py-3 px-3">
+                            {isSelectable(o) ? (
+                              <Checkbox
+                                checked={checked}
+                                disabled={disabled && !checked}
+                                onCheckedChange={() => toggle(o)}
+                                aria-label={`select ${o._id}`}
+                              />
+                            ) : null}
+                          </td>
+                        )}
+                        <td className="py-3 px-3 font-mono text-xs">
+                          <Link
+                            href={`/zh-hk/outbound/${o._id}`}
+                            className="text-blue-600 underline"
+                          >
+                            {o._id}
+                          </Link>
+                          {o.label_batch_id && (
+                            <Badge
+                              variant="outline"
+                              className="ml-2 text-[10px]"
+                            >
+                              {o.label_batch_id}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          <Badge
+                            variant={
+                              o.shipment_type === "single"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {t(
+                              `outbound_v1.shipment_type.${o.shipment_type}` as any
+                            )}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          {o.inbound_count}
+                        </td>
+                        <td className="py-3 px-3">{o.carrier_code}</td>
+                        <td className="py-3 px-3">{o.destination_country}</td>
+                        <td className="py-3 px-3 text-right">
+                          {o.quoted_amount_hkd
+                            ? `HK$${o.quoted_amount_hkd.toLocaleString()}`
+                            : "—"}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded border text-xs ${
+                              STATUS_CLS[o.status] ??
+                              "bg-gray-50 border-gray-200"
+                            }`}
+                          >
+                            {t(`outbound_v1.status.${o.status}` as any)}
+                            {o.held_reason ? ` · ${o.held_reason}` : ""}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-mono text-xs">
+                          {o.tracking_no ?? "—"}
+                        </td>
+                        <td className="py-3 px-3 text-xs text-gray-500">
+                          {new Date(o.createdAt).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {flash && <p className="text-sm text-emerald-700">{flash}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {selectedItems.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white shadow-lg border rounded-full px-5 py-3 flex items-center gap-4">
+          <span className="text-sm">
+            {t("outbound_v1.list.selected_count", {
+              n: selectedItems.length,
+            })}
+            {activeGroup && (
+              <span className="text-xs text-gray-500 ml-2">
+                · {selectedItems[0].carrier_code} →{" "}
+                {selectedItems[0].destination_country}
+              </span>
+            )}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelected(new Set())}
+          >
+            {t("outbound_v1.list.clear_selection")}
+          </Button>
+          <Button onClick={submit} disabled={submitting}>
+            {selectedItems.length === 1
+              ? t("outbound_v1.list.confirm_single_btn")
+              : t("outbound_v1.list.confirm_batch_btn", {
+                  n: selectedItems.length,
+                })}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

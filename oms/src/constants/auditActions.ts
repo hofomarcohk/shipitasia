@@ -100,6 +100,7 @@ export const AUDIT_ACTIONS = {
   outbound_cancelled_after_label: "outbound_cancelled_after_label",
   outbound_label_client_confirmed: "outbound_label_client_confirmed",
   outbound_admin_retry_label: "outbound_admin_retry_label",
+  outbound_notify_client_label: "outbound_notify_client_label",
 
   // ── Phase 10 — pick batch + pallet label ───────────────────
   pick_batch_created: "pick_batch_created",

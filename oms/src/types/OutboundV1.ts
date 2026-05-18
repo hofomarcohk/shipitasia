@@ -128,6 +128,10 @@ export const OutboundRequestV1Schema = z
     disallow_consolidation: z.boolean().default(false).optional(),
     cargo_categories: z.array(z.string()).default([]).optional(),
 
+    // P13 — label batch grouping. Set when this outbound was fetched via a
+    // multi-outbound 合併取單 request. Null/absent for single-fetch outbounds.
+    label_batch_id: z.string().nullable().optional(),
+
     // P12 — 秤重置板 denormalized box list (cm + kg) written on palletize
     // complete so OMS / label-print phase can read shipping dimensions without
     // hitting pack_boxes_v1. Additive optional; legacy reads safe.
@@ -302,6 +306,7 @@ export interface OutboundRequestV1Public {
   batch_id: string | null;
   disallow_consolidation: boolean;
   cargo_categories: string[];
+  label_batch_id: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -338,6 +343,7 @@ export function projectOutboundV1(doc: any): OutboundRequestV1Public {
     batch_id: doc.batch_id ?? null,
     disallow_consolidation: !!doc.disallow_consolidation,
     cargo_categories: doc.cargo_categories ?? [],
+    label_batch_id: doc.label_batch_id ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };

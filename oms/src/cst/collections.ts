@@ -84,6 +84,9 @@ export const collections = {
 
   // P12 — 秤重置板 (weigh + palletize) session lock (per warehouse single doc)
   PACK_SESSION_LOCK: "pack_session_locks",
+
+  // P13 — label batches (client-driven 合併取單 grouping of outbounds)
+  LABEL_BATCH: "label_batches",
 };
 
 export const ID_Prefix: {

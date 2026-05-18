@@ -87,8 +87,43 @@ export interface ICarrierAdapter {
   carrier_code: string;
   rateQuote(input: RateQuoteRequest): Promise<RateQuoteBreakdown>;
   getLabel(input: GetLabelRequest): Promise<GetLabelResponse>;
+  // P13 — multi-outbound batch fetch (合併取單). Atomic: all items succeed
+  // or the whole batch throws and adapter has not produced any label.
+  fetchLabelBatch(input: FetchLabelBatchRequest): Promise<FetchLabelBatchResponse>;
   cancelLabel(input: CancelLabelRequest): Promise<void>;
   getTracking(input: GetTrackingRequest): Promise<TrackingResponse>;
+}
+
+export interface FetchLabelBatchRequest {
+  batch_id: string;
+  destination_country: string;
+  sender_name?: string;
+  sender_address?: string;
+  items: Array<{
+    outbound_id: string;
+    receiver_name: string;
+    receiver_address: string;
+    boxes: Array<{
+      box_id: string;
+      box_no: string;
+      weight_kg: number;
+      dimensions?: { length: number; width: number; height: number };
+    }>;
+  }>;
+}
+
+export interface FetchLabelBatchResponse {
+  batch_id: string;
+  per_outbound: Array<{
+    outbound_id: string;
+    boxes: Array<{
+      box_id: string;
+      box_no: string;
+      label_url: string;
+      tracking_no: string;
+      charged_amount: number;
+    }>;
+  }>;
 }
 
 export interface RateQuoteRequest {
@@ -207,6 +242,59 @@ function makeAdapter(cfg: CarrierMockConfig): ICarrierAdapter {
         sender_address: input.sender_address,
       });
       return { label_url, tracking_no, charged_amount: quote.total };
+    },
+    async fetchLabelBatch(input) {
+      // Atomic: simulate one carrier-side decision per batch. If it fails,
+      // throw and produce nothing — caller rolls back all outbounds.
+      if (cfg.fail_rate > 0 && Math.random() < cfg.fail_rate) {
+        throw new ApiError("LABEL_FETCH_FAILED", {
+          reason: `simulated transient failure for ${cfg.carrier_code} batch`,
+        });
+      }
+      const per_outbound = [];
+      for (const item of input.items) {
+        const boxResults = [];
+        for (const box of item.boxes) {
+          if (box.weight_kg > cfg.max_weight_kg) {
+            throw new ApiError("CAPACITY_VIOLATION", {
+              detail: `weight ${box.weight_kg}kg > max ${cfg.max_weight_kg}kg for ${cfg.carrier_code} (box ${box.box_no})`,
+            });
+          }
+          const quote = quoteForConfig(
+            cfg,
+            input.destination_country,
+            box.weight_kg
+          );
+          const tracking_no = mockTrackingNo(
+            cfg.carrier_code,
+            item.outbound_id,
+            box.box_no
+          );
+          const label_url = await generateMockLabel({
+            outbound_id: item.outbound_id,
+            carrier_code: cfg.carrier_code,
+            tracking_no,
+            destination_country: input.destination_country,
+            weight_kg: box.weight_kg,
+            receiver_name: item.receiver_name,
+            receiver_address: item.receiver_address,
+            box_id: box.box_id,
+            box_no: box.box_no,
+            dimensions: box.dimensions,
+            sender_name: input.sender_name,
+            sender_address: input.sender_address,
+          });
+          boxResults.push({
+            box_id: box.box_id,
+            box_no: box.box_no,
+            label_url,
+            tracking_no,
+            charged_amount: quote.total,
+          });
+        }
+        per_outbound.push({ outbound_id: item.outbound_id, boxes: boxResults });
+      }
+      return { batch_id: input.batch_id, per_outbound };
     },
     async cancelLabel() {
       // mock: always succeed
