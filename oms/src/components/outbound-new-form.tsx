@@ -15,7 +15,7 @@ interface EligibleInbound {
   _id: string;
   warehouseCode: string;
   tracking_no: string;
-  shipment_type: "consolidated" | "single";
+  shipping_mode: "managed_consign" | "single_direct" | "manual_consolidate";
   actualWeight: number | null;
   status: string;
 }
@@ -144,9 +144,12 @@ export const OutboundNewForm = () => {
       const bData = await bRes.json();
       const saData = await saRes.json();
       if (inbData.status === 200) {
+        // P13: only manual_consolidate inbounds appear in the manual
+        // outbound-creation form. managed_consign auto-generates via cron,
+        // single_direct auto-generates 1:1 on inbound creation.
         setEligibles(
           (inbData.data.items as EligibleInbound[]).filter(
-            (i) => i.shipment_type === "consolidated"
+            (i) => i.shipping_mode === "manual_consolidate"
           )
         );
       }
@@ -192,14 +195,18 @@ export const OutboundNewForm = () => {
         if (inb.contains_liquid) contains_liquid = true;
         if (inb.contains_battery) contains_battery = true;
         // OQ-3: default recipient from the FIRST picked inbound that has a
-        // single_shipping receiver. Multi-inbound merges typically share
-        // the same destination, so first-wins is good enough.
+        // shipping_destination. Multi-inbound merges typically share the
+        // same destination, so first-wins is good enough.
         if (
           !recipientPrefillSource &&
-          inb.single_shipping &&
-          inb.single_shipping.receiver_address
+          inb.shipping_destination &&
+          inb.shipping_destination.receiver_address_snapshot
         ) {
-          recipientPrefillSource = { id: inb._id, ...inb.single_shipping };
+          recipientPrefillSource = {
+            id: inb._id,
+            receiver_address: inb.shipping_destination.receiver_address_snapshot,
+            carrier_account_id: inb.shipping_destination.carrier_account_id,
+          };
         }
       }
       setAggregated({

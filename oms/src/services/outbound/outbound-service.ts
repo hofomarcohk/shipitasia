@@ -299,11 +299,17 @@ export async function autoCreateOutboundFromSingleInbound(
   inbound: any,
   ctxMeta: { ip_address?: string; user_agent?: string } = {}
 ): Promise<OutboundRequestV1Public> {
-  if (inbound.shipment_type !== "single" || !inbound.single_shipping) {
+  // P13: single mode is now `single_direct` and the destination payload lives
+  // under `shipping_destination`. We keep the function name for backwards
+  // readability — the auto-create flow itself is unchanged.
+  if (
+    inbound.shipping_mode !== "single_direct" ||
+    !inbound.shipping_destination
+  ) {
     throw new ApiError("AUTOCREATE_NOT_SINGLE");
   }
   const db = await connectToDatabase();
-  const accountId: string = inbound.single_shipping.carrier_account_id;
+  const accountId: string = inbound.shipping_destination.carrier_account_id;
   const account = await lookupClientCarrierAccount(db, inbound.client_id, accountId);
   return createSingleOutbound(
     { client_id: inbound.client_id, ...ctxMeta },
@@ -311,7 +317,7 @@ export async function autoCreateOutboundFromSingleInbound(
       inbound_id: String(inbound._id),
       carrier_code: account.carrier_code,
       carrier_account_id: accountId,
-      receiver_address: inbound.single_shipping.receiver_address,
+      receiver_address: inbound.shipping_destination.receiver_address_snapshot,
       ...(inbound.customer_remarks
         ? { customer_remarks: inbound.customer_remarks }
         : {}),

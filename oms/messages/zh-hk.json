@@ -183,6 +183,7 @@
     "scan_depart": "PDA 離倉",
     "ops_locations": "倉位管理",
     "ops_receive": "桌面收貨",
+    "ops_working_calendar": "工作日管理",
     "addresses": "常用地址",
     "saved_items": "已儲存品項"
   },
@@ -811,9 +812,10 @@
       "abandoned": "已廢棄",
       "expired": "已過期"
     },
-    "shipment_type": {
-      "consolidated": "合併寄送",
-      "single": "單一寄送"
+    "shipping_mode": {
+      "managed_consign": "託管寄送",
+      "single_direct": "單一直送",
+      "manual_consolidate": "手動併貨"
     },
     "inbound_source": {
       "regular": "一般",
@@ -831,8 +833,20 @@
       "warehouse": "倉庫",
       "carrier": "入庫快遞",
       "tracking_no": "追蹤號",
-      "shipment_type": "出貨方式",
+      "shipping_mode": "出貨方式",
       "source": "來源",
+      "shelved_at": "上架日",
+      "not_shelved_yet": "未上架",
+      "group_label": "託管組",
+      "group_summary": "共 {count} 件 / 已上架 {received}",
+      "group_oldest": "最早入庫 {date}",
+      "group_due": "預計 {date} 出庫",
+      "other_inbounds": "其他預報",
+      "release_now_btn": "立即出庫（已選 {count}）",
+      "release_dialog_title": "確認立即安排出庫",
+      "release_dialog_body": "原定總出庫件數 {total} 件，已選中 {selected} 件，是否安排選中的 {selected} 件立即安排出庫（出庫日預定於 {due} 前完成）。",
+      "release_dialog_cancel": "返回",
+      "release_dialog_confirm": "立即出庫",
       "items_count": "申報項數",
       "declared_value": "申報總值",
       "status": "狀態",
@@ -865,9 +879,18 @@
       "contains_battery_label": "含電池 *",
       "yes": "是",
       "no": "否",
-      "shipment_type_label": "出貨方式 *",
-      "consolidated_hint": "貨到倉後一起合包再寄",
-      "single_hint": "單件直發，需綁定 carrier 帳號",
+      "shipping_mode_label": "出貨方式 *",
+      "managed_consign_hint": "貨物入庫完成後 3 個工作天內自動出庫",
+      "single_direct_hint": "不併單，到貨直出",
+      "manual_consolidate_hint": "全手動建出庫，不急或數量不定時用",
+      "managed_consign_picker_hint": "託管寄送需從地址簿選定收件地址 — 系統會以「同客戶 + 同地址 + 同 carrier」自動合單。",
+      "validation_managed_required": "託管寄送需先在地址簿選定收件地址並綁定 carrier 帳號",
+      "consolidate_prompt_title": "你已有同地址同 carrier 的託管組",
+      "consolidate_prompt_body": "目前該地址已有 {count} 件預報（已上架 {received}）。要不要把這一筆併進去，是否等齊一起寄？",
+      "consolidate_prompt_schedule": "同批最早一件入庫於 {oldest}，預計 {due} 出庫，如要等齊將會順延出貨。",
+      "consolidate_prompt_no_shelved_yet": "尚未有任何件上架，併入後等該地址第一件上架才開始計時。",
+      "consolidate_prompt_wait_together": "等齊一起寄",
+      "consolidate_prompt_keep_original": "不用，照原時程出",
       "receiver_address_label": "收件地址 *",
       "carrier_account_label": "Carrier 帳號 *",
       "no_carrier_account_warning": "尚未綁定 carrier 帳號",
@@ -926,8 +949,21 @@
       "shipment_section": "出貨方式",
       "items_section": "申報品項",
       "status_history_section": "狀態歷程",
-      "single_shipping_section": "單一寄送資訊",
-      "no_url": "未提供"
+      "shipping_destination_section": "收件資訊",
+      "no_url": "未提供",
+      "group_label": "託管組",
+      "group_summary": "{count} 件 / 已上架 {received}",
+      "group_age": "最早上架 {days} 天",
+      "group_status": {
+        "pending": "等候自動出庫",
+        "swept": "已自動出庫",
+        "force_released": "已立即排單"
+      },
+      "force_release_btn": "立即排出庫",
+      "force_release_dialog_title": "確認立即排出庫？",
+      "force_release_dialog_body": "整個託管組（{count} 件，已上架 {received}）會立即進入下次出庫，未上架的將留下開新組。",
+      "force_release_cancel": "返回",
+      "force_release_confirm": "立即排出庫"
     },
     "cancel_dialog": {
       "title": "確認取消預報",
@@ -1538,6 +1574,32 @@
     "col_arrived": "到倉時間",
     "col_received": "上架時間",
     "col_created": "建立時間"
+  },
+  "wms_working_calendar": {
+    "page_title": "工作日管理",
+    "page_subtitle": "設定各倉庫的公眾假期或臨時休工日，用於託管寄送 3 工作天 SLA 計算",
+    "warehouse_label": "倉庫",
+    "intro": "空清單時系統 fallback Mon-Fri 為工作日。加入的日子會被視為非工作日，不計入 SLA。",
+    "field_date": "日期",
+    "field_type": "類型",
+    "field_label": "標籤",
+    "field_label_placeholder": "例：佛誕 / 颱風臨時休",
+    "type": {
+      "holiday": "公眾假期",
+      "non_working": "臨時休工"
+    },
+    "add_btn": "新增",
+    "delete_btn": "刪除",
+    "list_title": "已登記非工作日",
+    "empty": "尚未為此倉庫登記任何非工作日",
+    "col_date": "日期",
+    "col_type": "類型",
+    "col_label": "標籤",
+    "col_actions": "動作",
+    "flash_saved": "已儲存",
+    "confirm_delete": "確認刪除 {date}？",
+    "error_no_warehouse": "請先選擇倉庫",
+    "error_no_date": "請選擇日期"
   },
   "wms_locations": {
     "page_title": "倉位管理",

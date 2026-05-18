@@ -84,8 +84,20 @@ export type InboundSource = (typeof INBOUND_SOURCE)[number];
 export const SIZE_ESTIMATE = ["small", "medium", "large"] as const;
 export type SizeEstimate = (typeof SIZE_ESTIMATE)[number];
 
-export const SHIPMENT_TYPE = ["consolidated", "single"] as const;
-export type ShipmentType = (typeof SHIPMENT_TYPE)[number];
+// P13: three OMS shipping modes replace the binary shipment_type.
+//   managed_consign     — warehouse auto-generates outbound 3 working days
+//                         after the first item is shelved (receivedAt).
+//                         Groups by (client, address, carrier, warehouse).
+//   single_direct       — one outbound auto-created per inbound; client
+//                         manually fetches the label in OMS.
+//   manual_consolidate  — fully manual; client picks inbounds + creates
+//                         the outbound themselves.
+export const SHIPPING_MODE = [
+  "managed_consign",
+  "single_direct",
+  "manual_consolidate",
+] as const;
+export type ShippingMode = (typeof SHIPPING_MODE)[number];
 
 export const ReceiverAddressSchema = z
   .object({
@@ -100,12 +112,18 @@ export const ReceiverAddressSchema = z
   .strict();
 export type ReceiverAddress = z.infer<typeof ReceiverAddressSchema>;
 
-export const SingleShippingSchema = z
+// P13: shipping_destination replaces single_shipping and is shared by
+// managed_consign + single_direct. saved_address_id is required for
+// managed_consign (group key) and null for single_direct (legacy inline
+// address still permitted).
+export const ShippingDestinationSchema = z
   .object({
-    receiver_address: ReceiverAddressSchema,
+    saved_address_id: z.string().min(1).nullable(),
+    receiver_address_snapshot: ReceiverAddressSchema,
     carrier_account_id: z.string().min(1),
   })
   .strict();
+export type ShippingDestination = z.infer<typeof ShippingDestinationSchema>;
 
 export const ActualDimensionSchema = z
   .object({
@@ -153,20 +171,47 @@ export const CreateInboundInputSchema = z
     size_estimate_note: z.string().max(100).trim().optional(),
     contains_liquid: z.boolean(),
     contains_battery: z.boolean(),
-    shipment_type: z.enum(SHIPMENT_TYPE),
-    single_shipping: SingleShippingSchema.optional(),
+    shipping_mode: z.enum(SHIPPING_MODE),
+    shipping_destination: ShippingDestinationSchema.optional(),
+    // P14: when managed_consign and the customer ticked "不用，照原時程出"
+    // in the consolidation pop-up, the form passes true here to force a
+    // brand-new consolidation_group instead of joining the existing pending
+    // one. Ignored for other modes.
+    start_new_consolidation_group: z.boolean().optional(),
     save_as_default_address: z.boolean().optional(),
     customer_remarks: z.string().max(200).trim().optional(),
     declared_items: InboundDeclaredItemInputSchema.array().min(1).max(50),
   })
   .strict()
   .refine(
-    (d) => d.shipment_type === "consolidated" || d.single_shipping !== undefined,
-    { message: "single_shipping required when shipment_type=single", path: ["single_shipping"] }
+    (d) =>
+      d.shipping_mode === "manual_consolidate" ||
+      d.shipping_destination !== undefined,
+    {
+      message:
+        "shipping_destination required when shipping_mode is managed_consign or single_direct",
+      path: ["shipping_destination"],
+    }
   )
   .refine(
-    (d) => d.shipment_type === "single" || d.single_shipping === undefined,
-    { message: "single_shipping must be empty when shipment_type=consolidated", path: ["single_shipping"] }
+    (d) =>
+      d.shipping_mode !== "manual_consolidate" ||
+      d.shipping_destination === undefined,
+    {
+      message:
+        "shipping_destination must be empty when shipping_mode=manual_consolidate",
+      path: ["shipping_destination"],
+    }
+  )
+  .refine(
+    (d) =>
+      d.shipping_mode !== "managed_consign" ||
+      (d.shipping_destination?.saved_address_id ?? null) !== null,
+    {
+      message:
+        "saved_address_id required when shipping_mode=managed_consign",
+      path: ["shipping_destination", "saved_address_id"],
+    }
   );
 export type CreateInboundInput = z.infer<typeof CreateInboundInputSchema>;
 
@@ -184,8 +229,8 @@ export const UpdateInboundInputSchema = z
     size_estimate_note: z.string().max(100).trim().optional(),
     contains_liquid: z.boolean().optional(),
     contains_battery: z.boolean().optional(),
-    shipment_type: z.enum(SHIPMENT_TYPE).optional(),
-    single_shipping: SingleShippingSchema.nullable().optional(),
+    shipping_mode: z.enum(SHIPPING_MODE).optional(),
+    shipping_destination: ShippingDestinationSchema.nullable().optional(),
     save_as_default_address: z.boolean().optional(),
     customer_remarks: z.string().max(200).trim().optional(),
     declared_items: InboundDeclaredItemInputSchema.array().min(1).max(50).optional(),
@@ -207,10 +252,15 @@ export interface InboundRequestV1Public {
   size_estimate_note: string | null;
   contains_liquid: boolean;
   contains_battery: boolean;
-  shipment_type: ShipmentType;
-  single_shipping:
-    | { receiver_address: ReceiverAddress; carrier_account_id: string }
+  shipping_mode: ShippingMode;
+  shipping_destination:
+    | {
+        saved_address_id: string | null;
+        receiver_address_snapshot: ReceiverAddress;
+        carrier_account_id: string;
+      }
     | null;
+  consolidation_group_id: string | null;
   customer_remarks: string | null;
   declared_value_total: number;
   declared_currency: string;
@@ -241,8 +291,9 @@ export function projectInboundV1(doc: any): InboundRequestV1Public {
     size_estimate_note: doc.size_estimate_note ?? null,
     contains_liquid: !!doc.contains_liquid,
     contains_battery: !!doc.contains_battery,
-    shipment_type: doc.shipment_type,
-    single_shipping: doc.single_shipping ?? null,
+    shipping_mode: doc.shipping_mode,
+    shipping_destination: doc.shipping_destination ?? null,
+    consolidation_group_id: doc.consolidation_group_id ?? null,
     customer_remarks: doc.customer_remarks ?? null,
     declared_value_total: doc.declared_value_total ?? 0,
     declared_currency: doc.declared_currency ?? "JPY",

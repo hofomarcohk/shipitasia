@@ -7,6 +7,7 @@ import {
   getMyInbound,
   updateInbound,
 } from "@/services/inbound/inbound-service";
+import { getInboundGroupSummary } from "@/services/consolidation/consolidation-service";
 import { ApiReturn } from "@/types/Api";
 import jwt from "jsonwebtoken";
 import { NextRequest } from "next/server";
@@ -36,7 +37,18 @@ export async function GET(
   return cmsMiddleware(request, null, async (): Promise<ApiReturn> => {
     const client_id = clientIdFromJwt(request);
     const data = await getMyInbound(id, { client_id });
-    return { status: 200, message: "Success", data };
+    // P14: include the parent consolidation group's snapshot so the detail
+    // page can show "已加入合單組（X 件、最早一件已上架 N 天）" + render the
+    // 立即排出庫 button when the group is still pending.
+    const consolidation_group = await getInboundGroupSummary({
+      client_id,
+      inbound_id: id,
+    });
+    return {
+      status: 200,
+      message: "Success",
+      data: { ...data, consolidation_group },
+    };
   });
 }
 

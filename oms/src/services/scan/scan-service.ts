@@ -57,7 +57,7 @@ export async function arriveLookup(
       _id: doc._id,
       client_id: doc.client_id,
       status: doc.status,
-      shipment_type: doc.shipment_type,
+      shipping_mode: doc.shipping_mode,
       inbound_source: doc.inbound_source,
       size_estimate: doc.size_estimate,
       contains_liquid: doc.contains_liquid,
@@ -100,7 +100,7 @@ export async function receiveLookup(
       _id: doc._id,
       client_id: doc.client_id,
       status: doc.status,
-      shipment_type: doc.shipment_type,
+      shipping_mode: doc.shipping_mode,
       tracking_no: doc.tracking_no,
       // Prefer last_scan-derived values when arrive has run
       actualWeight: doc.actualWeight ?? null,
@@ -450,6 +450,25 @@ export async function performReceive(
         { session }
       );
 
+      // P13 managed-consign: this scan completes shelving for a managed
+      // forecast. Stamp the parent consolidation_group's oldest_received_at
+      // on the very first member to be shelved — that timestamp is the SLA
+      // anchor the daily cron reads. Later shelvings in the same group
+      // leave the anchor alone.
+      if (inbound.consolidation_group_id) {
+        await db
+          .collection(collections.CONSOLIDATION_GROUP)
+          .updateOne(
+            {
+              _id: inbound.consolidation_group_id,
+              status: "pending",
+              oldest_received_at: null,
+            },
+            { $set: { oldest_received_at: now, updatedAt: now } },
+            { session }
+          );
+      }
+
       // walletService.charge is itself transactional but uses its own
       // session — call it after the inbound update so we don't nest
       // sessions. Errors from charge will throw and the upper transaction
@@ -494,12 +513,12 @@ export async function performReceive(
     });
   }
 
-  // Single 直發 — auto-create the outbound now that the inbound is received.
+  // single_direct — auto-create the outbound now that the inbound is received.
   // Failures are non-fatal: receive succeeds, customer is notified, and they
   // can fall back to building the outbound manually in OMS.
   let single_outbound_id: string | null = null;
   let single_autocreate_error: string | null = null;
-  if (inbound.shipment_type === "single") {
+  if (inbound.shipping_mode === "single_direct") {
     try {
       const out = await autoCreateOutboundFromSingleInbound(inbound, {
         ip_address: ctx.ip_address,

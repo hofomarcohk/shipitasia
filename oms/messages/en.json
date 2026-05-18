@@ -183,6 +183,7 @@
     "scan_depart": "PDA Depart",
     "ops_locations": "Locations",
     "ops_receive": "Desktop Receive",
+    "ops_working_calendar": "Working calendar",
     "addresses": "Addresses"
   },
   "menu_pda": {
@@ -810,9 +811,10 @@
       "abandoned": "Abandoned",
       "expired": "Expired"
     },
-    "shipment_type": {
-      "consolidated": "Consolidated",
-      "single": "Single direct"
+    "shipping_mode": {
+      "managed_consign": "Managed consign",
+      "single_direct": "Single direct",
+      "manual_consolidate": "Manual consolidate"
     },
     "inbound_source": {
       "regular": "Regular",
@@ -830,8 +832,20 @@
       "warehouse": "Warehouse",
       "carrier": "Inbound carrier",
       "tracking_no": "Tracking #",
-      "shipment_type": "Shipment type",
+      "shipping_mode": "Shipping mode",
       "source": "Source",
+      "shelved_at": "Shelved",
+      "not_shelved_yet": "Not shelved",
+      "group_label": "Consolidation group",
+      "group_summary": "{count} forecast(s) / {received} shelved",
+      "group_oldest": "Oldest shelved {date}",
+      "group_due": "Projected ship-out {date}",
+      "other_inbounds": "Other forecasts",
+      "release_now_btn": "Ship now ({count} selected)",
+      "release_dialog_title": "Confirm immediate dispatch",
+      "release_dialog_body": "This group has {total} forecasts in total. You selected {selected}. Ship the selected {selected} now (projected ship-out by {due}).",
+      "release_dialog_cancel": "Cancel",
+      "release_dialog_confirm": "Ship now",
       "items_count": "Items",
       "declared_value": "Declared value",
       "status": "Status",
@@ -864,9 +878,18 @@
       "contains_battery_label": "Contains battery *",
       "yes": "Yes",
       "no": "No",
-      "shipment_type_label": "Shipment type *",
-      "consolidated_hint": "Combine with other inbounds before shipping",
-      "single_hint": "Ship directly; requires linked carrier account",
+      "shipping_mode_label": "Shipping mode *",
+      "managed_consign_hint": "Auto-ships within 3 working days after the parcel finishes receiving",
+      "single_direct_hint": "No consolidation — ships straight on arrival",
+      "manual_consolidate_hint": "Fully manual outbound — use when timing/volume is unclear",
+      "managed_consign_picker_hint": "Managed consign requires picking a saved address — the system groups by (customer + address + carrier).",
+      "validation_managed_required": "Managed consign requires a saved address and a carrier account",
+      "consolidate_prompt_title": "You already have a pending managed group for this address",
+      "consolidate_prompt_body": "There are {count} pending forecasts for this address ({received} shelved). Want to add this one and wait to ship them together?",
+      "consolidate_prompt_schedule": "Earliest item shelved on {oldest}, projected ship-out {due}. Waiting will push the ship-out date back.",
+      "consolidate_prompt_no_shelved_yet": "Nothing has been shelved yet — the SLA clock starts on the first arrival.",
+      "consolidate_prompt_wait_together": "Wait and ship together",
+      "consolidate_prompt_keep_original": "No, ship on the original schedule",
       "receiver_address_label": "Receiver address *",
       "carrier_account_label": "Carrier account *",
       "no_carrier_account_warning": "No carrier account linked",
@@ -908,8 +931,21 @@
       "shipment_section": "Shipment",
       "items_section": "Declared items",
       "status_history_section": "Status history",
-      "single_shipping_section": "Single shipping info",
-      "no_url": "—"
+      "shipping_destination_section": "Destination info",
+      "no_url": "—",
+      "group_label": "Consolidation group",
+      "group_summary": "{count} forecast(s) / {received} shelved",
+      "group_age": "Oldest shelved {days} day(s) ago",
+      "group_status": {
+        "pending": "Awaiting auto-ship",
+        "swept": "Auto-shipped",
+        "force_released": "Released early"
+      },
+      "force_release_btn": "Ship now",
+      "force_release_dialog_title": "Release the group now?",
+      "force_release_dialog_body": "The entire group ({count} forecasts, {received} shelved) will be shipped on the next sweep. Unshelved forecasts remain and start a fresh group.",
+      "force_release_cancel": "Cancel",
+      "force_release_confirm": "Release now"
     },
     "cancel_dialog": {
       "title": "Cancel this inbound?",
@@ -1139,7 +1175,7 @@
       "step_carrier": "2. Carrier + destination",
       "step_address": "3. Receiver address",
       "step_preference": "4. Processing preference",
-      "no_eligible_inbounds": "No eligible inbounds (need status=received and shipment_type=consolidated)",
+      "no_eligible_inbounds": "No eligible inbounds (need status=received and shipping_mode=manual_consolidate)",
       "estimated_weight": "Estimated weight",
       "carrier": "Carrier",
       "carrier_account": "Carrier account",
@@ -1471,6 +1507,32 @@
     "col_arrived": "Arrived",
     "col_received": "Shelved",
     "col_created": "Created"
+  },
+  "wms_working_calendar": {
+    "page_title": "Working calendar",
+    "page_subtitle": "Per-warehouse holidays and non-working days for the managed-consign 3-working-day SLA.",
+    "warehouse_label": "Warehouse",
+    "intro": "Empty list = Mon-Fri working-day fallback. Listed dates are skipped when counting SLA working days.",
+    "field_date": "Date",
+    "field_type": "Type",
+    "field_label": "Label",
+    "field_label_placeholder": "e.g. Buddha's Birthday / Typhoon Closure",
+    "type": {
+      "holiday": "Public holiday",
+      "non_working": "Non-working day"
+    },
+    "add_btn": "Add",
+    "delete_btn": "Remove",
+    "list_title": "Registered non-working days",
+    "empty": "No entries for this warehouse yet",
+    "col_date": "Date",
+    "col_type": "Type",
+    "col_label": "Label",
+    "col_actions": "Actions",
+    "flash_saved": "Saved",
+    "confirm_delete": "Delete entry for {date}?",
+    "error_no_warehouse": "Pick a warehouse first",
+    "error_no_date": "Pick a date"
   },
   "wms_locations": {
     "page_title": "Warehouse locations",

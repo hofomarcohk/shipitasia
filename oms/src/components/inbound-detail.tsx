@@ -49,8 +49,9 @@ interface Inbound {
   size_estimate: string;
   contains_liquid: boolean;
   contains_battery: boolean;
-  shipment_type: string;
-  single_shipping: any;
+  shipping_mode: string;
+  shipping_destination: any;
+  consolidation_group_id: string | null;
   customer_remarks: string | null;
   declared_value_total: number;
   declared_currency: string;
@@ -91,6 +92,18 @@ export const InboundDetail = ({ id }: { id: string }) => {
   const [abandonType, setAbandonType] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // P14: surfaced by GET /api/cms/inbound/[id] when the inbound belongs to
+  // a consolidation group. Drives the "立即排出庫" button.
+  interface ConsolidationGroupSnapshot {
+    group_id: string;
+    status: string;
+    oldest_received_at: string | null;
+    days_since_oldest: number | null;
+    forecast_count: number;
+    received_forecast_count: number;
+  }
+  const [group, setGroup] = useState<ConsolidationGroupSnapshot | null>(null);
+  const [releaseOpen, setReleaseOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -99,6 +112,7 @@ export const InboundDetail = ({ id }: { id: string }) => {
     if (d.status === 200) {
       setInb(d.data.inbound);
       setItems(d.data.declared_items);
+      setGroup(d.data.consolidation_group ?? null);
     }
     setLoading(false);
   };
@@ -149,6 +163,28 @@ export const InboundDetail = ({ id }: { id: string }) => {
     }
   };
 
+  const doForceRelease = async () => {
+    if (!group) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await http_request(
+        "POST",
+        `/api/cms/consolidation-groups/${group.group_id}/force-release`,
+        {}
+      );
+      const d = await res.json();
+      if (res.ok && d.status === 200) {
+        setReleaseOpen(false);
+        load();
+      } else {
+        setError(d.message || "Failed");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12">{t("common.loading")}</div>;
   }
@@ -178,7 +214,7 @@ export const InboundDetail = ({ id }: { id: string }) => {
               {t(`inbound_v1.status.${inb.status}` as any)}
             </span>
             <span className="text-sm text-gray-500">
-              {t(`inbound_v1.shipment_type.${inb.shipment_type}` as any)}
+              {t(`inbound_v1.shipping_mode.${inb.shipping_mode}` as any)}
             </span>
           </div>
         </div>
@@ -253,37 +289,112 @@ export const InboundDetail = ({ id }: { id: string }) => {
         </CardContent>
       </Card>
 
-      {inb.single_shipping && (
+      {inb.shipping_destination && (
         <Card>
           <CardHeader>
             <h2 className="font-semibold">
-              {t("inbound_v1.detail.single_shipping_section")}
+              {t("inbound_v1.detail.shipping_destination_section")}
             </h2>
           </CardHeader>
           <CardContent>
             <dl className="grid sm:grid-cols-2 gap-3 text-sm">
               <Row label="Recipient">
-                {inb.single_shipping.receiver_address.name}
+                {inb.shipping_destination.receiver_address_snapshot.name}
                 {" · "}
-                {inb.single_shipping.receiver_address.phone}
+                {inb.shipping_destination.receiver_address_snapshot.phone}
               </Row>
               <Row label="Carrier account">
-                {inb.single_shipping.carrier_account_id}
+                {inb.shipping_destination.carrier_account_id}
               </Row>
               <Row label="Address" span2>
                 {[
-                  inb.single_shipping.receiver_address.address,
-                  inb.single_shipping.receiver_address.city,
-                  inb.single_shipping.receiver_address.country_code,
-                  inb.single_shipping.receiver_address.postal_code,
+                  inb.shipping_destination.receiver_address_snapshot.address,
+                  inb.shipping_destination.receiver_address_snapshot.city,
+                  inb.shipping_destination.receiver_address_snapshot.country_code,
+                  inb.shipping_destination.receiver_address_snapshot.postal_code,
                 ]
                   .filter(Boolean)
                   .join(", ")}
               </Row>
+              {group && (
+                <Row label={t("inbound_v1.detail.group_label")} span2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs">{group.group_id}</span>
+                    <span className="text-xs text-gray-500">
+                      ·{" "}
+                      {t("inbound_v1.detail.group_summary", {
+                        count: group.forecast_count,
+                        received: group.received_forecast_count,
+                      })}
+                    </span>
+                    {group.days_since_oldest !== null && (
+                      <span className="text-xs text-gray-500">
+                        ·{" "}
+                        {t("inbound_v1.detail.group_age", {
+                          days: group.days_since_oldest,
+                        })}
+                      </span>
+                    )}
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded border ${
+                        group.status === "pending"
+                          ? "bg-amber-50 border-amber-200 text-amber-700"
+                          : group.status === "force_released"
+                          ? "bg-blue-50 border-blue-200 text-blue-700"
+                          : "bg-gray-50 border-gray-200 text-gray-600"
+                      }`}
+                    >
+                      {t(
+                        `inbound_v1.detail.group_status.${group.status}` as any
+                      )}
+                    </span>
+                    {group.status === "pending" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setReleaseOpen(true)}
+                      >
+                        {t("inbound_v1.detail.force_release_btn")}
+                      </Button>
+                    )}
+                  </div>
+                </Row>
+              )}
             </dl>
           </CardContent>
         </Card>
       )}
+
+      {/* P14: confirm force-release. Force-releases ALL inbounds in the
+          group, not just this one — make that explicit in the dialog. */}
+      <AlertDialog open={releaseOpen} onOpenChange={setReleaseOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("inbound_v1.detail.force_release_dialog_title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {group
+                ? t("inbound_v1.detail.force_release_dialog_body", {
+                    count: group.forecast_count,
+                    received: group.received_forecast_count,
+                  })
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {error && <div className="text-sm text-red-600">{error}</div>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>
+              {t("inbound_v1.detail.force_release_cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={doForceRelease} disabled={busy}>
+              {busy
+                ? t("common.loading")
+                : t("inbound_v1.detail.force_release_confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card>
         <CardHeader>

@@ -14,7 +14,7 @@ type Anomaly = { code: string; note: string; photo_paths: string[] };
 interface Matched {
   _id: string;
   status: string;
-  shipment_type: string;
+  shipping_mode: string;
   tracking_no: string;
   actualWeight: number | null;
   actualDimension: any | null;
@@ -299,7 +299,7 @@ export const PdaReceive = () => {
             <div className="rounded-md border border-green-200 bg-green-50 p-2 text-sm">
               <div className="font-mono font-semibold">{matched._id}</div>
               <div className="text-xs text-gray-600">
-                status: {matched.status} · {matched.shipment_type}
+                status: {matched.status} · {matched.shipping_mode}
                 {directMode && " · 直走模式（photo+weight+dim required）"}
               </div>
             </div>

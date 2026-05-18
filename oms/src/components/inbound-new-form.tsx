@@ -135,9 +135,13 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
   );
   const [containsLiquid, setContainsLiquid] = useState(false);
   const [containsBattery, setContainsBattery] = useState(false);
-  const [shipmentType, setShipmentType] = useState<"consolidated" | "single">(
-    "consolidated"
-  );
+  // P14: three modes — two recommended (managed_consign + single_direct)
+  // rendered as big cards, one fallback (manual_consolidate) shown as a
+  // small text link below. Default is managed_consign because it's the
+  // headline behavior of this release.
+  const [shippingMode, setShippingMode] = useState<
+    "managed_consign" | "single_direct" | "manual_consolidate"
+  >("managed_consign");
   // single shipping fields
   const [recipientName, setRecipientName] = useState("");
   const [recipientPhone, setRecipientPhone] = useState("");
@@ -194,6 +198,23 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // P14 consolidation pop-up. Triggered just before submit when
+  // shipping_mode=managed_consign and the (warehouse, saved_address,
+  // carrier) tuple already has a pending group on the server.
+  interface PendingGroupSnapshot {
+    group_id: string;
+    oldest_received_at: string | null;
+    oldest_received_at_ymd: string | null;
+    sweep_due_ymd: string | null;
+    days_since_oldest: number | null;
+    forecast_count: number;
+    received_forecast_count: number;
+  }
+  const [pendingGroupPrompt, setPendingGroupPrompt] =
+    useState<PendingGroupSnapshot | null>(null);
+  const [pendingPromptContinueAfter, setPendingPromptContinueAfter] =
+    useState(false);
   const [continueFlash, setContinueFlash] = useState<{
     id: string;
     locale: string;
@@ -244,9 +265,9 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
           setSizeEstimate(inb.size_estimate);
           setContainsLiquid(inb.contains_liquid);
           setContainsBattery(inb.contains_battery);
-          setShipmentType(inb.shipment_type);
-          if (inb.single_shipping) {
-            const a = inb.single_shipping.receiver_address;
+          setShippingMode(inb.shipping_mode);
+          if (inb.shipping_destination) {
+            const a = inb.shipping_destination.receiver_address_snapshot;
             setRecipientName(a.name);
             setRecipientPhone(a.phone);
             setRecipientCountry(a.country_code);
@@ -254,7 +275,10 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
             setRecipientDistrict(a.district ?? "");
             setRecipientAddress(a.address);
             setRecipientPostal(a.postal_code ?? "");
-            setCarrierAccountId(inb.single_shipping.carrier_account_id);
+            setCarrierAccountId(inb.shipping_destination.carrier_account_id);
+            if (inb.shipping_destination.saved_address_id) {
+              setSavedAddressId(inb.shipping_destination.saved_address_id);
+            }
           }
           setCustomerRemarks(inb.customer_remarks ?? "");
           setItems(
@@ -294,12 +318,15 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
       setSizeEstimate(inb.size_estimate);
       setContainsLiquid(inb.contains_liquid);
       setContainsBattery(inb.contains_battery);
-      setShipmentType(inb.shipment_type);
+      setShippingMode(inb.shipping_mode);
       // tracking_no is intentionally NOT copied — every inbound has its own.
       // recipient + carrier_account
       const appliedKinds: AppliedFromInbound["applied"] = ["package_attrs"];
-      if (inb.shipment_type === "single" && inb.single_shipping) {
-        const a = inb.single_shipping.receiver_address;
+      if (
+        inb.shipping_mode !== "manual_consolidate" &&
+        inb.shipping_destination
+      ) {
+        const a = inb.shipping_destination.receiver_address_snapshot;
         setRecipientName(a.name);
         setRecipientPhone(a.phone);
         setRecipientCountry(a.country_code);
@@ -307,7 +334,10 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
         setRecipientDistrict(a.district ?? "");
         setRecipientAddress(a.address);
         setRecipientPostal(a.postal_code ?? "");
-        setCarrierAccountId(inb.single_shipping.carrier_account_id);
+        setCarrierAccountId(inb.shipping_destination.carrier_account_id);
+        if (inb.shipping_destination.saved_address_id) {
+          setSavedAddressId(inb.shipping_destination.saved_address_id);
+        }
         appliedKinds.push("recipient", "carrier_account");
       }
       // items
@@ -358,7 +388,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     setSizeEstimate("medium");
     setContainsLiquid(false);
     setContainsBattery(false);
-    setShipmentType("consolidated");
+    setShippingMode("managed_consign");
     setRecipientName("");
     setRecipientPhone("");
     setRecipientCountry("HK");
@@ -440,15 +470,82 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     }
   };
 
-  const submit = async (continueAfter = false) => {
+  // P14: managed_consign gate. On submit, if the customer already has a
+  // pending group for the same (warehouse, saved address, carrier), show
+  // the "等齊一起寄 vs 不用，照原時程出" prompt before posting. The actual
+  // submission is deferred until the customer picks one of the modal
+  // buttons (`confirmJoinGroup` / `confirmStartNewGroup`). Edit mode skips
+  // the gate entirely — group membership is locked at create time.
+  const attemptSubmit = async (continueAfter: boolean) => {
+    if (
+      editMode ||
+      shippingMode !== "managed_consign" ||
+      !savedAddressId ||
+      !carrierAccountId ||
+      !warehouseCode
+    ) {
+      await submit(continueAfter);
+      return;
+    }
+    try {
+      const r = await http_request(
+        "GET",
+        `/api/cms/consolidation-groups/check?warehouseCode=${encodeURIComponent(
+          warehouseCode
+        )}&saved_address_id=${encodeURIComponent(
+          savedAddressId
+        )}&carrier_account_id=${encodeURIComponent(carrierAccountId)}`,
+        {}
+      );
+      const d = await r.json();
+      const group = d?.data?.group ?? null;
+      if (group) {
+        setPendingGroupPrompt(group);
+        setPendingPromptContinueAfter(continueAfter);
+        return;
+      }
+    } catch {
+      // Network hiccup on the lookup should not block the submit — the
+      // server-side findOrCreateConsolidationGroup is the source of truth
+      // and will still create/join the group correctly.
+    }
+    await submit(continueAfter);
+  };
+
+  const confirmJoinGroup = async () => {
+    const continueAfter = pendingPromptContinueAfter;
+    setPendingGroupPrompt(null);
+    await submit(continueAfter);
+  };
+
+  const confirmStartNewGroup = async () => {
+    const continueAfter = pendingPromptContinueAfter;
+    setPendingGroupPrompt(null);
+    await submit(continueAfter, { start_new_consolidation_group: true });
+  };
+
+  const submit = async (
+    continueAfter = false,
+    extraBodyFields: Record<string, unknown> = {}
+  ) => {
     setError("");
     setContinueFlash(null);
     if (items.length === 0) {
       setError(t("inbound_v1.new.validation_no_items"));
       return;
     }
+    // managed_consign requires a saved address (group key) + a carrier
+    // account. The address-snapshot for the inbound row is hydrated from
+    // the saved-address book entry below.
     if (
-      shipmentType === "single" &&
+      shippingMode === "managed_consign" &&
+      (!savedAddressId || !carrierAccountId)
+    ) {
+      setError(t("inbound_v1.new.validation_managed_required"));
+      return;
+    }
+    if (
+      shippingMode === "single_direct" &&
       (!recipientName ||
         !recipientPhone ||
         !recipientCity ||
@@ -466,7 +563,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
       size_estimate: sizeEstimate,
       contains_liquid: containsLiquid,
       contains_battery: containsBattery,
-      shipment_type: shipmentType,
+      shipping_mode: shippingMode,
       customer_remarks: customerRemarks || undefined,
       declared_items: items.map(
         ({ draft_id: _, product_url, opt_out_library, ...rest }) => ({
@@ -475,13 +572,15 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
           ...(opt_out_library ? { opt_out_library: true } : {}),
         })
       ),
+      ...extraBodyFields,
     };
     if (carrierInbound === "other" && trackingNoOther) {
       body.tracking_no_other = trackingNoOther;
     }
-    if (shipmentType === "single") {
-      body.single_shipping = {
-        receiver_address: {
+    if (shippingMode === "single_direct") {
+      body.shipping_destination = {
+        saved_address_id: savedAddressId || null,
+        receiver_address_snapshot: {
           name: recipientName,
           phone: recipientPhone,
           country_code: recipientCountry,
@@ -493,6 +592,25 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
         carrier_account_id: carrierAccountId,
       };
       if (saveAsDefault) body.save_as_default_address = true;
+    } else if (shippingMode === "managed_consign") {
+      const sa = savedAddresses.find((x) => x._id === savedAddressId);
+      if (!sa) {
+        setError(t("inbound_v1.new.validation_managed_required"));
+        return;
+      }
+      body.shipping_destination = {
+        saved_address_id: savedAddressId,
+        receiver_address_snapshot: {
+          name: sa.name,
+          phone: sa.phone,
+          country_code: sa.country_code,
+          city: sa.city,
+          district: sa.district ?? undefined,
+          address: sa.address,
+          postal_code: sa.postal_code ?? undefined,
+        },
+        carrier_account_id: carrierAccountId,
+      };
     }
 
     setSubmitting(true);
@@ -559,13 +677,16 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
     (carrierInbound !== "other" || !!trackingNoOther);
   const s2Complete = items.length >= 1;
   const s3Complete =
-    shipmentType !== "single" ||
-    (!!recipientName &&
-      !!recipientPhone &&
-      !!recipientCity &&
-      !!recipientAddress &&
-      !!carrierAccountId);
-  const sectionList = shipmentType === "single" ? [1, 2, 3, 4] : [1, 2, 4];
+    shippingMode === "manual_consolidate" ||
+    (shippingMode === "managed_consign"
+      ? !!savedAddressId && !!carrierAccountId
+      : !!recipientName &&
+        !!recipientPhone &&
+        !!recipientCity &&
+        !!recipientAddress &&
+        !!carrierAccountId);
+  const sectionList =
+    shippingMode === "manual_consolidate" ? [1, 2, 4] : [1, 2, 3, 4];
   const completes: Record<number, boolean> = {
     1: s1Complete,
     2: s2Complete,
@@ -586,6 +707,53 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
 
   return (
     <div className="max-w-6xl mx-auto py-6 px-4">
+      {/* P14: managed_consign consolidation pop-up. Shown after the customer
+          presses submit and the server has a pending group for the same
+          (warehouse, address, carrier). */}
+      {pendingGroupPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-lg">
+            <div className="border-b px-5 py-3 font-semibold">
+              {t("inbound_v1.new.consolidate_prompt_title")}
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm">
+              <p>
+                {t("inbound_v1.new.consolidate_prompt_body", {
+                  count: pendingGroupPrompt.forecast_count,
+                  received: pendingGroupPrompt.received_forecast_count,
+                })}
+              </p>
+              <p className="text-gray-600">
+                {pendingGroupPrompt.oldest_received_at_ymd &&
+                pendingGroupPrompt.sweep_due_ymd
+                  ? t("inbound_v1.new.consolidate_prompt_schedule", {
+                      oldest: pendingGroupPrompt.oldest_received_at_ymd,
+                      due: pendingGroupPrompt.sweep_due_ymd,
+                    })
+                  : t("inbound_v1.new.consolidate_prompt_no_shelved_yet")}
+              </p>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-2 border-t px-5 py-3 sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={confirmStartNewGroup}
+                disabled={submitting}
+              >
+                {t("inbound_v1.new.consolidate_prompt_keep_original")}
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmJoinGroup}
+                disabled={submitting}
+              >
+                {t("inbound_v1.new.consolidate_prompt_wait_together")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Apply-from-last-inbound banner (new mode only). Lists what was
           pulled in and explicitly calls out tracking_no as NOT applied. */}
       {!editMode && applied && (
@@ -770,24 +938,41 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                 </FieldGroup>
               </div>
 
-              <FieldGroup label={t("inbound_v1.new.shipment_type_label")}>
+              <FieldGroup label={t("inbound_v1.new.shipping_mode_label")}>
                 <div className="grid grid-cols-2 gap-2">
-                  {(["consolidated", "single"] as const).map((s) => (
+                  {(["managed_consign", "single_direct"] as const).map((s) => (
                     <Button
                       key={s}
                       type="button"
-                      variant={shipmentType === s ? "default" : "outline"}
-                      onClick={() => setShipmentType(s)}
-                      className="flex flex-col items-start h-auto py-2"
+                      variant={shippingMode === s ? "default" : "outline"}
+                      onClick={() => setShippingMode(s)}
+                      className="flex flex-col items-start h-auto py-3 text-left"
                     >
                       <span className="font-semibold">
-                        {t(`inbound_v1.shipment_type.${s}` as any)}
+                        {t(`inbound_v1.shipping_mode.${s}` as any)}
                       </span>
-                      <span className="text-xs opacity-70">
+                      <span className="text-xs opacity-70 whitespace-normal">
                         {t(`inbound_v1.new.${s}_hint` as any)}
                       </span>
                     </Button>
                   ))}
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  <button
+                    type="button"
+                    onClick={() => setShippingMode("manual_consolidate")}
+                    className={`underline underline-offset-2 ${
+                      shippingMode === "manual_consolidate"
+                        ? "text-gray-900 font-semibold"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    <span aria-hidden className="mr-1">›</span>
+                    {t("inbound_v1.shipping_mode.manual_consolidate")}
+                  </button>
+                  <span className="ml-2 opacity-70">
+                    {t("inbound_v1.new.manual_consolidate_hint")}
+                  </span>
                 </div>
               </FieldGroup>
             </div>
@@ -931,13 +1116,18 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
             </div>
           </SectionCard>
 
-          {/* ── Section 3 · 收件人 + Carrier (single only) ── */}
-          {shipmentType === "single" && (
+          {/* ── Section 3 · 收件人 + Carrier (managed_consign + single_direct) ── */}
+          {shippingMode !== "manual_consolidate" && (
             <SectionCard
               n={3}
               title={t("inbound_v1.new.section3_title")}
               status={sectionStatus(3)}
             >
+              {shippingMode === "managed_consign" && (
+                <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  {t("inbound_v1.new.managed_consign_picker_hint")}
+                </div>
+              )}
               <div className="grid gap-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Label className="text-xs text-gray-500 whitespace-nowrap">
@@ -981,6 +1171,8 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                     {t("addresses.picker_manage")}
                   </Link>
                 </div>
+                {shippingMode === "single_direct" && (
+                <>
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     placeholder="Name"
@@ -1050,6 +1242,8 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                   value={recipientAddress}
                   onChange={(e) => setRecipientAddress(e.target.value)}
                 />
+                </>
+                )}
                 <FieldGroup
                   label={t("inbound_v1.new.carrier_account_label")}
                 >
@@ -1080,16 +1274,18 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                     </select>
                   )}
                 </FieldGroup>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="save_default"
-                    checked={saveAsDefault}
-                    onCheckedChange={(v) => setSaveAsDefault(v === true)}
-                  />
-                  <Label htmlFor="save_default" className="font-normal">
-                    {t("inbound_v1.new.save_as_default_address")}
-                  </Label>
-                </div>
+                {shippingMode === "single_direct" && (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="save_default"
+                      checked={saveAsDefault}
+                      onCheckedChange={(v) => setSaveAsDefault(v === true)}
+                    />
+                    <Label htmlFor="save_default" className="font-normal">
+                      {t("inbound_v1.new.save_as_default_address")}
+                    </Label>
+                  </div>
+                )}
               </div>
             </SectionCard>
           )}
@@ -1161,7 +1357,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                 </Link>
                 <Button
                   type="button"
-                  onClick={() => submit(false)}
+                  onClick={() => attemptSubmit(false)}
                   disabled={!canSubmit}
                 >
                   {submitting
@@ -1172,7 +1368,7 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => submit(true)}
+                    onClick={() => attemptSubmit(true)}
                     disabled={!canSubmit}
                   >
                     {t("inbound_v1.new.submit_and_continue")}

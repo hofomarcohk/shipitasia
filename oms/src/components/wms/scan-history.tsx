@@ -14,7 +14,7 @@ interface InboundRow {
   tracking_no: string;
   carrier_inbound_code: string | null;
   status: string;
-  shipment_type: string;
+  shipping_mode: string;
   declared_items_count: number;
   actualWeight: number | null;
   locationCode: string | null;

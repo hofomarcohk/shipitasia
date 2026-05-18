@@ -80,6 +80,97 @@ async function lookupClientCarrierAccount(
   return a;
 }
 
+async function lookupSavedAddress(
+  db: any,
+  client_id: string,
+  saved_address_id: string
+) {
+  let oid: ObjectId;
+  try {
+    oid = new ObjectId(saved_address_id);
+  } catch {
+    throw new ApiError("INVALID_SAVED_ADDRESS");
+  }
+  const a = await db
+    .collection(collections.SAVED_ADDRESS)
+    .findOne({ _id: oid, client_id });
+  if (!a) throw new ApiError("INVALID_SAVED_ADDRESS");
+  return a;
+}
+
+// P13 managed-consign: find an open group matching the destination tuple, or
+// create one. Existing groups in `pending` are joined; `swept` / `force_released`
+// groups are terminal — a new managed forecast against the same tuple starts a
+// fresh group. The caller passes the inbound id so it can be appended to
+// forecast_ids in the same step.
+//
+// P14: when `start_new` is true (customer chose "不用，照原時程出" in the
+// consolidation pop-up), skip the join lookup entirely and always create a
+// brand-new pending group. Multiple pending groups for the same tuple are
+// permitted — the cron treats each group's forecast_ids independently.
+async function findOrCreateConsolidationGroup(
+  db: any,
+  session: any,
+  args: {
+    client_id: string;
+    warehouseCode: string;
+    saved_address_id: string;
+    carrier_account_id: string;
+    inbound_id: string;
+    start_new?: boolean;
+  }
+): Promise<string> {
+  const now = new Date();
+  const filter = {
+    client_id: args.client_id,
+    warehouseCode: args.warehouseCode,
+    saved_address_id: args.saved_address_id,
+    carrier_account_id: args.carrier_account_id,
+    status: "pending",
+  };
+  // When multiple pending groups exist (e.g. customer previously chose
+  // start_new), prefer the OLDEST one — that's the one closest to the SLA
+  // and matches what the pop-up surfaced to the customer.
+  const existing = args.start_new
+    ? null
+    : await db
+        .collection(collections.CONSOLIDATION_GROUP)
+        .find(filter, { session })
+        .sort({ createdAt: 1 })
+        .limit(1)
+        .next();
+  if (existing) {
+    await db.collection(collections.CONSOLIDATION_GROUP).updateOne(
+      { _id: existing._id },
+      {
+        $addToSet: { forecast_ids: args.inbound_id },
+        $set: { updatedAt: now },
+      },
+      { session }
+    );
+    return String(existing._id);
+  }
+  const group_id = await nextDailyId("CG");
+  await db.collection(collections.CONSOLIDATION_GROUP).insertOne(
+    {
+      _id: group_id as any,
+      client_id: args.client_id,
+      warehouseCode: args.warehouseCode,
+      saved_address_id: args.saved_address_id,
+      carrier_account_id: args.carrier_account_id,
+      status: "pending",
+      oldest_received_at: null,
+      forecast_ids: [args.inbound_id],
+      swept_at: null,
+      swept_outbound_id: null,
+      createdAt: now,
+      updatedAt: now,
+    } as any,
+    { session }
+  );
+  return group_id;
+}
+
 async function validateDeclaredItems(items: InboundDeclaredItemInput[]) {
   for (const it of items) {
     const ok = await validateCategoryPair(it.category_id, it.subcategory_id);
@@ -142,19 +233,34 @@ export async function createInbound(
   const warehouse = await lookupWarehouse(db, input.warehouseCode);
   await lookupCarrierInbound(db, input.carrier_inbound_code);
 
-  // Single shipping carrier account ownership check
-  let carrierAccount: any = null;
-  if (input.shipment_type === "single") {
-    if (!input.single_shipping) {
+  // P13: validate shipping_destination tuple against owning client. Both
+  // single_direct and managed_consign require carrier_account ownership;
+  // managed_consign additionally requires a real saved_address (zod already
+  // enforces non-null saved_address_id for managed_consign, this check
+  // proves the id belongs to the client).
+  if (input.shipping_mode === "manual_consolidate") {
+    if (input.shipping_destination) {
+      throw new ApiError("SHIPPING_INFO_NOT_ALLOWED_FOR_CONSOLIDATED");
+    }
+  } else {
+    if (!input.shipping_destination) {
       throw new ApiError("SINGLE_SHIPPING_REQUIRED_FIELDS_MISSING");
     }
-    carrierAccount = await lookupClientCarrierAccount(
+    await lookupClientCarrierAccount(
       db,
       ctx.client_id,
-      input.single_shipping.carrier_account_id
+      input.shipping_destination.carrier_account_id
     );
-  } else if (input.single_shipping) {
-    throw new ApiError("SHIPPING_INFO_NOT_ALLOWED_FOR_CONSOLIDATED");
+    if (input.shipping_mode === "managed_consign") {
+      if (!input.shipping_destination.saved_address_id) {
+        throw new ApiError("SINGLE_SHIPPING_REQUIRED_FIELDS_MISSING");
+      }
+      await lookupSavedAddress(
+        db,
+        ctx.client_id,
+        input.shipping_destination.saved_address_id
+      );
+    }
   }
 
   // tracking dedupe (against active inbounds)
@@ -174,9 +280,30 @@ export async function createInbound(
   );
 
   const session = getMongoClient().startSession();
+  let consolidation_group_id: string | null = null;
   try {
     await session.withTransaction(async () => {
       const now = new Date();
+      // P13: for managed_consign, the inbound joins or starts a consolidation
+      // group keyed by (client, address, carrier, warehouse). Done before the
+      // insert so the inbound row carries the group_id at write time.
+      if (
+        input.shipping_mode === "managed_consign" &&
+        input.shipping_destination?.saved_address_id
+      ) {
+        consolidation_group_id = await findOrCreateConsolidationGroup(
+          db,
+          session,
+          {
+            client_id: ctx.client_id,
+            warehouseCode: input.warehouseCode,
+            saved_address_id: input.shipping_destination.saved_address_id,
+            carrier_account_id: input.shipping_destination.carrier_account_id,
+            inbound_id,
+            start_new: input.start_new_consolidation_group === true,
+          }
+        );
+      }
       await db.collection(collections.INBOUND).insertOne(
         {
           _id: inbound_id as any,
@@ -194,8 +321,9 @@ export async function createInbound(
           size_estimate_note: input.size_estimate_note ?? null,
           contains_liquid: input.contains_liquid,
           contains_battery: input.contains_battery,
-          shipment_type: input.shipment_type,
-          single_shipping: input.single_shipping ?? null,
+          shipping_mode: input.shipping_mode,
+          shipping_destination: input.shipping_destination ?? null,
+          consolidation_group_id,
           customer_remarks: input.customer_remarks ?? null,
           declared_value_total,
           declared_currency: warehouse.declared_currency ?? "JPY",
@@ -242,11 +370,11 @@ export async function createInbound(
         { session }
       );
 
-      // Update default shipping address if requested
+      // Update default shipping address if requested. Applies to any mode
+      // that carries a receiver_address_snapshot (single_direct + managed_consign).
       if (
-        input.shipment_type === "single" &&
         input.save_as_default_address &&
-        input.single_shipping
+        input.shipping_destination?.receiver_address_snapshot
       ) {
         await db
           .collection(collections.CLIENT)
@@ -254,7 +382,8 @@ export async function createInbound(
             { _id: new ObjectId(ctx.client_id) },
             {
               $set: {
-                default_shipping_address: input.single_shipping.receiver_address,
+                default_shipping_address:
+                  input.shipping_destination.receiver_address_snapshot,
                 updatedAt: new Date(),
               },
             },
@@ -290,7 +419,8 @@ export async function createInbound(
     details: {
       warehouseCode: input.warehouseCode,
       carrier_inbound_code: input.carrier_inbound_code,
-      shipment_type: input.shipment_type,
+      shipping_mode: input.shipping_mode,
+      consolidation_group_id,
       declared_items_count: input.declared_items.length,
       declared_value_total,
     },
@@ -510,6 +640,9 @@ export async function updateInbound(
   }
 
   const set: Record<string, unknown> = { updatedAt: new Date() };
+  // P13: shipping_mode is intentionally NOT editable here — switching modes
+  // post-create would orphan the consolidation_group. Cancel + re-create if
+  // the client really needs a different mode.
   const fields = [
     "warehouseCode",
     "carrier_inbound_code",
@@ -518,8 +651,7 @@ export async function updateInbound(
     "size_estimate_note",
     "contains_liquid",
     "contains_battery",
-    "shipment_type",
-    "single_shipping",
+    "shipping_destination",
     "customer_remarks",
   ] as const;
   for (const k of fields) {

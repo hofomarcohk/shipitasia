@@ -87,6 +87,12 @@ export const collections = {
 
   // P13 — label batches (client-driven 合併取單 grouping of outbounds)
   LABEL_BATCH: "label_batches",
+
+  // P13 (managed consign) — per (client, address, carrier, warehouse) bucket
+  // that the daily cron sweeps once the SLA elapses; and per-warehouse
+  // working-day calendar (empty → cron falls back to Mon-Fri).
+  CONSOLIDATION_GROUP: "consolidation_groups",
+  WORKING_CALENDAR: "working_calendars",
 };
 
 export const ID_Prefix: {
