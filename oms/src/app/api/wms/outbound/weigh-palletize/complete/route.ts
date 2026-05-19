@@ -9,8 +9,12 @@ export async function POST(request: NextRequest) {
   const body = await getParam(request);
   return cmsMiddleware(request, body, async (): Promise<ApiReturn> => {
     const staff = requireWmsStaff(request);
+    // P19 — outbound_id is now optional. When omitted (or empty) the
+    // service completes every outbound currently in the warehouse's
+    // active session.
+    const oidParam = String(body?.outbound_id || "").trim();
     const data = await completeSession(staff.staff_id, staff.warehouseCode, {
-      outbound_id: String(body.outbound_id || "").trim(),
+      ...(oidParam ? { outbound_id: oidParam } : {}),
     });
     return { status: 200, message: "Success", data };
   });

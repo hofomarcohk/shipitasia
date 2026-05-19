@@ -127,8 +127,17 @@ export type SameClientHintEntry = {
   status: string;
 };
 
-export type ActiveSession = {
+export type ActiveSessionOutbound = {
   outbound_id: string;
+  scanned_count: number;
+  total: number;
+};
+
+export type ActiveSession = {
+  // back-compat primary (= outbound_ids[0])
+  outbound_id: string;
+  outbound_ids: string[];
+  outbounds: ActiveSessionOutbound[];
   client_id: string;
   client_code: string;
   client_name: string;
@@ -244,7 +253,15 @@ export async function getWeighPalletizeState(
     .collection(collections.PACK_SESSION_LOCK)
     .findOne({ _id: warehouseCode as any });
 
-  const lockedOutboundId = lockDoc ? String(lockDoc.outbound_id) : null;
+  // P19 — session may hold multiple outbound_ids[]; any of them should be
+  // hidden from the palletize_queue (they're already "in" the session).
+  const lockedOutboundIds: Set<string> = new Set();
+  if (lockDoc) {
+    if (Array.isArray(lockDoc.outbound_ids)) {
+      for (const id of lockDoc.outbound_ids) lockedOutboundIds.add(String(id));
+    }
+    if (lockDoc.outbound_id) lockedOutboundIds.add(String(lockDoc.outbound_id));
+  }
 
   // 5. Build queues
   const weigh_queue: WeighQueueEntry[] = [];
@@ -291,8 +308,8 @@ export async function getWeighPalletizeState(
       continue;
     }
 
-    // All boxes weighed — palletize queue (unless this is the active lock).
-    if (outbound.status === "weight_verified" && lockedOutboundId !== oid) {
+    // All boxes weighed — palletize queue (unless this is in the active session).
+    if (outbound.status === "weight_verified" && !lockedOutboundIds.has(oid)) {
       const allScanned = boxes.every((b) => !!b.palletize_scanned_at);
       if (allScanned) continue; // shouldn't happen until /complete is called
       palletize_queue.push({
@@ -318,24 +335,42 @@ export async function getWeighPalletizeState(
     }
   }
 
-  // 6. Active session detail (if any)
+  // 6. Active session detail (if any). P19 — session may span multiple
+  // outbound_ids[]; we aggregate boxes + scans across the whole session.
   let active_session: ActiveSession | null = null;
-  if (lockDoc && lockedOutboundId) {
-    const outbound = outboundById.get(lockedOutboundId);
-    if (outbound) {
-      const boxes = boxesByOutbound.get(lockedOutboundId) || [];
-      const allBoxNos = boxes.map((b) => b.box_no);
+  if (lockDoc) {
+    const sessionOutboundIds: string[] =
+      Array.isArray(lockDoc.outbound_ids) && lockDoc.outbound_ids.length > 0
+        ? lockDoc.outbound_ids.map((id: any) => String(id))
+        : lockDoc.outbound_id
+        ? [String(lockDoc.outbound_id)]
+        : [];
+    const primaryOid = sessionOutboundIds[0];
+    const primary = primaryOid ? outboundById.get(primaryOid) : null;
+    if (primary && sessionOutboundIds.length > 0) {
       const scanned = new Set<string>(lockDoc.scanned_box_nos || []);
+      let allBoxNos: string[] = [];
+      const perOutbound: ActiveSessionOutbound[] = [];
+      for (const oid of sessionOutboundIds) {
+        const boxes = boxesByOutbound.get(oid) || [];
+        const ids = boxes.map((b) => b.box_no);
+        allBoxNos = allBoxNos.concat(ids);
+        perOutbound.push({
+          outbound_id: oid,
+          scanned_count: ids.filter((id) => scanned.has(id)).length,
+          total: ids.length,
+        });
+      }
       const remaining = allBoxNos.filter((bn) => !scanned.has(bn));
-      const client_id = String(outbound.client_id);
+      const client_id = String(primary.client_id);
       const c = clientMap.get(client_id);
 
-      // same-client hint
+      // same-client hint excludes every outbound already in the session.
       const hintDocs = await db
         .collection(collections.OUTBOUND)
         .find({
           client_id,
-          _id: { $ne: lockedOutboundId as any },
+          _id: { $nin: sessionOutboundIds as any },
           status: { $nin: NON_LIVE_OUTBOUND_STATUSES },
         })
         .project({ _id: 1, status: 1 })
@@ -346,7 +381,9 @@ export async function getWeighPalletizeState(
       }));
 
       active_session = {
-        outbound_id: lockedOutboundId,
+        outbound_id: primaryOid!,
+        outbound_ids: sessionOutboundIds,
+        outbounds: perOutbound,
         client_id,
         client_code: c?.code || client_id.slice(-4).toUpperCase(),
         client_name: c?.name || client_id,

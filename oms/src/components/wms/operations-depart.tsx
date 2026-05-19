@@ -66,26 +66,52 @@ export const OperationsDepart = () => {
         </Card>
       )}
       {list.map((o) => {
-        const pending = o.boxes.filter((b) => b.status === "label_printed");
+        // P20 — depart accepts both label_obtained + label_printed; only
+        // already-departed boxes are excluded.
+        const pending = o.boxes.filter(
+          (b) => b.status === "label_obtained" || b.status === "label_printed"
+        );
         return (
           <Card key={o._id}>
             <CardHeader>
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-semibold">
                   <span className="font-mono">{o._id}</span> ·{" "}
                   {o.carrier_code} → {o.destination_country} · {o.inbound_count}{" "}
                   件
                 </h2>
-                <Button
-                  onClick={() => departAll(o._id)}
-                  disabled={busyId === o._id || pending.length === 0}
-                >
-                  {busyId === o._id
-                    ? t("wms_ops.depart.depart_running")
-                    : t("wms_ops.depart.depart_all_btn", {
-                        count: pending.length,
-                      })}
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a
+                    href={`/api/wms/outbound/labels-bundle?outbound_ids=${encodeURIComponent(
+                      o._id
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="outline" size="sm">
+                      列印運單（全部箱）
+                    </Button>
+                  </a>
+                  <a
+                    href={`/zh-hk/wms/print/invoice/${o._id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="outline" size="sm">
+                      列印 Invoice
+                    </Button>
+                  </a>
+                  <Button
+                    onClick={() => departAll(o._id)}
+                    disabled={busyId === o._id || pending.length === 0}
+                  >
+                    {busyId === o._id
+                      ? t("wms_ops.depart.depart_running")
+                      : t("wms_ops.depart.depart_all_btn", {
+                          count: pending.length,
+                        })}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="text-sm">
@@ -95,8 +121,8 @@ export const OperationsDepart = () => {
                     key={b.box_no}
                     className={
                       "font-mono text-xs px-2 py-0.5 rounded border " +
-                      (b.status === "label_printed"
-                        ? "border-gray-300"
+                      (b.status === "departed"
+                        ? "border-gray-300 text-gray-500"
                         : "border-emerald-300 bg-emerald-50 text-emerald-700")
                     }
                     title={b.status}

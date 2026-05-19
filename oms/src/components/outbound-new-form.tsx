@@ -86,9 +86,10 @@ export const OutboundNewForm = () => {
   const [district, setDistrict] = useState("");
   const [address, setAddress] = useState("");
   const [postal, setPostal] = useState("");
-  const [preference, setPreference] = useState<"auto" | "confirm_before_label">(
-    "auto"
-  );
+  // P17 — preference is no longer user-chooseable. Warehouse always
+  // auto-fetches the label after weigh+palletize. Kept as a constant so
+  // the existing submit payload stays unchanged shape-wise.
+  const PROCESSING_PREFERENCE = "auto" as const;
   const [remarks, setRemarks] = useState("");
   // P10 — opt-out of cross-outbound consolidation (default allow).
   const [disallowConsolidation, setDisallowConsolidation] = useState(false);
@@ -336,7 +337,7 @@ export const OutboundNewForm = () => {
           address,
           postal_code: postal || undefined,
         },
-        processing_preference: preference,
+        processing_preference: PROCESSING_PREFERENCE,
         customer_remarks: remarks || undefined,
         disallow_consolidation: disallowConsolidation,
       });
@@ -666,42 +667,11 @@ export const OutboundNewForm = () => {
                 </div>
               </div>
 
-              <div>
-                <Label className="mb-2 block">
-                  {t("outbound_v1.new.step_preference")}
-                </Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="flex items-center gap-2 border rounded p-3 cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      checked={preference === "auto"}
-                      onChange={() => setPreference("auto")}
-                    />
-                    <div>
-                      <div className="text-sm font-medium">
-                        {t("outbound_v1.new.preference_auto")}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {t("outbound_v1.new.preference_auto_desc")}
-                      </div>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-2 border rounded p-3 cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      checked={preference === "confirm_before_label"}
-                      onChange={() => setPreference("confirm_before_label")}
-                    />
-                    <div>
-                      <div className="text-sm font-medium">
-                        {t("outbound_v1.new.preference_confirm")}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {t("outbound_v1.new.preference_confirm_desc")}
-                      </div>
-                    </div>
-                  </label>
-                </div>
+              {/* P17 — preference is locked to "auto". The warehouse fetches
+                  the label automatically after weigh+palletize completes,
+                  so customer no longer chooses or confirms. */}
+              <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                {t("outbound_v1.new.warehouse_label_authorization")}
               </div>
             </div>
           </SectionCard>

@@ -69,11 +69,13 @@ export interface AdminContext {
 
 // ── tunables ─────────────────────────────────────────────────
 
-// Statuses where client may still cancel (everything past picking is WMS).
+// P17 — client may cancel only BEFORE the warehouse touches the outbound.
+// Once picking/packing starts the request is handled by warehouse + CS;
+// `pending_client_label` is no longer reachable for new outbounds, so the
+// list shrinks to the pre-WMS states only.
 const CLIENT_CANCELLABLE_STATUSES: OutboundStatusV1[] = [
   "held",
   "ready_for_label",
-  "pending_client_label",
 ];
 
 // Statuses we should never touch when releasing balance (already past gate).
@@ -561,7 +563,29 @@ export async function getMyOutbound(client_id: string, outbound_id: string) {
     .collection(collections.OUTBOUND)
     .findOne({ _id: outbound_id as any, client_id });
   if (!doc) throw new ApiError("OUTBOUND_REQUEST_NOT_FOUND", { orderId: outbound_id });
-  return projectOutboundV1(doc);
+  // P17 — surface the per-box breakdown so the customer can see what's
+  // being shipped (dim + weight per box) and download each per-box label
+  // once the warehouse has fetched it. Read-only — the warehouse owns the
+  // mutation paths on this collection.
+  const boxDocs = await db
+    .collection(collections.OUTBOUND_BOX)
+    .find({ outbound_id })
+    .sort({ box_no: 1 })
+    .toArray();
+  const boxes = boxDocs.map((b: any) => ({
+    box_no: b.box_no,
+    dimensions: b.dimensions ?? null,
+    weight_actual: b.weight_actual ?? null,
+    status: b.status ?? null,
+    label_pdf_path: b.label_pdf_path ?? null,
+    tracking_no_carrier: b.tracking_no_carrier ?? null,
+    label_obtained_at: b.label_obtained_at ?? null,
+    departed_at: b.departed_at ?? null,
+  }));
+  return {
+    outbound: projectOutboundV1(doc),
+    boxes,
+  };
 }
 
 export async function cancelMyOutbound(

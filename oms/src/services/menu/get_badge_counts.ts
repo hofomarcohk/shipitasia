@@ -94,16 +94,31 @@ export async function getWmsBadgeCounts(
     });
   }
 
-  // ops_label_print — 未取得面單(待客戶於 OMS 確認) + 已取得面單待貼標
+  // P19 — 面單列印 / 補單 page is now retry-only. Badge = outbounds
+  // stuck at the pre-label states OR auto-fetch failures CS needs to
+  // intervene on.
   const ops_label_print = await outbound.countDocuments({
     warehouseCode,
-    status: { $in: ["pending_client_label", "label_obtained"] },
+    $or: [
+      { status: "pending_client_label" },
+      {
+        status: "held",
+        held_reason: {
+          $in: [
+            "label_failed_retry",
+            "carrier_auth_failed",
+            "carrier_api_failed",
+          ],
+        },
+      },
+    ],
   });
 
-  // ops_depart — 已貼標待離倉
+  // P19 — depart page is the happy-path landing after label fetch success.
+  // Includes label_obtained (printed soon) and label_printed (ready to ship).
   const ops_depart = await outbound.countDocuments({
     warehouseCode,
-    status: "label_printed",
+    status: { $in: ["label_obtained", "label_printed"] },
   });
 
   return {

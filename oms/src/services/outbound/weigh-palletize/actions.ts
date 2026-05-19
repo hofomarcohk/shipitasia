@@ -13,6 +13,14 @@ import {
   expectedWeightForInboundIds,
   WEIGHT_TOLERANCE_KG,
 } from "./weight";
+// P18 — P12 path now triggers the warehouse auto-fetch immediately at
+// 完成置板 instead of parking at pending_client_label. P19 makes the
+// session multi-outbound so the explicit list (not a sibling sweep)
+// drives the batch fetch.
+import {
+  autoBatchFetchLabels,
+  fetchLabelMultiBox,
+} from "@/services/outbound/wmsFlow";
 
 const PACK_BOXES = collections.PACK_BOX_V1;
 const OUTBOUNDS = collections.OUTBOUND;
@@ -220,6 +228,34 @@ export async function saveBox(
 
 // ── Scan box (lock / extend session) ────────────────────────
 
+// P19 — canonical destination key for "are these two outbounds combinable
+// in one palletize session?". Mirrors the auto-batch criteria from P17.5
+// (client + warehouse + carrier + receiver address exact-match). A subset
+// of relevant address fields is intentional — we want phone/postcode
+// variants on the SAME shipping address to still combine.
+function destinationKey(ob: any): string {
+  const a = ob.receiver_address ?? {};
+  return JSON.stringify({
+    client_id: String(ob.client_id),
+    warehouseCode: ob.warehouseCode,
+    carrier_code: ob.carrier_code,
+    carrier_account_id: ob.carrier_account_id ?? null,
+    country_code: a.country_code ?? null,
+    city: a.city ?? null,
+    address: a.address ?? null,
+    postal_code: a.postal_code ?? null,
+  });
+}
+
+// Reads the lock's outbound list, accommodating legacy single-outbound docs.
+function lockOutboundIds(lock: any): string[] {
+  if (!lock) return [];
+  if (Array.isArray(lock.outbound_ids) && lock.outbound_ids.length > 0)
+    return lock.outbound_ids.map((id: any) => String(id));
+  if (lock.outbound_id) return [String(lock.outbound_id)];
+  return [];
+}
+
 export async function scanBox(
   staff: string,
   warehouseCode: string,
@@ -227,6 +263,7 @@ export async function scanBox(
 ): Promise<{
   active_session: {
     outbound_id: string;
+    outbound_ids: string[];
     scanned: string[];
     remaining: string[];
     total: number;
@@ -262,35 +299,54 @@ export async function scanBox(
     });
   }
 
-  // Existing lock?
+  // P19 — multi-outbound session: lock.outbound_ids[] holds every outbound
+  // currently in the session. A new outbound joins automatically if it
+  // shares (client, warehouse, carrier, address) with the existing set;
+  // otherwise we reject the scan as a wrong-shipment guard.
   const existingLock = await db
     .collection(SESSION_LOCKS)
     .findOne({ _id: warehouseCode as any });
 
-  if (existingLock) {
-    const lockedOid = String(existingLock.outbound_id);
-    if (lockedOid !== ownerOutboundId) {
-      // Lock is for another outbound. If same staff, treat as a wrong-scan
-      // guidance error; otherwise it's session-busy.
-      if (existingLock.locked_by && existingLock.locked_by !== staff) {
-        throw new ApiError("PACK_SESSION_BUSY", {
-          outboundId: lockedOid,
-          staff: existingLock.locked_by,
-        });
-      }
+  const sessionOutboundIds = lockOutboundIds(existingLock);
+  const alreadyInSession = sessionOutboundIds.includes(ownerOutboundId);
+
+  if (
+    existingLock &&
+    existingLock.locked_by &&
+    existingLock.locked_by !== staff
+  ) {
+    throw new ApiError("PACK_SESSION_BUSY", {
+      outboundId: sessionOutboundIds[0] ?? "",
+      staff: existingLock.locked_by,
+    });
+  }
+
+  if (existingLock && !alreadyInSession) {
+    // Compatibility check against any one of the existing outbounds in the
+    // session (they're all already mutually compatible because they got
+    // added through this same check).
+    const probeId = sessionOutboundIds[0]!;
+    const probe = await getOutboundById(probeId);
+    if (!probe || destinationKey(probe) !== destinationKey(outbound)) {
       throw new ApiError("PACK_PALLETIZE_WRONG_OUTBOUND", {
-        locked: lockedOid,
+        locked: probeId,
         scanned: ownerOutboundId,
       });
     }
   }
 
-  // Acquire or extend the lock.
-  const totalBoxes = await listSealedBoxesForOutbound(ownerOutboundId);
-  const allBoxNos = totalBoxes.map((b) => b.box_no);
-  const scannedSet = new Set<string>(
-    existingLock?.scanned_box_nos || []
-  );
+  // Aggregate sealed boxes across every outbound in the (possibly
+  // expanded) session.
+  const expandedOutboundIds = alreadyInSession
+    ? sessionOutboundIds
+    : [...sessionOutboundIds, ownerOutboundId];
+  const allBoxes = (
+    await Promise.all(
+      expandedOutboundIds.map((oid) => listSealedBoxesForOutbound(oid))
+    )
+  ).flat();
+  const allBoxNos = allBoxes.map((b) => b.box_no);
+  const scannedSet = new Set<string>(existingLock?.scanned_box_nos || []);
   const isFirstScan = !existingLock;
   scannedSet.add(args.box_no);
 
@@ -298,7 +354,10 @@ export async function scanBox(
     { _id: warehouseCode as any },
     {
       $set: {
-        outbound_id: ownerOutboundId,
+        // outbound_id mirrors outbound_ids[0] for legacy reads; new code
+        // should read outbound_ids[].
+        outbound_id: expandedOutboundIds[0],
+        outbound_ids: expandedOutboundIds,
         locked_by: staff,
         locked_at: existingLock?.locked_at || now,
         scanned_box_nos: [...scannedSet],
@@ -330,6 +389,11 @@ export async function scanBox(
       first_box_no: args.box_no,
       total_boxes: allBoxNos.length,
     });
+  } else if (!alreadyInSession) {
+    await writeWeighPalletizeAudit(staff, "palletize.extend_session", {
+      outbound_id: ownerOutboundId,
+      session_size: expandedOutboundIds.length,
+    });
   }
   await writeWeighPalletizeAudit(staff, "palletize.scan_box", {
     outbound_id: ownerOutboundId,
@@ -346,7 +410,8 @@ export async function scanBox(
 
   return {
     active_session: {
-      outbound_id: ownerOutboundId,
+      outbound_id: expandedOutboundIds[0]!,
+      outbound_ids: expandedOutboundIds,
       scanned: [...scannedSet],
       remaining,
       total: allBoxNos.length,
@@ -361,9 +426,10 @@ export async function scanBox(
 export async function completeSession(
   staff: string,
   warehouseCode: string,
-  args: { outbound_id: string }
+  args: { outbound_id?: string }
 ): Promise<{
   outbound_id: string;
+  outbound_ids: string[];
   status: string;
   same_client_hint: SameClientHintEntry[];
 }> {
@@ -374,83 +440,189 @@ export async function completeSession(
     .collection(SESSION_LOCKS)
     .findOne({ _id: warehouseCode as any });
   if (!lock) throw new ApiError("PACK_NO_ACTIVE_SESSION");
-  if (String(lock.outbound_id) !== args.outbound_id) {
+  // P19 — completeSession now resolves the WHOLE session: every outbound
+  // currently in lock.outbound_ids[] is palletize-completed in one shot.
+  // The optional args.outbound_id is kept for back-compat with older
+  // clients but only validated to belong to the session.
+  const sessionIds = lockOutboundIds(lock);
+  if (sessionIds.length === 0) throw new ApiError("PACK_NO_ACTIVE_SESSION");
+  if (args.outbound_id && !sessionIds.includes(args.outbound_id)) {
     throw new ApiError("PACK_PALLETIZE_WRONG_OUTBOUND", {
-      locked: String(lock.outbound_id),
+      locked: sessionIds[0]!,
       scanned: args.outbound_id,
     });
   }
 
-  const outbound = await getOutboundById(args.outbound_id);
-  if (!outbound) {
-    throw new ApiError("OUTBOUND_NOT_FOUND", { orderId: args.outbound_id });
-  }
-  if (outbound.status !== "weight_verified") {
-    throw new ApiError("PACK_OUTBOUND_NOT_WEIGHT_VERIFIED", {
-      orderId: args.outbound_id,
-      status: outbound.status,
-    });
-  }
-
-  const boxes = await listSealedBoxesForOutbound(args.outbound_id);
-  const scanned = new Set<string>(lock.scanned_box_nos || []);
-  const missing = boxes.filter((b) => !scanned.has(b.box_no));
-  if (missing.length > 0) {
-    throw new ApiError("PACK_PALLETIZE_INCOMPLETE", {
-      missing: missing.length,
-      total: boxes.length,
-    });
-  }
-
-  // Build denormalized boxes[] payload for the outbound.
-  const denormBoxes = boxes.map((b) => ({
-    box_no: b.box_no,
-    length: Number(b.length || 0),
-    width: Number(b.width || 0),
-    height: Number(b.height || 0),
-    weight: Number(b.weight || 0),
-    tracking_no: b.items?.[0]?.tracking_no ?? null,
-    sealed_at: b.sealed_at ?? null,
-  }));
-
-  const totalWeight =
-    Math.round(
-      boxes.reduce((s, b) => s + Number(b.weight || 0), 0) * 1000
-    ) / 1000;
-
-  await db.collection(OUTBOUNDS).updateOne(
-    { _id: args.outbound_id as any, status: "weight_verified" },
-    {
-      $set: {
-        status: "pending_client_label",
-        actual_weight_kg: totalWeight,
-        boxes: denormBoxes,
-        palletized_at: now,
-        updatedAt: now,
-        updatedBy: staff,
-      },
+  // Load + sanity-check every outbound in the session.
+  const outbounds: any[] = [];
+  for (const oid of sessionIds) {
+    const ob = await getOutboundById(oid);
+    if (!ob) {
+      throw new ApiError("OUTBOUND_NOT_FOUND", { orderId: oid });
     }
-  );
+    if (ob.status !== "weight_verified") {
+      throw new ApiError("PACK_OUTBOUND_NOT_WEIGHT_VERIFIED", {
+        orderId: oid,
+        status: ob.status,
+      });
+    }
+    outbounds.push(ob);
+  }
 
-  // Release lock
+  // Every sealed box across every session outbound must be scanned.
+  const scanned = new Set<string>(lock.scanned_box_nos || []);
+  const allBoxesByOutbound = new Map<string, PackBoxV1[]>();
+  let missingCount = 0;
+  let totalBoxes = 0;
+  for (const oid of sessionIds) {
+    const boxes = await listSealedBoxesForOutbound(oid);
+    allBoxesByOutbound.set(oid, boxes);
+    totalBoxes += boxes.length;
+    missingCount += boxes.filter((b) => !scanned.has(b.box_no)).length;
+  }
+  if (missingCount > 0) {
+    throw new ApiError("PACK_PALLETIZE_INCOMPLETE", {
+      missing: missingCount,
+      total: totalBoxes,
+    });
+  }
+
+  // Write the per-outbound denorm boxes[] + palletized_at marker for each
+  // outbound in the session. Done before the label fetch so the data is
+  // consistent even if the carrier API call fails.
+  for (const ob of outbounds) {
+    const boxes = allBoxesByOutbound.get(String(ob._id)) || [];
+    const denormBoxes = boxes.map((b) => ({
+      box_no: b.box_no,
+      length: Number(b.length || 0),
+      width: Number(b.width || 0),
+      height: Number(b.height || 0),
+      weight: Number(b.weight || 0),
+      tracking_no: b.items?.[0]?.tracking_no ?? null,
+      sealed_at: b.sealed_at ?? null,
+    }));
+    const totalWeight =
+      Math.round(
+        boxes.reduce((s, b) => s + Number(b.weight || 0), 0) * 1000
+      ) / 1000;
+    await db.collection(OUTBOUNDS).updateOne(
+      { _id: ob._id as any, status: "weight_verified" },
+      {
+        $set: {
+          actual_weight_kg: totalWeight,
+          boxes: denormBoxes,
+          palletized_at: now,
+          updatedAt: now,
+          updatedBy: staff,
+        },
+      }
+    );
+  }
+
+  // Release lock before triggering label fetch (the fetch can take a few
+  // hundred ms and we don't want to hold the warehouse-wide lock during
+  // an outbound network call).
   await db.collection(SESSION_LOCKS).deleteOne({ _id: warehouseCode as any });
 
   await writeWeighPalletizeAudit(staff, "palletize.complete", {
-    outbound_id: args.outbound_id,
-    box_count: boxes.length,
-    total_weight_kg: totalWeight,
+    outbound_ids: sessionIds,
+    box_count: totalBoxes,
   });
 
+  // P19 — single batch label fetch for the entire session. With the
+  // session-wide complete we have an explicit list, so we call
+  // autoBatchFetchLabels directly (no need for the implicit sibling sweep
+  // that P18 used when single-outbound completeSession could miss
+  // co-shipped outbounds).
+  let label_fetch_outcome: "obtained" | "batched" | "failed" = "failed";
+  let label_fetch_error: string | null = null;
+  const allAuto = outbounds.every(
+    (o: any) => o.processing_preference === "auto"
+  );
+  if (allAuto) {
+    try {
+      if (sessionIds.length > 1) {
+        await autoBatchFetchLabels(sessionIds);
+        label_fetch_outcome = "batched";
+      } else {
+        await fetchLabelMultiBox(sessionIds[0]!, "system", null);
+        label_fetch_outcome = "obtained";
+      }
+    } catch (err) {
+      label_fetch_error = (err as any)?.message ?? String(err);
+      console.error(
+        `[palletize.complete] label fetch failed for session ${sessionIds.join(",")}:`,
+        label_fetch_error
+      );
+    }
+  }
+
+  // Pull the final state across every outbound in the session for the
+  // response so the UI can render N rows of (status, tracking, label).
+  const finalDocs = await db
+    .collection(OUTBOUNDS)
+    .find({ _id: { $in: sessionIds as any } })
+    .toArray();
+  const finalById = new Map<string, any>(
+    finalDocs.map((d: any) => [String(d._id), d])
+  );
+  const allBoxRows = await db
+    .collection(collections.OUTBOUND_BOX)
+    .find({ outbound_id: { $in: sessionIds } })
+    .sort({ outbound_id: 1, box_no: 1 })
+    .toArray();
+  const boxRowsByOutbound = new Map<string, any[]>();
+  for (const b of allBoxRows as any[]) {
+    const arr = boxRowsByOutbound.get(String(b.outbound_id)) || [];
+    arr.push(b);
+    boxRowsByOutbound.set(String(b.outbound_id), arr);
+  }
+
+  // same_client_hint is keyed on the primary outbound for back-compat;
+  // siblings inside the session aren't surfaced as "next to do" because
+  // they're already done.
+  const primary = outbounds[0];
   const same_client_hint = await buildSameClientHint(
-    String(outbound.client_id),
-    args.outbound_id
+    String(primary.client_id),
+    String(primary._id)
   );
 
+  const outboundsPayload = sessionIds.map((oid) => {
+    const f = finalById.get(oid);
+    const rows = boxRowsByOutbound.get(oid) ?? [];
+    return {
+      outbound_id: oid,
+      status: f?.status ?? "label_obtained",
+      label_url: f?.label_url ?? null,
+      tracking_no: f?.tracking_no ?? null,
+      label_batch_id: f?.label_batch_id ?? null,
+      held_reason: f?.held_reason ?? null,
+      boxes: rows.map((b: any) => ({
+        outbound_id: oid,
+        box_no: b.box_no,
+        weight_actual: b.weight_actual ?? null,
+        dimensions: b.dimensions ?? null,
+        tracking_no_carrier: b.tracking_no_carrier ?? null,
+        label_pdf_path: b.label_pdf_path ?? null,
+      })),
+    };
+  });
+
   return {
-    outbound_id: args.outbound_id,
-    status: "pending_client_label",
+    // back-compat fields keyed on the primary
+    outbound_id: sessionIds[0]!,
+    outbound_ids: sessionIds,
+    status: outboundsPayload[0]?.status ?? "label_obtained",
+    label_url: outboundsPayload[0]?.label_url ?? null,
+    tracking_no: outboundsPayload[0]?.tracking_no ?? null,
+    label_batch_id: outboundsPayload[0]?.label_batch_id ?? null,
+    held_reason: outboundsPayload[0]?.held_reason ?? null,
+    boxes: outboundsPayload.flatMap((p) => p.boxes),
+    outbounds: outboundsPayload,
+    label_fetch_outcome,
+    label_fetch_error,
     same_client_hint,
-  };
+  } as any;
 }
 
 // ── Cancel session lock (keep scans) ────────────────────────

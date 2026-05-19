@@ -62,12 +62,27 @@ interface Outbound {
   updatedAt: string;
 }
 
-const CANCELLABLE = new Set(["held", "ready_for_label", "pending_client_label"]);
+// P17 — customer can cancel only BEFORE the warehouse touches the
+// outbound. Once it enters picking/weighing the cancellation surface is
+// removed entirely (CS handles exceptions from there on).
+const CANCELLABLE = new Set(["held", "ready_for_label"]);
+
+interface OutboundBox {
+  box_no: number;
+  dimensions: { length: number; width: number; height: number } | null;
+  weight_actual: number | null;
+  status: string | null;
+  label_pdf_path: string | null;
+  tracking_no_carrier: string | null;
+  label_obtained_at: string | null;
+  departed_at: string | null;
+}
 
 export const OutboundDetail = ({ outboundId }: { outboundId: string }) => {
   const t = useTranslations();
   const router = useRouter();
   const [doc, setDoc] = useState<Outbound | null>(null);
+  const [boxes, setBoxes] = useState<OutboundBox[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -81,7 +96,9 @@ export const OutboundDetail = ({ outboundId }: { outboundId: string }) => {
     const res = await http_request("GET", `/api/cms/outbound/${outboundId}`, {});
     const data = await res.json();
     if (data.status === 200) {
-      setDoc(data.data);
+      // P17 — endpoint now returns { outbound, boxes }
+      setDoc(data.data.outbound);
+      setBoxes(data.data.boxes ?? []);
     } else {
       setError(data.message ?? "load failed");
     }
@@ -265,6 +282,88 @@ export const OutboundDetail = ({ outboundId }: { outboundId: string }) => {
           </Row>
         </CardContent>
       </Card>
+
+      {/* P17 — per-box breakdown. Populated after warehouse weigh+
+          palletize; label PDF link appears once the warehouse fetches it. */}
+      {boxes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                {t("outbound_v1.detail.section_boxes", { count: boxes.length })}
+              </h2>
+              <span className="text-xs text-gray-500">
+                {t("outbound_v1.detail.boxes_intro")}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500">
+                <tr>
+                  <th className="text-left py-2 px-3 w-16">
+                    {t("outbound_v1.detail.box_no")}
+                  </th>
+                  <th className="text-left py-2 px-3">
+                    {t("outbound_v1.detail.box_dim")}
+                  </th>
+                  <th className="text-right py-2 px-3">
+                    {t("outbound_v1.detail.box_weight")}
+                  </th>
+                  <th className="text-left py-2 px-3">
+                    {t("outbound_v1.detail.box_status")}
+                  </th>
+                  <th className="text-left py-2 px-3">
+                    {t("outbound_v1.detail.box_tracking")}
+                  </th>
+                  <th className="text-right py-2 px-3 w-28">
+                    {t("outbound_v1.detail.box_label")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {boxes.map((b) => (
+                  <tr key={b.box_no} className="border-t">
+                    <td className="py-2 px-3 font-mono text-xs">#{b.box_no}</td>
+                    <td className="py-2 px-3 text-xs">
+                      {b.dimensions
+                        ? `${b.dimensions.length} × ${b.dimensions.width} × ${b.dimensions.height} cm`
+                        : "—"}
+                    </td>
+                    <td className="py-2 px-3 text-right text-xs">
+                      {b.weight_actual !== null
+                        ? `${b.weight_actual.toFixed(2)} kg`
+                        : "—"}
+                    </td>
+                    <td className="py-2 px-3 text-xs text-gray-600">
+                      {b.status ?? "—"}
+                    </td>
+                    <td className="py-2 px-3 font-mono text-xs">
+                      {b.tracking_no_carrier ?? "—"}
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      {b.label_pdf_path ? (
+                        <a
+                          href={b.label_pdf_path}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline text-xs"
+                        >
+                          {t("outbound_v1.detail.box_label_download")}
+                        </a>
+                      ) : (
+                        <span className="text-gray-400 text-xs">
+                          {t("outbound_v1.detail.box_label_pending")}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Rate breakdown */}
       {doc.rate_quote && (

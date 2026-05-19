@@ -1128,6 +1128,11 @@ export const InboundNewForm = ({ inboundId }: { inboundId?: string }) => {
                   {t("inbound_v1.new.managed_consign_picker_hint")}
                 </div>
               )}
+              {/* P17 — both managed_consign and single_direct authorise the
+                  warehouse to fetch the carrier label after weigh+palletize. */}
+              <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                {t("inbound_v1.new.warehouse_label_authorization")}
+              </div>
               <div className="grid gap-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Label className="text-xs text-gray-500 whitespace-nowrap">

@@ -231,7 +231,11 @@ export const CreateConsolidatedOutboundInputSchema = z
     carrier_account_id: z.string().nullable().optional(),
     service_code: z.string().optional(),
     receiver_address: ReceiverAddressSchema,
-    processing_preference: z.enum(OUTBOUND_PROCESSING_PREFERENCE),
+    // P17 — warehouse always auto-fetches the label. The schema only
+    // accepts "auto" from client requests; the "confirm_before_label"
+    // enum value is retained internally for legacy outbound rows and
+    // future admin/CS overrides.
+    processing_preference: z.literal("auto"),
     customer_remarks: z.string().max(500).optional(),
     // P10 — opt-out of cross-outbound consolidation (Phase B feature).
     disallow_consolidation: z.boolean().optional(),

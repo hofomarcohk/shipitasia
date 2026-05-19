@@ -1069,36 +1069,42 @@ export async function completeWeighing(
     console.error("pallet label mint failed:", err);
   }
 
-  // Branch: auto → trigger label immediately. confirm_before_label →
-  // status=pending_client_label + notification.
+  // Branch: auto → trigger label immediately. confirm_before_label only
+  // remains as a no-op fallback for legacy outbound rows (new outbounds
+  // are forced to "auto" by the zod schema in P17.1).
   let auto_label_triggered = false;
   if (ob.processing_preference === "auto") {
     try {
-      await fetchLabelMultiBox(outbound_id, "system", null);
+      // P17.5 — same-client + same-address + same-day siblings already at
+      // weight_verified get batched together so the customer sees one
+      // shipment grouping (and the carrier can be charged once for the
+      // pooled box count). When no sibling is ready, fall back to solo
+      // fetch — that's the common case for a single isolated outbound.
+      const siblings = await findLabelBatchSiblings(db, outbound_id);
+      if (siblings.length > 0) {
+        await autoBatchFetchLabels([outbound_id, ...siblings]);
+      } else {
+        await fetchLabelMultiBox(outbound_id, "system", null);
+      }
       auto_label_triggered = true;
     } catch (err) {
-      // fetchLabelMultiBox already moved status to held(label_failed_retry).
-      // Per spec, downgrade to pending_client_label so client can retry.
-      await db.collection(collections.OUTBOUND).updateOne(
-        { _id: outbound_id as any, status: "held" },
-        {
-          $set: {
-            status: "pending_client_label",
-            updatedAt: new Date(),
-          },
-        }
+      // P17 — failure stays at held(label_failed_retry) (set by
+      // fetchLabelMultiBox itself). CS retries via the admin retry-label
+      // endpoint and handles client communication out-of-band; we deliberately
+      // do NOT downgrade the status or notify the customer (the warehouse
+      // owns label fetching, so a fetch failure is an internal operational
+      // issue, not something the customer should be asked to fix).
+      console.error(
+        `[wmsFlow] label fetch failed for ${outbound_id}:`,
+        (err as any)?.message ?? err
       );
-      await createNotification({
-        client_id: ob.client_id,
-        type: "outbound_pending_client_label",
-        title: "出庫單需您手動確認",
-        body: `自動取運單失敗，請手動確認：${String((err as any)?.message ?? err)}`,
-        reference_type: "outbound",
-        reference_id: outbound_id,
-        action_url: `/zh-hk/outbound/${outbound_id}/confirm-label`,
-      });
     }
   } else {
+    // P17 — legacy `confirm_before_label` rows still exist but the OMS
+    // confirm-label surface is gone. We park them at pending_client_label
+    // so CS / admin can run the retry-label endpoint when ready; no
+    // customer-facing notification is emitted (the customer has no UI
+    // path to act on).
     await db.collection(collections.OUTBOUND).updateOne(
       { _id: outbound_id as any, status: "weight_verified" },
       {
@@ -1108,17 +1114,6 @@ export async function completeWeighing(
         },
       }
     );
-    await createNotification({
-      client_id: ob.client_id,
-      type: "outbound_pending_client_label",
-      title: "出庫單複重完成，請確認運單",
-      body: `出庫單 ${outbound_id} 共 ${boxes.length} 箱、實重 ${total_weight_actual.toFixed(
-        2
-      )}kg，請於 OMS 確認取運單。`,
-      reference_type: "outbound",
-      reference_id: outbound_id,
-      action_url: `/zh-hk/outbound/${outbound_id}/confirm-label`,
-    });
   }
 
   const after = await db
@@ -1846,8 +1841,25 @@ export async function listWeighableOutbounds(warehouseCode?: string) {
 
 export async function listLabelPrintableOutbounds(warehouseCode?: string) {
   const db = await connectToDatabase();
+  // P19 — 面單列印 page is the RETRY / 補單 surface only. Outbounds that
+  // already have a label (label_obtained / label_printed) belong on the
+  // depart page, not here. We list:
+  //   - pending_client_label : legacy + confirm_before_label fallback
+  //   - held(label_failed_retry / carrier_*) : P17 auto-fetch failures
   const filter: any = {
-    status: { $in: ["pending_client_label", "label_obtained", "label_printed"] },
+    $or: [
+      { status: "pending_client_label" },
+      {
+        status: "held",
+        held_reason: {
+          $in: [
+            "label_failed_retry",
+            "carrier_auth_failed",
+            "carrier_api_failed",
+          ],
+        },
+      },
+    ],
   };
   if (warehouseCode) filter.warehouseCode = warehouseCode;
   const docs = await db
@@ -2111,14 +2123,17 @@ export async function notifyClientPendingLabel(
       status: ob.status,
     });
   }
+  // P17 — legacy notification. The confirm-label page has been removed,
+  // so the URL no longer points at anything actionable; the body now
+  // mentions CS as the contact path. Kept as a no-op for legacy WMS
+  // calls; new outbounds never reach this notification.
   const { notification_id } = await createNotification({
     client_id: ob.client_id,
     type: "outbound_pending_client_label",
-    title: "倉庫提醒：請回 OMS 確認取運單",
-    body: `出庫單 ${outbound_id} 已完成秤重置板，倉庫人員提醒您回 OMS 確認並取運單，以便後續貼標出倉。`,
+    title: "倉庫提示：運單需 CS 協助處理",
+    body: `出庫單 ${outbound_id} 已完成秤重置板，但走的是舊版客人確認流程。如有疑問請聯絡客服協助處理。`,
     reference_type: "outbound",
     reference_id: outbound_id,
-    action_url: `/zh-hk/outbound/${outbound_id}/confirm-label`,
   });
   // Mock email — real send deferred to production.
   console.log(
@@ -2143,9 +2158,12 @@ export async function notifyClientPendingLabel(
 export async function departBox(ctx: StaffContext, box_no: string) {
   const db = await connectToDatabase();
   const now = new Date();
-  // Atomic claim: only the first scan transitions label_printed → departed.
+  // P20 — accept either label_obtained or label_printed. The separate
+  // "貼標完成" step was the legacy gate; with the new flow the depart
+  // staff prints labels at the depart page itself, so we allow the
+  // transition straight from label_obtained → departed.
   const claimRaw = await db.collection(collections.OUTBOUND_BOX).findOneAndUpdate(
-    { box_no, status: "label_printed" },
+    { box_no, status: { $in: ["label_obtained", "label_printed"] } },
     { $set: { status: "departed", departed_at: now, updatedAt: now } },
     { returnDocument: "after" }
   );
@@ -2184,8 +2202,14 @@ export async function departBox(ctx: StaffContext, box_no: string) {
     });
   let outbound_departed = false;
   if (remaining === 0) {
+    // P20 — outbound may sit at either label_obtained or label_printed
+    // when its last box departs (the 貼標 step is no longer mandatory),
+    // so accept both as the source state.
     const upd = await db.collection(collections.OUTBOUND).updateOne(
-      { _id: outbound_id as any, status: "label_printed" },
+      {
+        _id: outbound_id as any,
+        status: { $in: ["label_obtained", "label_printed"] },
+      },
       {
         $set: { status: "departed", departed_at: now, updatedAt: now },
       }
@@ -2213,7 +2237,7 @@ export async function departBox(ctx: StaffContext, box_no: string) {
         outbound_id,
         client_id: ob.client_id,
         action: "departed",
-        from_status: "label_printed",
+        from_status: ob.status ?? "label_obtained",
         to_status: "departed",
         actor_type: "wms_staff",
         actor_id: ctx.staff_id,
@@ -2309,12 +2333,17 @@ export async function listAllOutboundsForStaff(params: {
 
 export async function listDepartableOutbounds(warehouseCode?: string) {
   const db = await connectToDatabase();
-  const filter: any = { status: "label_printed" };
+  // P19 — happy-path landing for label-fetched outbounds. label_obtained
+  // are freshly fetched (need label + invoice print); label_printed are
+  // already on the cart waiting to ship.
+  const filter: any = {
+    status: { $in: ["label_obtained", "label_printed"] },
+  };
   if (warehouseCode) filter.warehouseCode = warehouseCode;
   const docs = await db
     .collection(collections.OUTBOUND)
     .find(filter)
-    .sort({ label_printed_at: 1 })
+    .sort({ label_obtained_at: 1, label_printed_at: 1 })
     .limit(100)
     .toArray();
   const ids = docs.map((d: any) => d._id);
@@ -2346,9 +2375,14 @@ export async function listDepartableOutbounds(warehouseCode?: string) {
  */
 export async function departOutboundAll(ctx: StaffContext, outbound_id: string) {
   const db = await connectToDatabase();
+  // P20 — depart accepts label_obtained too (no separate 貼標 step). Same
+  // relaxation as departBox.
   const pending = await db
     .collection(collections.OUTBOUND_BOX)
-    .find({ outbound_id, status: "label_printed" })
+    .find({
+      outbound_id,
+      status: { $in: ["label_obtained", "label_printed"] },
+    })
     .project({ box_no: 1 })
     .toArray();
   if (pending.length === 0) {
@@ -2365,6 +2399,120 @@ export async function departOutboundAll(ctx: StaffContext, outbound_id: string) 
     departed_count: results.length,
     outbound_departed: last?.outbound_departed === true,
   };
+}
+
+// P17.5 — sibling lookup for auto-batching label fetch. Returns outbound
+// IDs (excluding self) that the warehouse should fetch alongside this one.
+// Match criteria: same (client, warehouse, carrier, carrier_account,
+// destination_country, exact receiver address) on the SAME calendar day,
+// already at status=weight_verified. Both consolidated and single-direct
+// outbounds qualify — direct + managed forecasts often share an address
+// and the customer expects them to ship together.
+export async function findLabelBatchSiblings(
+  db: any,
+  outbound_id: string
+): Promise<string[]> {
+  const self = await db
+    .collection(collections.OUTBOUND)
+    .findOne({ _id: outbound_id as any });
+  if (!self) return [];
+  const r = self.receiver_address ?? {};
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start.getTime() + 86_400_000);
+  const docs = await db
+    .collection(collections.OUTBOUND)
+    .find({
+      _id: { $ne: outbound_id },
+      client_id: self.client_id,
+      warehouseCode: self.warehouseCode,
+      carrier_code: self.carrier_code,
+      carrier_account_id: self.carrier_account_id ?? null,
+      destination_country: self.destination_country,
+      status: "weight_verified",
+      createdAt: { $gte: start, $lt: end },
+      "receiver_address.name": r.name ?? null,
+      "receiver_address.phone": r.phone ?? null,
+      "receiver_address.address": r.address ?? null,
+      "receiver_address.city": r.city ?? null,
+      "receiver_address.country_code": r.country_code ?? null,
+    })
+    .project({ _id: 1 })
+    .toArray();
+  return docs.map((d: any) => String(d._id));
+}
+
+// P17.5 — fetch labels for a group of outbounds that the warehouse just
+// decided to batch. Each outbound is fetched via the existing per-outbound
+// flow (preserving its individual status transitions + per-box label
+// PDFs); a single label_batches doc links them so the customer + the
+// warehouse both see the grouping. Partial failure leaves succeeded
+// outbounds at label_obtained and failed ones at held(label_failed_retry)
+// — CS retries the failed ones via the admin retry-label endpoint.
+export async function autoBatchFetchLabels(outbound_ids: string[]) {
+  if (outbound_ids.length === 0) return;
+  if (outbound_ids.length === 1) {
+    await fetchLabelMultiBox(outbound_ids[0]!, "system", null);
+    return;
+  }
+  const db = await connectToDatabase();
+  const batch_id = await nextDailyId("BATCH");
+  const now = new Date();
+  const first = await db
+    .collection(collections.OUTBOUND)
+    .findOne({ _id: outbound_ids[0]! as any });
+  if (!first) {
+    await fetchLabelMultiBox(outbound_ids[0]!, "system", null);
+    return;
+  }
+  await db.collection(collections.LABEL_BATCH).insertOne({
+    _id: batch_id as any,
+    client_id: first.client_id,
+    warehouseCode: first.warehouseCode,
+    carrier_code: first.carrier_code,
+    destination_country: first.destination_country,
+    outbound_ids,
+    status: "obtaining",
+    requested_at: now,
+    obtained_at: null,
+    failed_at: null,
+    error_message: null,
+    source: "auto_warehouse",
+    createdAt: now,
+    updatedAt: now,
+  });
+  await db.collection(collections.OUTBOUND).updateMany(
+    { _id: { $in: outbound_ids } as any },
+    { $set: { label_batch_id: batch_id, updatedAt: now } }
+  );
+  let succeeded = 0;
+  let lastError: string | null = null;
+  for (const oid of outbound_ids) {
+    try {
+      await fetchLabelMultiBox(oid, "system", null);
+      succeeded++;
+    } catch (err) {
+      lastError = (err as any)?.message ?? String(err);
+      console.error(`[wmsFlow] batch fetch failed for ${oid}:`, lastError);
+    }
+  }
+  await db.collection(collections.LABEL_BATCH).updateOne(
+    { _id: batch_id as any },
+    {
+      $set: {
+        status:
+          succeeded === outbound_ids.length
+            ? "obtained"
+            : succeeded === 0
+            ? "failed"
+            : "partial",
+        obtained_at: succeeded > 0 ? new Date() : null,
+        failed_at: succeeded < outbound_ids.length ? new Date() : null,
+        error_message: lastError,
+        updatedAt: new Date(),
+      },
+    }
+  );
 }
 
 export const wmsFlow = {

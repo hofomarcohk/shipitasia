@@ -70,8 +70,17 @@ type PalletizeEntry = {
 
 type SameClientHint = { outbound_id: string; status: string };
 
-type ActiveSession = {
+type ActiveSessionOutbound = {
   outbound_id: string;
+  scanned_count: number;
+  total: number;
+};
+
+type ActiveSession = {
+  // back-compat primary (= outbound_ids[0])
+  outbound_id: string;
+  outbound_ids: string[];
+  outbounds: ActiveSessionOutbound[];
   client_id: string;
   client_code: string;
   client_name: string;
@@ -136,6 +145,46 @@ export function OperationsWeighPalletize() {
   });
   const [scan, setScan] = useState("");
   const [toast, setToast] = useState<Toast>(null);
+
+  // P18 — modal state for the in-flight + completed label fetch. Replaces
+  // the previous "complete → toast → leave it to 面單列印 page" flow.
+  type LabelBoxRow = {
+    outbound_id?: string;
+    box_no: string;
+    weight_actual: number | null;
+    dimensions: { length: number; width: number; height: number } | null;
+    tracking_no_carrier: string | null;
+    label_pdf_path: string | null;
+  };
+  type LabelResult =
+    | null
+    | { outbound_id: string; phase: "fetching" }
+    | {
+        outbound_id: string;
+        outbound_ids: string[];
+        phase: "ready";
+        status?: string;
+        label_url: string | null;
+        tracking_no: string | null;
+        label_batch_id: string | null;
+        boxes: LabelBoxRow[];
+        label_fetch_outcome?: "obtained" | "batched" | "failed";
+        label_fetch_error?: string | null;
+      }
+    | {
+        outbound_id: string;
+        outbound_ids: string[];
+        phase: "fetch_failed";
+        status?: string;
+        label_url: null;
+        tracking_no: null;
+        label_batch_id: null;
+        boxes: LabelBoxRow[];
+        label_fetch_outcome?: "failed";
+        label_fetch_error?: string | null;
+      }
+    | { outbound_id: string; phase: "error"; message: string };
+  const [labelResult, setLabelResult] = useState<LabelResult>(null);
 
   const toastTimer = useRef<any>(null);
   const scanInputRef = useRef<HTMLInputElement | null>(null);
@@ -333,18 +382,38 @@ export function OperationsWeighPalletize() {
   async function completePalletize() {
     if (!state.active_session) return;
     const oid = state.active_session.outbound_id;
+    setLabelResult({ outbound_id: oid, phase: "fetching" });
     const r = await apiJson(
       "POST",
       "/api/wms/outbound/weigh-palletize/complete",
       { outbound_id: oid }
     );
     if (!r.ok) {
+      setLabelResult({
+        outbound_id: oid,
+        phase: "error",
+        message: r.message || "完成置板失敗",
+      });
       showToast("err", r.message || "完成置板失敗");
       return;
     }
+    // P18 — completeSession now returns the fetched label inline. Show it
+    // in the modal so staff can print without leaving the page; the
+    // legacy 面單列印 page is only for retries / failures.
+    setLabelResult({
+      outbound_id: oid,
+      outbound_ids: r.data?.outbound_ids ?? [oid],
+      phase: r.data?.label_fetch_outcome === "failed" ? "fetch_failed" : "ready",
+      status: r.data?.status,
+      label_url: r.data?.label_url ?? null,
+      tracking_no: r.data?.tracking_no ?? null,
+      label_batch_id: r.data?.label_batch_id ?? null,
+      boxes: r.data?.boxes ?? [],
+      label_fetch_outcome: r.data?.label_fetch_outcome,
+      label_fetch_error: r.data?.label_fetch_error ?? null,
+    });
     showToast("ok", `${oid} 已完成置板`);
     await refresh();
-    setTimeout(() => scanInputRef.current?.focus(), 50);
   }
 
   async function cancelSession() {
@@ -373,6 +442,148 @@ export function OperationsWeighPalletize() {
 
   return (
     <div className="flex flex-col" style={{ minHeight: 560 }}>
+      {/* P18 — inline label-fetch modal. Opens at 完成置板 and shows the
+          fetching loader → result (label PDF + tracking#) or retry path. */}
+      {labelResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-xl rounded-lg bg-white shadow-lg">
+            <div className="border-b px-5 py-3 flex items-center justify-between">
+              <div className="font-semibold">
+                {labelResult.outbound_id}
+              </div>
+              {labelResult.phase !== "fetching" && (
+                <button
+                  className="text-gray-500 hover:text-gray-800"
+                  onClick={() => setLabelResult(null)}
+                >
+                  <IconX size={16} />
+                </button>
+              )}
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm">
+              {labelResult.phase === "fetching" && (
+                <div className="py-6 text-center">
+                  <div className="inline-block animate-spin border-2 border-gray-300 border-t-gray-800 rounded-full w-6 h-6 mb-3" />
+                  <div>正在向 carrier 提取運單 ...</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    請勿關閉此頁
+                  </div>
+                </div>
+              )}
+              {labelResult.phase === "ready" && (
+                <>
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
+                    ✅ 運單提取成功
+                    {labelResult.label_batch_id && (
+                      <span className="ml-2 text-xs">
+                        · 合併批號{" "}
+                        <span className="font-mono">
+                          {labelResult.label_batch_id}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                  {labelResult.tracking_no && (
+                    <div>
+                      <span className="text-gray-500">Tracking#</span>{" "}
+                      <span className="font-mono">
+                        {labelResult.tracking_no}
+                      </span>
+                    </div>
+                  )}
+                  {labelResult.boxes.length > 0 && (
+                    <table className="w-full text-xs border-t">
+                      <thead className="text-gray-500">
+                        <tr>
+                          <th className="text-left py-1">箱號</th>
+                          <th className="text-left py-1">Tracking#</th>
+                          <th className="text-right py-1">運單</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {labelResult.boxes.map((b) => (
+                          <tr key={b.box_no} className="border-t">
+                            <td className="py-1 font-mono">{b.box_no}</td>
+                            <td className="py-1 font-mono">
+                              {b.tracking_no_carrier ?? "—"}
+                            </td>
+                            <td className="py-1 text-right">
+                              {b.label_pdf_path ? (
+                                <a
+                                  href={b.label_pdf_path}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 underline"
+                                >
+                                  下載/列印
+                                </a>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </>
+              )}
+              {labelResult.phase === "fetch_failed" && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+                  ⚠️ 完成置板成功，但 carrier 取單失敗，CS 會接手處理：
+                  <div className="text-xs mt-1 font-mono break-all">
+                    {labelResult.label_fetch_error ?? "(unknown error)"}
+                  </div>
+                  <div className="text-xs mt-2">
+                    可改去「面單列印（補單頁面）」用 admin retry-label 重試。
+                  </div>
+                </div>
+              )}
+              {labelResult.phase === "error" && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-800">
+                  完成置板失敗：
+                  <div className="text-xs mt-1">{labelResult.message}</div>
+                </div>
+              )}
+            </div>
+            {labelResult.phase !== "fetching" && (
+              <div className="flex justify-end gap-2 border-t px-5 py-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setLabelResult(null)}
+                >
+                  關閉
+                </Button>
+                {labelResult.phase === "ready" &&
+                  labelResult.boxes.length > 0 && (
+                    <a
+                      href={`/api/wms/outbound/labels-bundle?outbound_ids=${encodeURIComponent(
+                        labelResult.outbound_ids.join(",")
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="outline">
+                        列印全部（{labelResult.boxes.length} 張）
+                      </Button>
+                    </a>
+                  )}
+                {labelResult.phase === "ready" && (
+                  <a href="/zh-hk/wms/operations/depart">
+                    <Button>前往離倉 →</Button>
+                  </a>
+                )}
+                {labelResult.phase === "fetch_failed" && (
+                  <a href="/zh-hk/wms/operations/label-print">
+                    <Button variant="secondary">面單列印 / 補單 →</Button>
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Tab strip ───────────────────────────────────── */}
       <div className="flex items-center justify-between border-b bg-white sticky top-0 z-10">
         <div className="flex">
@@ -705,11 +916,32 @@ function PalletizeTab({
               <div>
                 <div className="text-[11px] text-gray-500 uppercase tracking-wide font-mono">
                   進行中
+                  {session.outbound_ids.length > 1 && (
+                    <span className="ml-2 text-blue-700">
+                      · 合單置板 ({session.outbound_ids.length} 張)
+                    </span>
+                  )}
                 </div>
-                <div className="text-lg font-mono font-bold">
-                  {session.outbound_id}
-                </div>
-                <div className="text-xs text-gray-700">
+                {session.outbounds.length > 0 ? (
+                  <div className="mt-1 space-y-0.5">
+                    {session.outbounds.map((o) => (
+                      <div
+                        key={o.outbound_id}
+                        className="font-mono text-sm flex items-center gap-2"
+                      >
+                        <span className="font-bold">{o.outbound_id}</span>
+                        <span className="text-xs text-gray-500">
+                          ({o.scanned_count}/{o.total})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-lg font-mono font-bold">
+                    {session.outbound_id}
+                  </div>
+                )}
+                <div className="text-xs text-gray-700 mt-1">
                   {session.client_name}{" "}
                   <span className="text-gray-400">· {session.client_code}</span>
                 </div>
@@ -719,7 +951,7 @@ function PalletizeTab({
                   {session.scanned_box_nos.length}
                   <span className="text-base text-gray-500"> / {session.total}</span>
                 </div>
-                <div className="text-[10px] text-gray-500">進度</div>
+                <div className="text-[10px] text-gray-500">箱數進度</div>
               </div>
             </div>
             {session.same_client_hint.length > 0 && (
@@ -766,7 +998,9 @@ function PalletizeTab({
                 className="flex-1"
               >
                 <IconCheck size={14} className="mr-1" />
-                完成置板
+                {session.outbound_ids.length > 1
+                  ? `完成置板（${session.outbound_ids.length} 張 / ${session.total} 箱）`
+                  : `完成置板（${session.total} 箱）`}
               </Button>
               <Button variant="outline" onClick={cancelSession}>
                 <IconX size={14} className="mr-1" />
