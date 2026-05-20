@@ -37,6 +37,21 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* ShipItAsia brand */
+    --brand: 207 60% 60%;
+    --brand-strong: 207 51% 53%;
+    --brand-soft: 207 71% 95%;
+
+    /* Shipment status chip colors */
+    --chip-warn-bg: 45 96% 89%;
+    --chip-warn-fg: 28 76% 31%;
+    --chip-ok-bg: 152 76% 84%;
+    --chip-ok-fg: 158 84% 20%;
+    --chip-info-bg: 213 94% 87%;
+    --chip-info-fg: 224 71% 37%;
+    --chip-idle-bg: 240 5% 96%;
+    --chip-idle-fg: 240 5% 34%;
   }
 
   .dark {

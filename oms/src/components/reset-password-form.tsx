@@ -54,7 +54,7 @@ export const ResetPasswordForm = () => {
       const data = await res.json();
       if (res.ok && data.status === 200) {
         setSuccess(true);
-        setTimeout(() => router.push("/zh-hk/inbound/list"), 1200);
+        setTimeout(() => router.push("/zh-hk/shipments"), 1200);
         return;
       }
       if (Array.isArray(data.data)) {

@@ -1596,5 +1596,203 @@
     "tab_pack": "Pack",
     "tab_weigh_palletize": "Weigh",
     "tab_depart": "Depart"
+  },
+  "shipments": {
+    "title": "Shipments",
+    "new": "New Shipment",
+    "summary": "{count} in transit",
+    "newButton": "+ New Shipment",
+    "exportCsv": "Export CSV",
+    "search": "Search tracking / item / recipient…",
+    "filter": "Filter",
+    "dateRange": "Date range",
+    "stages": {
+      "waiting_inbound": "Awaiting inbound",
+      "arrived": "Shelved",
+      "waiting_consolidate": "Awaiting consolidate",
+      "consolidated": "Consolidated",
+      "waiting_dispatch": "Awaiting dispatch",
+      "dispatched": "Dispatched"
+    },
+    "substates": {
+      "all": "All",
+      "not_arrived": "Not arrived",
+      "arrived": "Arrived",
+      "not_picked": "Unpicked",
+      "picked": "Picked",
+      "weighed": "Weighed",
+      "awaiting_label": "Awaiting label",
+      "label_generated": "Label generated",
+      "none": "No sub-status"
+    },
+    "columns": {
+      "tracking_no": "Tracking No.",
+      "items": "Items",
+      "sub_status": "Sub-status",
+      "recipient": "Recipient",
+      "carrier": "Carrier",
+      "created_at": "Created",
+      "actions": "Actions"
+    },
+    "row_actions": {
+      "detail": "Detail",
+      "merge_view": "Merge view"
+    },
+    "detail": {
+      "print_label": "Print label",
+      "edit_recipient": "Edit recipient",
+      "view_dispatch": "View dispatch",
+      "basic": "Basic info",
+      "flow": "Shipment flow"
+    }
+  },
+  "new_shipment": {
+    "title": "New Shipment",
+    "subtitle": "Happy path: managed + saved address + saved items = 3 steps",
+    "cancel": "Cancel",
+    "submit": "Submit shipment",
+    "section1": {
+      "title": "Package info",
+      "warehouse": "Warehouse",
+      "inbound_carrier": "Inbound carrier",
+      "tracking_no": "Tracking number",
+      "volume": "Volume estimate",
+      "advanced": "Advanced (declaration · liquid · battery)"
+    },
+    "section2": {
+      "title": "Declared items",
+      "add_item": "+ Add item",
+      "pick_saved": "Pick from saved items"
+    },
+    "section3": {
+      "title": "Shipping method",
+      "managed": "Managed shipping",
+      "managed_desc": "Warehouse auto-consolidates within 3 working days; same client + address + carrier auto-merges.",
+      "direct": "Direct 1:1",
+      "direct_desc": "Ship immediately on arrival, no waiting.",
+      "recommended": "Recommended",
+      "manual_toggle": "I want manual consolidation (fallback, not recommended)"
+    },
+    "section4": {
+      "title": "Recipient & Carrier",
+      "hint": "Managed mode requires saved address",
+      "recipient": "Recipient",
+      "carrier": "Carrier account",
+      "manage_addresses": "Manage saved addresses",
+      "link_carrier": "Link carrier account"
+    },
+    "section5": {
+      "title": "Remarks",
+      "optional": "Optional"
+    },
+    "summary": {
+      "title": "Shipment summary",
+      "consolidate_label": "{count} pending shipment(s) match",
+      "consolidate_body": "Same recipient + carrier has {count} shipment(s) awaiting consolidation. This one will auto-join the group (fastest 3 working days).",
+      "footer": "After submission, warehouse will consolidate and fetch the label; freight is charged to the selected carrier account."
+    }
+  },
+  "oms_sidebar": {
+    "new_shipment": "+ New Shipment",
+    "shipments": "Shipments",
+    "settings": "Settings",
+    "addresses": "Saved addresses",
+    "saved_items": "Saved items",
+    "carrier_accounts": "Carrier accounts",
+    "invoices": "Invoices",
+    "wallet": "Wallet balance",
+    "topup": "+ Top up",
+    "account": "Account",
+    "logout": "Sign out",
+    "low_balance": "Low balance — top up before submitting"
+  },
+  "stages": {
+    "waitingInbound": "Awaiting inbound",
+    "shelved": "Shelved",
+    "waitingConsolidate": "Awaiting consolidate",
+    "consolidated": "Consolidated",
+    "waitingDispatch": "Awaiting dispatch",
+    "dispatched": "Dispatched",
+    "totalFlow": "{count} in transit"
+  },
+  "stageHints": {
+    "waitingInbound": "Forecasted inbound; you can change shipping method or cancel.",
+    "shelved": "Client intervention: managed groups or pending-manual outbounds.",
+    "waitingConsolidate": "Outbound created, warehouse picking (no client action).",
+    "consolidated": "Consolidated · awaiting weigh / label (no client action).",
+    "waitingDispatch": "Labels ready · awaiting carrier pickup (no client action).",
+    "dispatched": "Completed overview (last 30 days)."
+  },
+  "methods": {
+    "managed": "Managed",
+    "direct": "Direct 1:1",
+    "manual": "Manual"
+  },
+  "stage1": {
+    "actions": {
+      "edit": "Edit shipment",
+      "changeToManaged": "Change to Managed",
+      "changeToDirect": "Change to Direct",
+      "changeToManual": "Change to Manual",
+      "cancel": "Cancel shipment"
+    },
+    "confirmChangeMethod": {
+      "title": "Change shipping method?",
+      "managedSideEffect": "Changing to Managed will detach the existing consolidation group and re-match.",
+      "manualSideEffect": "After Manual, you need to pick items and create outbound manually once shelved.",
+      "directSideEffect": "After Direct, item ships 1:1 on arrival, no merging."
+    },
+    "confirmCancel": {
+      "title": "Are you sure to cancel?",
+      "body": "Once cancelled, the package will be treated as orphaned on arrival at the JP warehouse and require support handling.",
+      "confirm": "Confirm cancel",
+      "back": "Don't cancel"
+    },
+    "bulk": {
+      "selected": "{count} selected",
+      "changeMethod": "Bulk change method",
+      "cancel": "Bulk cancel"
+    },
+    "lockedHint": "Item arrived — cannot change shipping method anymore"
+  },
+  "stage2": {
+    "groupSubtitle": "Managed consolidation group",
+    "groupProgress": "{shelved}/{total} shelved",
+    "notArrivedHint": "{count} not yet arrived",
+    "oldestArrival": "Oldest arrival {date}",
+    "slaUrgent": "Auto-release {date} · 1 working day left",
+    "slaNormal": "Auto-release {date}",
+    "slaIdle": "SLA starts after all items received",
+    "actions": {
+      "viewDetail": "View detail",
+      "releaseAll": "Release whole group",
+      "releasePartial": "Don't wait · ship {count} now",
+      "releaseSubset": "Release selected",
+      "detachAll": "Detach (selected)",
+      "rowReleaseOne": "Release this one",
+      "rowDetach": "Detach to manual"
+    },
+    "manualSection": {
+      "title": "Pending manual outbound",
+      "subtitle": "These shelved items aren't in a managed group — pick items and create an outbound.",
+      "createOutbound": "Create outbound"
+    }
+  },
+  "stage4_5": {
+    "boxLabel": "Box {id}",
+    "boxMeta": "{dim} · {weight} · {count} items",
+    "tracking": "Tracking",
+    "copyTracking": "Copy tracking",
+    "openCarrierPage": "Open carrier page",
+    "totalSummary": "Total {weight} · {count} boxes",
+    "pickupAt": "Pickup {time}"
+  },
+  "newShipmentDialog": {
+    "title": "New Shipment",
+    "subtitle": "Happy path: Managed + saved address + saved items = 3 steps",
+    "saveDraft": "Save draft",
+    "submit": "Submit shipment",
+    "cancel": "Cancel",
+    "footerNote": "After submission, warehouse will consolidate and fetch labels; freight billed to the selected carrier account."
   }
 }

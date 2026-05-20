@@ -32,7 +32,7 @@ export const LoginForm = () => {
 
       const data = await response.json();
       if (response.ok && data.status === 200) {
-        router.push(`./inbound/list`);
+        router.push(`./shipments`);
         return;
       }
       setError(data.message || "Login failed");

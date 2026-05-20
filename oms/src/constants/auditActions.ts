@@ -51,6 +51,8 @@ export const AUDIT_ACTIONS = {
   inbound_created: "inbound_created",
   inbound_updated: "inbound_updated",
   inbound_cancelled: "inbound_cancelled",
+  inbound_detached_to_manual: "inbound_detached_to_manual",
+  inbound_shipping_mode_changed: "inbound_shipping_mode_changed",
   inbound_abandoned_by_client: "inbound_abandoned_by_client",
   inbound_abandoned_by_admin: "inbound_abandoned_by_admin",
   admin_inbound_created_for_client: "admin_inbound_created_for_client",

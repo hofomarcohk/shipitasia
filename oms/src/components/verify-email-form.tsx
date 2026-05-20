@@ -38,7 +38,7 @@ export const VerifyEmailForm = () => {
         if (res.ok && data.status === 200) {
           setStatus("success");
           // Cookie has been set by the middleware; redirect to home flow.
-          setTimeout(() => router.push("/zh-hk/inbound/list"), 1200);
+          setTimeout(() => router.push("/zh-hk/shipments"), 1200);
           return;
         }
         if (data.sys_code === "1000017") {

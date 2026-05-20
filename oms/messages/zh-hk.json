@@ -1713,5 +1713,203 @@
     "save_to_library_done": "✓ 已儲入品項庫",
     "sync_to_library_btn": "⟲ 更新預設",
     "sync_to_library_done": "✓ 已同步"
+  },
+  "shipments": {
+    "title": "貨件總覽",
+    "new": "新增預報",
+    "summary": "共 {count} 件流轉中",
+    "newButton": "＋ 新增預報",
+    "exportCsv": "匯出 CSV",
+    "search": "搜尋追蹤號 / 品項 / 收件人…",
+    "filter": "篩選",
+    "dateRange": "時間範圍",
+    "stages": {
+      "waiting_inbound": "等待入庫",
+      "arrived": "已上架",
+      "waiting_consolidate": "等待併箱",
+      "consolidated": "已集箱",
+      "waiting_dispatch": "待出倉",
+      "dispatched": "已出倉"
+    },
+    "substates": {
+      "all": "全部",
+      "not_arrived": "未到倉",
+      "arrived": "已到倉",
+      "not_picked": "未揀貨",
+      "picked": "已揀貨",
+      "weighed": "已秤重",
+      "awaiting_label": "等待運單生成",
+      "label_generated": "已生成運單",
+      "none": "無子狀態"
+    },
+    "columns": {
+      "tracking_no": "追蹤號",
+      "items": "品項摘要",
+      "sub_status": "子狀態",
+      "recipient": "收件人",
+      "carrier": "Carrier",
+      "created_at": "建立時間",
+      "actions": "操作"
+    },
+    "row_actions": {
+      "detail": "詳情",
+      "merge_view": "合併查看"
+    },
+    "detail": {
+      "print_label": "列印標籤",
+      "edit_recipient": "編輯收件人",
+      "view_dispatch": "查看出庫單",
+      "basic": "基本資料",
+      "flow": "貨件流轉"
+    }
+  },
+  "new_shipment": {
+    "title": "新增預報",
+    "subtitle": "happy path：託管 + 已儲存收件人 + 已儲存品項 = 3 步",
+    "cancel": "取消",
+    "submit": "提交預報",
+    "section1": {
+      "title": "包裹資訊",
+      "warehouse": "收貨倉庫",
+      "inbound_carrier": "入庫快遞",
+      "tracking_no": "貨物追蹤號",
+      "volume": "體積估算",
+      "advanced": "進階屬性（申報類型・含液體・含電池）"
+    },
+    "section2": {
+      "title": "申報品項",
+      "add_item": "＋ 新增品項",
+      "pick_saved": "從已儲存品項揀"
+    },
+    "section3": {
+      "title": "寄送方式",
+      "managed": "託管寄送",
+      "managed_desc": "3 工作天內倉庫自動合單；同 client + 同地址 + 同 carrier 嘅貨件自動併箱。",
+      "direct": "單一直送",
+      "direct_desc": "到貨即時 1:1 出庫；唔等其他包裹。",
+      "recommended": "推薦",
+      "manual_toggle": "我要手動併貨（fallback，唔推薦）"
+    },
+    "section4": {
+      "title": "收件人 & Carrier",
+      "hint": "託管模式必須揀已儲存地址",
+      "recipient": "收件人",
+      "carrier": "Carrier 帳號",
+      "manage_addresses": "管理常用地址",
+      "link_carrier": "連結 Carrier 帳號"
+    },
+    "section5": {
+      "title": "備註",
+      "optional": "選填"
+    },
+    "summary": {
+      "title": "預報摘要",
+      "consolidate_label": "已偵測同組待併 {count} 件",
+      "consolidate_body": "同收件人 + Carrier 嘅貨已有 {count} 件「等待併箱」。提交後將自動加入呢個併箱組（最快 3 工作天出貨）。",
+      "footer": "提交後倉庫將代為集箱及代取運單；運費由所選 Carrier 帳號扣除。"
+    }
+  },
+  "oms_sidebar": {
+    "new_shipment": "＋ 新增預報",
+    "shipments": "貨件總覽",
+    "settings": "設定",
+    "addresses": "常用地址",
+    "saved_items": "已儲存品項",
+    "carrier_accounts": "Carrier 帳號",
+    "invoices": "發票",
+    "wallet": "錢包餘額",
+    "topup": "＋ 增值",
+    "account": "帳號",
+    "logout": "登出",
+    "low_balance": "餘額不足，預報前請先增值"
+  },
+  "stages": {
+    "waitingInbound": "等待入庫",
+    "shelved": "已上架",
+    "waitingConsolidate": "等待併箱",
+    "consolidated": "已集箱",
+    "waitingDispatch": "待出倉",
+    "dispatched": "已出倉",
+    "totalFlow": "共 {count} 件流轉中"
+  },
+  "stageHints": {
+    "waitingInbound": "已預報入庫單；可改寄送方式或取消預報",
+    "shelved": "客戶介入點：託管中 group 或 待手動建單",
+    "waitingConsolidate": "已生成出庫單，倉庫揀貨中（無客戶介入）",
+    "consolidated": "集箱完成 · 等秤重 / 運單（無客戶介入）",
+    "waitingDispatch": "運單已生成 · 等貨運攬收（無客戶介入）",
+    "dispatched": "已完成總覽（近 30 天）"
+  },
+  "methods": {
+    "managed": "託管寄送",
+    "direct": "單一直送",
+    "manual": "手動併貨"
+  },
+  "stage1": {
+    "actions": {
+      "edit": "編輯預報",
+      "changeToManaged": "改為託管寄送",
+      "changeToDirect": "改為單一直送",
+      "changeToManual": "改為手動併貨",
+      "cancel": "取消預報"
+    },
+    "confirmChangeMethod": {
+      "title": "改寄送方式？",
+      "managedSideEffect": "改為託管寄送會 detach 現有併箱組並重新配對。",
+      "manualSideEffect": "改為手動併貨後，貨上架後需要你自行揀件建單。",
+      "directSideEffect": "改為單一直送後，到貨即時 1:1 出庫，不與其他包裹合併。"
+    },
+    "confirmCancel": {
+      "title": "確定要取消預報？",
+      "body": "取消後，貨到日本倉時將被列入無頭件，需要由客服協助處理。",
+      "confirm": "確定取消",
+      "back": "不取消"
+    },
+    "bulk": {
+      "selected": "已選 {count} 件",
+      "changeMethod": "批量改寄送方式",
+      "cancel": "批量取消預報"
+    },
+    "lockedHint": "貨已到倉，無法再改寄送方式"
+  },
+  "stage2": {
+    "groupSubtitle": "託管併箱組",
+    "groupProgress": "{shelved}/{total} 已上架",
+    "notArrivedHint": "{count} 件未到倉",
+    "oldestArrival": "最早到貨 {date}",
+    "slaUrgent": "預計 {date} 自動出貨 · 還剩 1 工作天",
+    "slaNormal": "預計 {date} 自動出貨",
+    "slaIdle": "SLA 需等齊收貨才起算",
+    "actions": {
+      "viewDetail": "查看詳情",
+      "releaseAll": "整組立即出貨",
+      "releasePartial": "不等了 · 現有 {count} 件出貨",
+      "releaseSubset": "選中立即出貨",
+      "detachAll": "解除自動（所選）",
+      "rowReleaseOne": "立即出貨此件",
+      "rowDetach": "解除自動，改為手動"
+    },
+    "manualSection": {
+      "title": "待手動建單",
+      "subtitle": "這些貨件上架後未加入託管組，需要你揀件建出庫單。",
+      "createOutbound": "建立出庫單"
+    }
+  },
+  "stage4_5": {
+    "boxLabel": "箱 {id}",
+    "boxMeta": "{dim} · {weight} · {count} 件",
+    "tracking": "運單號",
+    "copyTracking": "複製運單號",
+    "openCarrierPage": "開 carrier 追蹤頁",
+    "totalSummary": "合計 {weight} · {count} 箱",
+    "pickupAt": "攬收 {time}"
+  },
+  "newShipmentDialog": {
+    "title": "新增預報",
+    "subtitle": "Happy path：託管 + 已儲存收件人 + 已儲存品項 = 3 步",
+    "saveDraft": "儲存草稿",
+    "submit": "提交預報",
+    "cancel": "取消",
+    "footerNote": "提交後倉庫將代為集箱及代取運單；運費由所選 Carrier 帳號扣除。"
   }
 }

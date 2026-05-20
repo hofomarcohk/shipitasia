@@ -61,7 +61,7 @@ export default async function Page() {
           </div>
           <div>
             {isLogin ? (
-              <Link href={`/home`}>
+              <Link href={`/shipments`}>
                 <Button className="text-white bg-transparent border border-white w-[150px] hover:bg-white/50">
                   {t("index.startUse")}
                 </Button>
