@@ -234,3 +234,18 @@ h2 {
 .lang-zh_cn {
   font-family: "Noto Sans SC", sans-serif;
 }
+/* ──────────────────────────────────────────────────────────────
+ * P17 — WMS redesign global accent vars + Geist font import.
+ * The NextCTA pulse animation reads --cta-accent-* at runtime so
+ * the same component can adopt a different accent (e.g. amber for
+ * urgent vs. brand for ready) without re-declaring the keyframe.
+ * ────────────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
+
+:root {
+  --cta-accent: #5887c4;
+  --cta-accent-50: rgba(88, 135, 196, 0.45);
+  --cta-accent-40: rgba(88, 135, 196, 0.35);
+  --cta-accent-30: rgba(88, 135, 196, 0.25);
+  --cta-accent-00: rgba(88, 135, 196, 0);
+}

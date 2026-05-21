@@ -388,6 +388,16 @@ function CmsSidebar({
                       isActive: boolean;
                     }) => {
                       const count = sub.name ? badges[sub.name] ?? 0 : 0;
+                      // P17 — menu names that should render their count
+                      // chip in red (urgent attention). Driven by name
+                      // rather than a DB flag so the migration stays
+                      // simple; expand the set as new urgent surfaces land.
+                      const URGENT_NAMES = new Set([
+                        "ops_unclaimed",
+                        "ops_abandoned",
+                      ]);
+                      const isUrgent =
+                        !!sub.name && URGENT_NAMES.has(sub.name) && count > 0;
                       return (
                         <SidebarMenuItem key={sub.title} title={t(sub.title)}>
                           <Link href={sub.url}>
@@ -400,7 +410,14 @@ function CmsSidebar({
                                 {t(sub.title)}
                               </span>
                               {count > 0 && (
-                                <span className="ml-auto inline-flex items-center justify-center text-[10px] leading-none min-w-[18px] h-[18px] px-1 rounded-full bg-black text-white font-medium">
+                                <span
+                                  className={
+                                    "ml-auto inline-flex items-center justify-center text-[10px] leading-none min-w-[18px] h-[18px] px-1 rounded-full font-medium " +
+                                    (isUrgent
+                                      ? "bg-wms-danger-bg text-wms-danger-fg"
+                                      : "bg-wms-surface-alt text-wms-muted border border-wms-border")
+                                  }
+                                >
                                   {count > 99 ? "99+" : count}
                                 </span>
                               )}
