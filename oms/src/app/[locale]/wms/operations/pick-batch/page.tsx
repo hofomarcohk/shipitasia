@@ -1,16 +1,10 @@
-"use client";
+// P17 — Pick page rebuilt to handoff #pick spec.
+//
+// Old component (OperationsPickBatchList) is kept available for tests
+// + the legacy admin route — this page is the new staff surface.
 
-import PageLayout from "@/components/page-layout";
-import { OperationsPickBatchList } from "@/components/wms/operations-pick-batch-list";
+import { PickPageClient } from "@/components/wms-redesign/pages/pick-page";
 
 export default function Page() {
-  return (
-    <PageLayout
-      title="wms_ops.pick_batch.page_title"
-      description="wms_ops.pick_batch.page_subtitle"
-      path={[{ name: "wms_ops.pick_batch.page_title", href: "#" }]}
-    >
-      <OperationsPickBatchList />
-    </PageLayout>
-  );
+  return <PickPageClient />;
 }
