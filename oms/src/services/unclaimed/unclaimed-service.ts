@@ -275,6 +275,13 @@ export async function matchExistingInbound(unclaimed_id: string) {
     .limit(5)
     .toArray();
 
+  // P17 — minimum-viable 信心分. Exact tracking match → 100. Future
+  // enhancement layers sender-name fuzzy match + SKU/category overlap
+  // + carrier-code hit; deferred until CS uses the panel often enough
+  // to justify the heuristics. Reasons string keeps the audit trail
+  // human-readable for the CS panel.
+  const CONFIDENCE_TRACKING_EXACT = 100;
+
   return {
     matched: candidates.length > 0,
     candidates: candidates.map((c: any) => ({
@@ -285,6 +292,8 @@ export async function matchExistingInbound(unclaimed_id: string) {
       shipping_mode: c.shipping_mode,
       declared_items_count: c.declared_items_count,
       createdAt: c.createdAt,
+      confidence_score: CONFIDENCE_TRACKING_EXACT,
+      confidence_reasons: ["tracking_no_exact_match"],
     })),
   };
 }

@@ -136,4 +136,20 @@ export const SCAN_ERROR = {
     zh_hk: "此倉庫已有相同庫位編碼",
     zh_cn: "此仓库已有相同库位编码",
   },
+  INBOUND_DUPLICATED: {
+    status: 400,
+    sys_code: "1500018",
+    message: "Same tracking already in active inbound at this warehouse",
+    en: "Same tracking already in active inbound at this warehouse",
+    zh_hk: "此追蹤號已喺今倉庫有未完成嘅入庫紀錄",
+    zh_cn: "此追踪号已在此仓库有未完成的入库纪录",
+  },
+  YT_TRACKING_REQUIRED: {
+    status: 400,
+    sys_code: "1500019",
+    message: "Tracking number does not match YT prefix",
+    en: "{detail}",
+    zh_hk: "此追蹤號唔係 YT 開頭，唔可以行 YT 流程（{detail}）",
+    zh_cn: "此追踪号不是 YT 开头，无法走 YT 流程（{detail}）",
+  },
 };
