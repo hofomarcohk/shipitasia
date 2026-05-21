@@ -1,3 +1,9 @@
+/* P17 — Geist font for the WMS redesign. Must be the first directive
+ * in this file (CSS spec: @import precedes all non-@charset/@layer
+ * rules). Variables consumed by the NextCTA pulse animation are
+ * declared further down. */
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -234,14 +240,10 @@ h2 {
 .lang-zh_cn {
   font-family: "Noto Sans SC", sans-serif;
 }
-/* ──────────────────────────────────────────────────────────────
- * P17 — WMS redesign global accent vars + Geist font import.
- * The NextCTA pulse animation reads --cta-accent-* at runtime so
- * the same component can adopt a different accent (e.g. amber for
- * urgent vs. brand for ready) without re-declaring the keyframe.
- * ────────────────────────────────────────────────────────────── */
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
-
+/* P17 — WMS NextCTA accent vars. Animation reads --cta-accent-* at
+ * runtime so the same component can adopt a different accent (e.g.
+ * amber for urgent vs. brand for ready) without re-declaring the
+ * keyframe. (Geist @import lives at the top of the file.) */
 :root {
   --cta-accent: #5887c4;
   --cta-accent-50: rgba(88, 135, 196, 0.45);
