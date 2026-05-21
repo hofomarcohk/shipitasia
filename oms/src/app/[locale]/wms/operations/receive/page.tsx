@@ -1,16 +1,7 @@
-"use client";
+// P17 — putaway / receive page rebuilt to handoff #putaway.
 
-import PageLayout from "@/components/page-layout";
-import { OperationsReceive } from "@/components/wms/operations-receive";
+import { PutawayPageClient } from "@/components/wms-redesign/pages/putaway-page";
 
 export default function Page() {
-  return (
-    <PageLayout
-      title="wms_ops.receive.page_title"
-      description="wms_ops.receive.page_subtitle"
-      path={[{ name: "wms_ops.receive.page_title", href: "#" }]}
-    >
-      <OperationsReceive />
-    </PageLayout>
-  );
+  return <PutawayPageClient />;
 }

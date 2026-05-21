@@ -1,16 +1,7 @@
-"use client";
+// P17 — outbound list page rebuilt to handoff #outbound.
 
-import PageLayout from "@/components/page-layout";
-import { OperationsOutboundList } from "@/components/wms/operations-outbound-list";
+import { OutboundListPageClient } from "@/components/wms-redesign/pages/outbound-list-page";
 
 export default function Page() {
-  return (
-    <PageLayout
-      title="wms_ops.outbound_list.page_title"
-      description="wms_ops.outbound_list.page_subtitle"
-      path={[{ name: "wms_ops.outbound_list.page_title", href: "#" }]}
-    >
-      <OperationsOutboundList />
-    </PageLayout>
-  );
+  return <OutboundListPageClient />;
 }

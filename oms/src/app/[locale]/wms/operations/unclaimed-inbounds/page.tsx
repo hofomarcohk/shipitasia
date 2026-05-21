@@ -1,16 +1,7 @@
-"use client";
+// P17 — unclaimed pool rebuilt to handoff #unclaimed.
 
-import PageLayout from "@/components/page-layout";
-import { UnclaimedList } from "@/components/wms/unclaimed-list";
+import { UnclaimedPageClient } from "@/components/wms-redesign/pages/unclaimed-page";
 
 export default function Page() {
-  return (
-    <PageLayout
-      title="wms_scan.page_title_unclaimed"
-      description=""
-      path={[{ name: "wms_scan.page_title_unclaimed", href: "#" }]}
-    >
-      <UnclaimedList />
-    </PageLayout>
-  );
+  return <UnclaimedPageClient />;
 }
