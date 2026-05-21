@@ -1,16 +1,7 @@
-"use client";
+// P17 — label-print rebuilt to handoff #print (group-based + bulk pickup).
 
-import PageLayout from "@/components/page-layout";
-import { OperationsLabelPrint } from "@/components/wms/operations-label-print";
+import { PrintPageClient } from "@/components/wms-redesign/pages/print-page";
 
 export default function Page() {
-  return (
-    <PageLayout
-      title="wms_ops.label_print.page_title"
-      description="wms_ops.label_print.page_subtitle"
-      path={[{ name: "wms_ops.label_print.page_title", href: "#" }]}
-    >
-      <OperationsLabelPrint />
-    </PageLayout>
-  );
+  return <PrintPageClient />;
 }

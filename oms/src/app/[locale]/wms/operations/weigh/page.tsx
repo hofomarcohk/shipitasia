@@ -1,16 +1,7 @@
-"use client";
+// P17 — weigh page rebuilt to handoff #weigh.
 
-import PageLayout from "@/components/page-layout";
-import { OperationsWeighPalletize } from "@/components/wms/operations-weigh-palletize";
+import { WeighPageClient } from "@/components/wms-redesign/pages/weigh-page";
 
 export default function Page() {
-  return (
-    <PageLayout
-      title="wms_ops.weigh.page_title"
-      description="wms_ops.weigh.page_subtitle"
-      path={[{ name: "wms_ops.weigh.page_title", href: "#" }]}
-    >
-      <OperationsWeighPalletize />
-    </PageLayout>
-  );
+  return <WeighPageClient />;
 }

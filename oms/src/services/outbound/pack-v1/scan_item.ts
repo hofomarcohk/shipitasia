@@ -21,6 +21,7 @@ export type ScanResult = {
     tracking_no: string;
     product_name: string | null;
     shipment_type: "single" | "consolidated";
+    is_yt: boolean;
   };
   owner: {
     client_id: string;
@@ -120,6 +121,7 @@ export async function scanItem(scanCode: string): Promise<ScanResult> {
       tracking_no: inbound.tracking_no || t,
       product_name: inbound.product_name || null,
       shipment_type: outbound.shipment_type || "consolidated",
+      is_yt: !!outbound.is_yt,
     },
     owner: {
       client_id: String(outbound.client_id),
