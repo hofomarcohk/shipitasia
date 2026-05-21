@@ -305,4 +305,20 @@ export const OUTBOUND_WMS_ERROR = {
     zh_hk: "今日沒有符合攬收條件的出庫單（{detail}）",
     zh_cn: "今日没有符合揽收条件的出库单（{detail}）",
   },
+  DEPART_LABEL_MISMATCH: {
+    status: 400,
+    sys_code: "1800069",
+    message: "3PL label does not match the box's carrier tracking number",
+    en: "{boxNo}: 3PL label {scanned} does not match expected {expected}",
+    zh_hk: "{boxNo}：掃到嘅 3PL 單號 {scanned} 同箱嘅運單號 {expected} 唔對；請對返同一箱",
+    zh_cn: "{boxNo}：扫到的 3PL 单号 {scanned} 与箱的运单号 {expected} 不对；请对回同一箱",
+  },
+  DEPART_LABEL_MISSING: {
+    status: 400,
+    sys_code: "1800070",
+    message: "Box has no carrier tracking number yet — print labels first",
+    en: "{boxNo}: no carrier tracking number; print labels first",
+    zh_hk: "{boxNo}：未有運單號，請先去印單頁取單",
+    zh_cn: "{boxNo}：未有运单号，请先去印单页取单",
+  },
 };
