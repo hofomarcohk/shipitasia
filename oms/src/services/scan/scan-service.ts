@@ -18,7 +18,9 @@ import {
   AnomalyInput,
   ArriveInputSchema,
   ReceiveInputSchema,
+  UnclaimedQuickArriveSchema,
   UnclaimedRegisterSchema,
+  UnclaimedShelveSchema,
   projectScan,
   projectUnclaimed,
 } from "@/types/Scan";
@@ -669,6 +671,241 @@ export async function registerUnclaimed(
   });
 
   return { success: true, unclaimed_id, scan_id };
+}
+
+// ── P17 pure-scan unclaimed quick-arrive (S2) ──────────────
+//
+// Counterpart to registerUnclaimed(). registerUnclaimed is the legacy
+// "CS captures everything at the desk" path and stays available; this
+// path is what the PDA arrive screen calls when a scanned tracking
+// number has no forecast match (classifyArrival → "unclaimed"). The
+// row is created with empty weight/dimension/photos so the operator
+// can keep scanning the next parcel; S3 upshelving (B.4) fills the
+// data through the shelf API.
+//
+// Dedupe contract matches registerUnclaimed: same tracking +
+// pending_assignment is rejected with UNCLAIMED_DUPLICATED. carrier
+// code defaults to "unknown" when the PDA omits it; CS can edit later.
+
+export async function quickArriveUnclaimed(
+  raw: unknown,
+  ctx: StaffContext
+): Promise<{ success: true; unclaimed_id: string; scan_id: string }> {
+  const input = UnclaimedQuickArriveSchema.parse(raw);
+  const db = await connectToDatabase();
+  const normalized = normalizeTrackingNo(input.tracking_no);
+
+  const dup = await db.collection(collections.UNCLAIMED_INBOUND).findOne({
+    tracking_no_normalized: normalized,
+    status: "pending_assignment",
+  });
+  if (dup) throw new ApiError("UNCLAIMED_DUPLICATED");
+
+  const unclaimed_id = await nextDailyId("U");
+  const scan_id = await nextDailyId("S");
+  const session = getMongoClient().startSession();
+  try {
+    await session.withTransaction(async () => {
+      const now = new Date();
+      await db.collection(collections.UNCLAIMED_INBOUND).insertOne(
+        {
+          _id: unclaimed_id as any,
+          warehouseCode: ctx.warehouseCode,
+          carrier_inbound_code: input.carrier_inbound_code ?? "unknown",
+          tracking_no: input.tracking_no,
+          tracking_no_normalized: normalized,
+          // P17 — empty at S2; filled at S3 via shelf API.
+          weight: null,
+          dimension: null,
+          photo_paths: [],
+          staff_note: null,
+          status: "pending_assignment",
+          assigned_to_client_id: null,
+          assigned_to_inbound_id: null,
+          assigned_at: null,
+          assigned_by_staff_id: null,
+          disposed_at: null,
+          disposed_reason: null,
+          warning_stages: [],
+          abandoned_at: null,
+          arrived_at: now,
+          arrived_by_staff_id: ctx.staff_id,
+          createdAt: now,
+          updatedAt: now,
+        } as any,
+        { session }
+      );
+      await db.collection(collections.INBOUND_SCAN).insertOne(
+        {
+          _id: scan_id as any,
+          inbound_request_id: null,
+          unclaimed_inbound_id: unclaimed_id,
+          client_id: null,
+          type: "unclaimed_arrive",
+          locationCode: null,
+          weight: null,
+          dimension: null,
+          photo_paths: [],
+          photo_metadata: [],
+          anomalies: [],
+          operator_staff_id: ctx.staff_id,
+          is_combined_arrive: false,
+          staff_note: null,
+          cancelled_at: null,
+          cancelled_reason: null,
+          createdAt: now,
+        } as any,
+        { session }
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  await logAudit({
+    action: AUDIT_ACTIONS.unclaimed_quick_arrived,
+    actor_type: AUDIT_ACTOR_TYPES.wms_staff,
+    actor_id: ctx.staff_id,
+    target_type: AUDIT_TARGET_TYPES.unclaimed_inbound,
+    target_id: unclaimed_id,
+    details: {
+      scan_id,
+      tracking_no: input.tracking_no,
+      carrier_inbound_code: input.carrier_inbound_code ?? "unknown",
+    },
+    warehouse_code: ctx.warehouseCode,
+  });
+
+  return { success: true, unclaimed_id, scan_id };
+}
+
+// ── P17 unclaimed S3 upshelve ──────────────────────────────
+//
+// Fills the row created by quickArriveUnclaimed() with locationCode +
+// weight + dimension + photos. Status stays at pending_assignment;
+// claiming is a separate downstream flow (U3.1/U3.2). No wallet
+// charge / no client notification at this point because no client owns
+// the parcel yet. Identifier accepts either unclaimed_id or
+// tracking_no — PDA usually scans the original barcode.
+
+export async function performUnclaimedShelve(
+  raw: unknown,
+  ctx: StaffContext,
+  photos: {
+    barcode_paths: string[];
+    package_paths: string[];
+    metadata: { type: "barcode" | "package" | "anomaly"; size: number; mime: string }[];
+  }
+): Promise<{ success: true; unclaimed_id: string; scan_id: string }> {
+  const input = UnclaimedShelveSchema.parse(raw);
+  const db = await connectToDatabase();
+  await getLocation(ctx.warehouseCode, input.locationCode);
+
+  const filter: Record<string, unknown> = { warehouseCode: ctx.warehouseCode };
+  if (input.unclaimed_id) {
+    filter._id = input.unclaimed_id;
+  } else {
+    filter.tracking_no_normalized = normalizeTrackingNo(input.tracking_no!);
+    filter.status = "pending_assignment";
+  }
+  const row = await db.collection(collections.UNCLAIMED_INBOUND).findOne(filter as any);
+  if (!row) throw new ApiError("UNCLAIMED_NOT_AVAILABLE");
+  if (row.status === "disposed") throw new ApiError("UNCLAIMED_NOT_AVAILABLE");
+
+  const scan_id = await nextDailyId("S");
+  const allPhotos = [...photos.barcode_paths, ...photos.package_paths];
+  if (allPhotos.length === 0) throw new ApiError("BARCODE_PHOTO_REQUIRED");
+
+  const session = getMongoClient().startSession();
+  try {
+    await session.withTransaction(async () => {
+      const now = new Date();
+
+      await db.collection(collections.INBOUND_SCAN).insertOne(
+        {
+          _id: scan_id as any,
+          inbound_request_id: null,
+          unclaimed_inbound_id: row._id,
+          client_id: null,
+          // Reuse the "receive" scan type so existing reports / queries
+          // still find the upshelve event. Distinguishable from a
+          // forecasted receive by the presence of unclaimed_inbound_id
+          // and the null client_id.
+          type: "receive",
+          locationCode: input.locationCode,
+          weight: input.weight,
+          dimension: input.dimension,
+          photo_paths: allPhotos,
+          photo_metadata: photos.metadata,
+          anomalies: [],
+          operator_staff_id: ctx.staff_id,
+          is_combined_arrive: false,
+          staff_note: input.staff_note ?? null,
+          cancelled_at: null,
+          cancelled_reason: null,
+          createdAt: now,
+        } as any,
+        { session }
+      );
+
+      await db.collection(collections.ITEM_LOCATION).updateOne(
+        { itemCode: row._id },
+        {
+          $set: {
+            itemCode: row._id,
+            itemType: "unclaimed_inbound",
+            warehouseCode: ctx.warehouseCode,
+            locationCode: input.locationCode,
+            currentStatus: "in_storage",
+            placedBy: ctx.staff_id,
+            lastMovedAt: now,
+            updatedAt: now,
+          },
+          $setOnInsert: { createdAt: now },
+        },
+        { upsert: true, session }
+      );
+
+      await db.collection(collections.UNCLAIMED_INBOUND).updateOne(
+        { _id: row._id },
+        {
+          $set: {
+            locationCode: input.locationCode,
+            weight: input.weight,
+            dimension: input.dimension,
+            photo_paths: [...(row.photo_paths ?? []), ...allPhotos],
+            staff_note: input.staff_note ?? row.staff_note ?? null,
+            ...(input.carrier_inbound_code
+              ? { carrier_inbound_code: input.carrier_inbound_code }
+              : {}),
+            last_scan_id: scan_id,
+            last_scan_at: now,
+            updatedAt: now,
+          },
+        },
+        { session }
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  await logAudit({
+    action: AUDIT_ACTIONS.unclaimed_shelved,
+    actor_type: AUDIT_ACTOR_TYPES.wms_staff,
+    actor_id: ctx.staff_id,
+    target_type: AUDIT_TARGET_TYPES.unclaimed_inbound,
+    target_id: String(row._id),
+    details: {
+      scan_id,
+      locationCode: input.locationCode,
+      weight: input.weight,
+      dimension: input.dimension,
+    },
+    warehouse_code: ctx.warehouseCode,
+  });
+
+  return { success: true, unclaimed_id: String(row._id), scan_id };
 }
 
 // ── read helpers ───────────────────────────────────────────

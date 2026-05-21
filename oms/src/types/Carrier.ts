@@ -95,9 +95,18 @@ export const OAuthMetaSchema = z
   .strict();
 export type OAuthMeta = z.infer<typeof OAuthMetaSchema>;
 
+export const CARRIER_ACCOUNT_OWNER_TYPE = ["client", "system"] as const;
+export type CarrierAccountOwnerType =
+  (typeof CARRIER_ACCOUNT_OWNER_TYPE)[number];
+
+// P17 — owner_type discriminates client-owned rows (the historical default)
+// from WMS-owned system rows (e.g. the shipitasia fuuffy account used for
+// YT auto-outbounds). client_id is required for client rows and absent /
+// null for system rows; refine() enforces that invariant.
 export const ClientCarrierAccountSchema = z
   .object({
-    client_id: z.string().min(1),
+    owner_type: z.enum(CARRIER_ACCOUNT_OWNER_TYPE).default("client"),
+    client_id: z.string().min(1).nullable().optional(),
     carrier_code: z.string().min(1),
     nickname: z.string().min(1).max(100),
     auth_type: z.enum(["api_key", "oauth"]),
@@ -110,7 +119,18 @@ export const ClientCarrierAccountSchema = z
     createdAt: z.date().optional(),
     updatedAt: z.date().optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (d) =>
+      d.owner_type === "system"
+        ? d.client_id == null
+        : typeof d.client_id === "string" && d.client_id.length > 0,
+    {
+      message:
+        "client_id required when owner_type=client and must be null when owner_type=system",
+      path: ["client_id"],
+    }
+  );
 export type ClientCarrierAccount = z.infer<typeof ClientCarrierAccountSchema>;
 
 // ── public projection (never returns credentials_enc) ───────

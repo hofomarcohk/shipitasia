@@ -132,6 +132,13 @@ export const OutboundRequestV1Schema = z
     // multi-outbound 合併取單 request. Null/absent for single-fetch outbounds.
     label_batch_id: z.string().nullable().optional(),
 
+    // P17 — YT flow markers. is_yt distinguishes the cron-generated daily
+    // YT outbound (system carrier account, may not have a client-owner).
+    // auto_generated covers any cron-created outbound (currently == is_yt
+    // but kept separate for future auto-flows).
+    is_yt: z.boolean().default(false).optional(),
+    auto_generated: z.boolean().default(false).optional(),
+
     // P12 — 秤重置板 denormalized box list (cm + kg) written on palletize
     // complete so OMS / label-print phase can read shipping dimensions without
     // hitting pack_boxes_v1. Additive optional; legacy reads safe.

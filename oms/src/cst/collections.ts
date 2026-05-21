@@ -93,6 +93,10 @@ export const collections = {
   // working-day calendar (empty → cron falls back to Mon-Fri).
   CONSOLIDATION_GROUP: "consolidation_groups",
   WORKING_CALENDAR: "working_calendars",
+
+  // P17 — schedule_pickup audit + state. One row per carrier-API call,
+  // covering all departed outbounds rolled into that pickup window.
+  PICKUP_REQUEST: "pickup_requests",
 };
 
 export const ID_Prefix: {

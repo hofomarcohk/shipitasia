@@ -274,6 +274,7 @@ export interface InboundRequestV1Public {
   receivedAt: Date | null;
   actualWeight: number | null;
   actualDimension: { length: number; width: number; height: number } | null;
+  is_yt: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -307,6 +308,7 @@ export function projectInboundV1(doc: any): InboundRequestV1Public {
     receivedAt: doc.receivedAt ?? null,
     actualWeight: doc.actualWeight ?? null,
     actualDimension: doc.actualDimension ?? null,
+    is_yt: !!doc.is_yt,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };

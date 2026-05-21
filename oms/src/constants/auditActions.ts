@@ -64,6 +64,12 @@ export const AUDIT_ACTIONS = {
   inbound_anomaly_detected: "inbound_anomaly_detected",
   inbound_status_adjusted: "inbound_status_adjusted",
   unclaimed_arrived: "unclaimed_arrived",
+  // P17 — pure-scan S2 arrive (no data entry; row is created with empty
+  // weight/dimension/photos to be filled at S3 upshelving).
+  unclaimed_quick_arrived: "unclaimed_quick_arrived",
+  // P17 — S3 upshelving on a row originally created by quick-arrive.
+  // Fills locationCode + weight + dimension + photos.
+  unclaimed_shelved: "unclaimed_shelved",
   staff_abandoned_handled: "staff_abandoned_handled",
 
   // ── Phase 6 — unclaimed processing ───────────────────────────
@@ -99,6 +105,10 @@ export const AUDIT_ACTIONS = {
   outbound_label_printed: "outbound_label_printed",
   outbound_departed: "outbound_departed",
   outbound_box_departed: "outbound_box_departed",
+  // P17 — carrier-side pickup scheduling (call-for-pickup). One audit
+  // row per pickup_requests doc / carrier API call.
+  pickup_scheduled: "pickup_scheduled",
+  pickup_schedule_failed: "pickup_schedule_failed",
   outbound_cancelled_after_label: "outbound_cancelled_after_label",
   outbound_label_client_confirmed: "outbound_label_client_confirmed",
   outbound_admin_retry_label: "outbound_admin_retry_label",
@@ -146,6 +156,7 @@ export const AUDIT_TARGET_TYPES = {
   topup_request: "topup_request",
   pick_batch: "pick_batch",
   pallet_label: "pallet_label",
+  pickup_request: "pickup_request",
 } as const;
 
 export type AuditTargetType =

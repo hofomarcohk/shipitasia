@@ -144,10 +144,13 @@ export const UnclaimedInboundSchema = z
     carrier_inbound_code: z.string().min(1),
     tracking_no: z.string().min(1),
     tracking_no_normalized: z.string().min(1),
-    weight: z.number(),
-    dimension: DimensionSchema,
+    // P17 — weight / dimension / photos / staff_note become optional once
+    // S2 純掃碼到倉 ships: arrive records bare-minimum, upshelve fills the
+    // rest. Existing register paths still supply them.
+    weight: z.number().nullable().optional(),
+    dimension: DimensionSchema.nullable().optional(),
     photo_paths: z.array(z.string()).default([]),
-    staff_note: z.string().min(1).max(500),
+    staff_note: z.string().max(500).nullable().optional(),
     status: z.enum(["pending_assignment", "assigned", "disposed"]),
     assigned_to_client_id: z.string().nullable().optional(),
     assigned_to_inbound_id: z.string().nullable().optional(),
@@ -157,6 +160,20 @@ export const UnclaimedInboundSchema = z
     disposed_reason: z.string().nullable().optional(),
     arrived_at: z.date(),
     arrived_by_staff_id: z.string().min(1),
+    // P17 — 30d abandon cron writes stages here as it sends warnings;
+    // abandoned_at is set when the 30d_abandoned stage fires.
+    warning_stages: z
+      .array(
+        z
+          .object({
+            stage: z.enum(["14d", "25d", "30d_abandoned"]),
+            sent_at: z.date(),
+          })
+          .strict()
+      )
+      .default([])
+      .optional(),
+    abandoned_at: z.date().nullable().optional(),
     createdAt: z.date(),
     updatedAt: z.date(),
   })
@@ -235,3 +252,37 @@ export const UnclaimedRegisterSchema = z
     staff_note: z.string().min(1).max(500),
   })
   .strict();
+
+// P17 — quick-arrive (S2 pure-scan). Used by PDA to drop a parcel into
+// the unclaimed pool with the bare minimum (tracking + optional
+// carrier_inbound_code). Weight / dimension / photos / staff_note are
+// captured later at S3 upshelving through the shelf API.
+export const UnclaimedQuickArriveSchema = z
+  .object({
+    tracking_no: z.string().min(1),
+    carrier_inbound_code: z.string().min(1).optional(),
+  })
+  .strict();
+
+// P17 — unclaimed S3 upshelve. Fills the row created by quick-arrive
+// with location + weight + dimension + photos + optional carrier code
+// + optional staff note. Identifier may be the unclaimed_id (U-...) or
+// the tracking_no — server resolves either to the row.
+export const UnclaimedShelveSchema = z
+  .object({
+    unclaimed_id: z.string().optional(),
+    tracking_no: z.string().min(1).optional(),
+    locationCode: z.string().min(1),
+    weight: z.coerce.number().positive(),
+    dimension: DimensionSchema,
+    carrier_inbound_code: z.string().min(1).optional(),
+    staff_note: z.string().max(500).optional(),
+  })
+  .strict()
+  .refine(
+    (d) => !!d.unclaimed_id || !!d.tracking_no,
+    {
+      message: "either unclaimed_id or tracking_no is required",
+      path: ["unclaimed_id"],
+    }
+  );

@@ -32,6 +32,13 @@ export const NOTIFICATION_TYPES = [
   "outbound_pending_client_label",
   "outbound_label_obtained",
   "outbound_departed",
+  // P17 — unclaimed-pool warning ladder (14d / 25d reminder, 30d
+  // auto-abandon notice). Fired by services/unclaimed/abandon-cron.
+  // Only emitted when the row already has an active client assignment;
+  // orphan rows still get the warning_stages audit but no email.
+  "unclaimed_warning_14d",
+  "unclaimed_warning_25d",
+  "unclaimed_warning_30d_abandoned",
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

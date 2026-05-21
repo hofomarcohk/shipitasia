@@ -1,6 +1,7 @@
 import { ApiError } from "@/app/api/api-error";
 import { collections } from "@/cst/collections";
 import { PACK, buildBoxNo } from "@/cst/pack";
+import { SYSTEM_CLIENT_ID } from "@/cst/system";
 import { connectToDatabase } from "@/lib/mongo";
 import { PackBoxV1, PackBoxItem } from "@/types/PackBoxV1";
 import { writePackAudit } from "./audit";
@@ -179,6 +180,20 @@ export async function placeItem(
   if (!dst) throw new ApiError("PACK_BOX_NOT_FOUND", { boxNo: args.to_box_no });
   if (dst.status !== PACK.STATUS.OPEN) {
     throw new ApiError("PACK_BOX_NOT_OPEN", { boxNo: args.to_box_no });
+  }
+  // P17 — YT segregation. YT outbounds carry SYSTEM_CLIENT_ID, so the
+  // existing client-mismatch check below already rejects YT⇄consolidated
+  // mixing. We surface a dedicated error first so the PDA can show the
+  // user a YT-specific message instead of the generic "different client"
+  // copy. Two YT outbounds (both SYSTEM_CLIENT_ID) still cross-box, per
+  // spec; two non-YT outbounds for different real clients still fail
+  // via PACK_BOX_CLIENT_MISMATCH unchanged.
+  const dstIsYt = String(dst.client_id) === SYSTEM_CLIENT_ID;
+  const outboundIsYt =
+    !!(outbound as any).is_yt ||
+    String(outbound.client_id) === SYSTEM_CLIENT_ID;
+  if (dstIsYt !== outboundIsYt) {
+    throw new ApiError("PACK_YT_NO_MIX", { boxNo: args.to_box_no });
   }
   if (String(dst.client_id) !== String(outbound.client_id)) {
     throw new ApiError("PACK_BOX_CLIENT_MISMATCH", { boxNo: args.to_box_no });

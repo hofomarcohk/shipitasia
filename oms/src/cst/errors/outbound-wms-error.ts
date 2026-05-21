@@ -289,4 +289,20 @@ export const OUTBOUND_WMS_ERROR = {
     zh_hk: "實秤 {actual}kg 與預期 {expected}kg 相差 {diff}kg（超出 {tol}kg 容差）。請再三檢查箱內貨件及秤重",
     zh_cn: "实秤 {actual}kg 与预期 {expected}kg 相差 {diff}kg（超出 {tol}kg 容差）。请再三检查箱内货件及称重",
   },
+  PACK_YT_NO_MIX: {
+    status: 400,
+    sys_code: "1800067",
+    message: "YT parcels cannot share a box with consolidated parcels",
+    en: "{boxNo}: YT parcels cannot be mixed with consolidated parcels",
+    zh_hk: "{boxNo}：雲途件不可與一般集運件共箱",
+    zh_cn: "{boxNo}：云途件不可与一般集运件共箱",
+  },
+  NO_PICKUP_ELIGIBLE: {
+    status: 400,
+    sys_code: "1800068",
+    message: "No outbounds eligible for pickup",
+    en: "{detail}",
+    zh_hk: "今日沒有符合攬收條件的出庫單（{detail}）",
+    zh_cn: "今日没有符合揽收条件的出库单（{detail}）",
+  },
 };
