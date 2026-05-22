@@ -21,6 +21,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
+import { NextCTA } from "@/components/wms-redesign/next-cta";
 import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
@@ -181,9 +182,11 @@ function BatchPicker({
 function ConfirmScanView({
   batchId,
   onBack,
+  onProgressChange,
 }: {
   batchId: string;
   onBack: () => void;
+  onProgressChange?: (s: { allDone: boolean; picked: number; total: number }) => void;
 }) {
   const [data, setData] = React.useState<BatchItemsData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -281,6 +284,11 @@ function ConfirmScanView({
   const pending = total - picked;
   const allDone = total > 0 && pending === 0;
   const pct = total > 0 ? Math.round((picked / total) * 100) : 0;
+
+  // 向上層 report 進度，俾 parent 渲染 NextCTA「下一步：去裝箱」
+  React.useEffect(() => {
+    onProgressChange?.({ allDone, picked, total });
+  }, [allDone, picked, total, onProgressChange]);
 
   return (
     <div className="px-[22px] py-3.5">
@@ -466,6 +474,16 @@ export function PickConfirmPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const batchId = searchParams.get("batchId");
+  const [progress, setProgress] = React.useState<{
+    allDone: boolean;
+    picked: number;
+    total: number;
+  }>({ allDone: false, picked: 0, total: 0 });
+
+  // Reset progress 當切換到別個 batch / 或返到列表
+  React.useEffect(() => {
+    setProgress({ allDone: false, picked: 0, total: 0 });
+  }, [batchId]);
 
   const handlePick = (id: string) => {
     const sp = new URLSearchParams(searchParams.toString());
@@ -480,15 +498,45 @@ export function PickConfirmPageClient() {
     router.replace(qs ? `?${qs}` : "?");
   };
 
+  const ctaState: "locked" | "ready" =
+    batchId && progress.allDone ? "ready" : "locked";
+
   return (
     <WmsShell
       crumbs={[
         { label: "集運流程" },
         { label: "揀貨完成確認" },
       ]}
+      cta={
+        batchId ? (
+          <NextCTA
+            state={ctaState}
+            to="pick"
+            progress={
+              progress.total > 0
+                ? { done: progress.picked, total: progress.total }
+                : undefined
+            }
+            lockedHint={
+              progress.total === 0
+                ? "等候批次資料載入…"
+                : `仲有 ${progress.total - progress.picked} 件未確認`
+            }
+            justFlipped={progress.allDone}
+            back={{
+              url: "/zh-hk/wms",
+              label: "工作台",
+            }}
+          />
+        ) : undefined
+      }
     >
       {batchId ? (
-        <ConfirmScanView batchId={batchId} onBack={handleBack} />
+        <ConfirmScanView
+          batchId={batchId}
+          onBack={handleBack}
+          onProgressChange={setProgress}
+        />
       ) : (
         <BatchPicker onPick={handlePick} />
       )}
