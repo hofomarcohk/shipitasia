@@ -5,10 +5,11 @@
 // shelf picker (free input + recent suggestions) + weight + dimension
 // form → confirm posts to /api/wms/scan/receive.
 //
-// Photo upload deliberately deferred — the production receive
-// endpoint accepts multipart and the existing operations-receive
-// component handles camera capture; v1 of the redesigned shell ships
-// without that wiring so the rest of the flow is testable end-to-end.
+// W2 — YT 件 PC putaway 解禁 + photo upload (file input, not webcam).
+// PDA still handles its own camera-capture flow; PC station uses plain
+// file inputs so a barcode / package photo can come from a desktop
+// scanner or pre-taken phone image. Form fields mirror pda-receive:
+// `photo_barcode` + `photo_package` multipart parts.
 
 "use client";
 
@@ -17,6 +18,7 @@ import {
   Camera,
   Check,
   Filter,
+  X,
 } from "lucide-react";
 import * as React from "react";
 
@@ -26,8 +28,7 @@ import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
 import { Stepper } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
-import { isYTTracking } from "@/lib/yt";
-import { get_request, post_request } from "@/lib/httpRequest";
+import { get_request } from "@/lib/httpRequest";
 import { cn } from "@/lib/utils";
 
 interface ReceiveLookupItem {
@@ -49,6 +50,76 @@ const STEPPER = [
 
 const RECENT_SHELVES = ["A-04", "A-05", "B-02", "C-07", "YT-1", "YT-2"];
 
+function PhotoSlot({
+  label,
+  file,
+  preview,
+  onChange,
+}: {
+  label: string;
+  file: File | null;
+  preview: string | null;
+  onChange: (f: File | null) => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  return (
+    <div className="w-[110px] flex-none">
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className={cn(
+          "group relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[10px] border text-wms-faint transition",
+          preview
+            ? "border-wms-border bg-wms-surface"
+            : "border-wms-border bg-[repeating-linear-gradient(135deg,#F1F5F9_0_6px,#E2E8F0_6px_12px)] hover:border-wms-ink"
+        )}
+        aria-label={`上載${label}`}
+      >
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={preview}
+            alt={label}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <Camera size={26} />
+        )}
+        {preview && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                onChange(null);
+              }
+            }}
+            className="absolute right-1 top-1 inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-wms-ink/85 text-white hover:bg-wms-ink"
+            aria-label={`移除${label}`}
+          >
+            <X size={12} strokeWidth={2.5} />
+          </span>
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+      />
+      <div className="mt-1.5 truncate text-center text-[11px] text-wms-muted">
+        {file ? file.name : label}
+      </div>
+    </div>
+  );
+}
+
 export function PutawayPageClient() {
   const [scanned, setScanned] = React.useState<string | null>(null);
   const [item, setItem] = React.useState<ReceiveLookupItem | null>(null);
@@ -57,10 +128,33 @@ export function PutawayPageClient() {
   const [length, setLength] = React.useState<string>("");
   const [width, setWidth] = React.useState<string>("");
   const [height, setHeight] = React.useState<string>("");
+  const [barcodeFile, setBarcodeFile] = React.useState<File | null>(null);
+  const [packageFile, setPackageFile] = React.useState<File | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [confirmed, setConfirmed] = React.useState(0);
+
+  // Preview URLs from File objects — must be revoked on unmount / change
+  // to avoid blob leaks across many sequential scans.
+  const barcodePreview = React.useMemo(
+    () => (barcodeFile ? URL.createObjectURL(barcodeFile) : null),
+    [barcodeFile]
+  );
+  const packagePreview = React.useMemo(
+    () => (packageFile ? URL.createObjectURL(packageFile) : null),
+    [packageFile]
+  );
+  React.useEffect(() => {
+    return () => {
+      if (barcodePreview) URL.revokeObjectURL(barcodePreview);
+    };
+  }, [barcodePreview]);
+  React.useEffect(() => {
+    return () => {
+      if (packagePreview) URL.revokeObjectURL(packagePreview);
+    };
+  }, [packagePreview]);
 
   React.useEffect(() => {
     if (!toast) return;
@@ -76,20 +170,17 @@ export function PutawayPageClient() {
     setLength("");
     setWidth("");
     setHeight("");
+    setBarcodeFile(null);
+    setPackageFile(null);
     setError(null);
   };
 
   const handleScan = async (v: string) => {
     setError(null);
     setScanned(v);
-    if (isYTTracking(v)) {
-      // YT flow — placeholder: full YT shelve needs multipart photo
-      // upload via /api/wms/scan/yt-shelve. Surface a hint and reset.
-      setError(
-        "YT 件目前要由 PDA 端 shelve (photo + dim required). PC putaway 流程 v2 補上。"
-      );
-      return;
-    }
+    // W2: YT 件不再 throw — PC station now supports the same multipart
+    // shelve as the PDA (file-input photo upload). The auto-append into
+    // today's YT outbound continues to happen server-side in yt-service.
     try {
       const res = await get_request(
         `/api/wms/scan/receive/lookup?id=${encodeURIComponent(v)}`
@@ -137,6 +228,11 @@ export function PutawayPageClient() {
           })
         );
       }
+      // Photos optional from PC station — backend treats them as
+      // additive (direct-receive mode enforces them server-side when
+      // required). Field names mirror pda-receive exactly.
+      if (barcodeFile) fd.set("photo_barcode", barcodeFile);
+      if (packageFile) fd.set("photo_package", packageFile);
       const res = await fetch("/api/wms/scan/receive", {
         method: "POST",
         body: fd,
@@ -230,14 +326,18 @@ export function PutawayPageClient() {
           {item && (
             <>
               <div className="mt-4 flex items-start gap-4">
-                <div className="w-[110px] flex-none">
-                  <div className="flex aspect-square w-full items-center justify-center rounded-[10px] border border-wms-border bg-[repeating-linear-gradient(135deg,#F1F5F9_0_6px,#E2E8F0_6px_12px)] text-wms-faint">
-                    <Camera size={26} />
-                  </div>
-                  <button className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-md border border-wms-border px-2 py-1 text-xs text-wms-muted hover:bg-wms-row-hover">
-                    <Camera size={12} /> 拍照（v2）
-                  </button>
-                </div>
+                <PhotoSlot
+                  label="條碼相"
+                  file={barcodeFile}
+                  preview={barcodePreview}
+                  onChange={setBarcodeFile}
+                />
+                <PhotoSlot
+                  label="包裹相"
+                  file={packageFile}
+                  preview={packagePreview}
+                  onChange={setPackageFile}
+                />
 
                 <div className="min-w-0 flex-1">
                   <div className="mb-1.5 flex items-center gap-2">
