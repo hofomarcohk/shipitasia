@@ -79,6 +79,8 @@ export function PickPageClient() {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [justDispatched, setJustDispatched] = React.useState(false);
+  // 進頁第一次 load Ready 池後自動全選；之後人手 toggle 不被覆蓋
+  const didInitSelectRef = React.useRef(false);
 
   const reload = React.useCallback(async () => {
     setError(null);
@@ -89,8 +91,13 @@ export function PickPageClient() {
       ]);
       const batchablesJson = await batchablesRes.json();
       const batchesJson = await batchesRes.json();
-      setReadies(batchablesJson?.data ?? []);
+      const list: ReadyOutbound[] = batchablesJson?.data ?? [];
+      setReadies(list);
       setBatches(batchesJson?.data?.batches ?? batchesJson?.data ?? []);
+      if (!didInitSelectRef.current && list.length > 0) {
+        setSelected(new Set(list.map((r) => r._id)));
+        didInitSelectRef.current = true;
+      }
     } catch (e: any) {
       setError(e?.message ?? "Failed to load");
     }
@@ -165,7 +172,7 @@ export function PickPageClient() {
       cta={
         <NextCTA
           state={ctaState}
-          to="pack"
+          to="pick"
           progress={
             batches.length > 0
               ? {
@@ -175,15 +182,39 @@ export function PickPageClient() {
               : undefined
           }
           lockedHint={
-            selected.size === 0 ? "勾選 OB 加入批次 / 推送 PDA 或印揀貨單" : undefined
+            selected.size === 0 ? "勾選 OB 後生成揀貨任務（同時自動推送 PDA）" : undefined
           }
           urgentHint={
             selected.size > 0
-              ? `已選 ${selected.size} 單未推送`
+              ? `已選 ${selected.size} 單未生成任務`
               : undefined
           }
           justFlipped={justDispatched}
           back={{ url: "/zh-hk/wms", label: "工作台" }}
+          customMainCTA={
+            hasActive ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() =>
+                    router.push("/zh-hk/wms/operations/pick-confirm")
+                  }
+                  className="inline-flex items-center gap-2 rounded-[10px] border border-wms-border bg-wms-surface px-4 py-2.5 text-[13.5px] font-semibold text-wms-ink hover:bg-wms-row-hover"
+                >
+                  <Printer size={15} />
+                  實體單揀貨 · 去揀貨確認
+                  <ArrowRight size={14} />
+                </button>
+                <button
+                  onClick={() => router.push("/zh-hk/wms/operations/pack")}
+                  className="inline-flex items-center gap-2 rounded-[10px] bg-wms-ink px-4 py-2.5 text-[13.5px] font-semibold text-white hover:brightness-110"
+                >
+                  <Scan size={15} />
+                  PDA 揀貨 · 去桌面裝箱
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+            ) : undefined
+          }
         />
       }
     >
@@ -413,7 +444,7 @@ export function PickPageClient() {
                 </div>
 
                 <div className="mb-2.5 text-xs text-wms-muted">
-                  揀貨方式 · 二選一
+                  生成揀貨任務 · PDA 與紙本並行
                 </div>
                 <div className="flex flex-col gap-2">
                   <button
@@ -424,10 +455,10 @@ export function PickPageClient() {
                     <Scan size={16} />
                     <div className="flex-1">
                       <div className="text-[13px] font-semibold">
-                        推送 PDA · 工人即時開始
+                        生成揀貨任務
                       </div>
                       <div className="text-[11px] opacity-80">
-                        掃貨架 + 件 即完成揀貨
+                        建立批次 + 自動推送 PDA · 工人即時開始
                       </div>
                     </div>
                     <ArrowRight size={14} />
@@ -443,7 +474,7 @@ export function PickPageClient() {
                         列印揀貨單
                       </div>
                       <div className="text-[11px] text-wms-muted">
-                        揀完返 PC 再掃確認
+                        生成任務後同時列印紙本（仍會推 PDA）
                       </div>
                     </div>
                     <ArrowRight size={14} />
