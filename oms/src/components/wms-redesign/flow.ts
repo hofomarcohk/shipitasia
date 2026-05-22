@@ -62,7 +62,7 @@ export const FLOW: Record<FlowPageId, FlowEntry> = {
   },
   putaway: {
     next: "pick",
-    label: "揀貨任務",
+    label: "建立揀貨批次",
     url: "/zh-hk/wms/operations/pick-batch",
   },
   // Top-level + branches

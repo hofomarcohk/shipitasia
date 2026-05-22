@@ -237,7 +237,7 @@ export function PrintPageClient() {
       cta={
         <NextCTA
           state={ctaState}
-          to="depart"
+          to="print"
           progress={{
             done: scheduledGroups.length,
             total: groups.length,

@@ -33,6 +33,11 @@ export interface NextCTAProps {
   /** Extra nodes injected between progress chip and the main CTA. */
   extras?: React.ReactNode;
   /**
+   * 替換預設「下一步 · {label}」單一 CTA。傳入時內置按鈕完全唔 render，
+   * 由 caller 自定（例如同時提供兩條分支讓倉庫員揀）。
+   */
+  customMainCTA?: React.ReactNode;
+  /**
    * True for one render tick right after a locked → ready transition;
    * triggers the celebrate-bounce.
    */
@@ -48,6 +53,7 @@ export function NextCTA({
   urgentHint,
   back,
   extras,
+  customMainCTA,
   justFlipped,
 }: NextCTAProps) {
   const router = useRouter();
@@ -57,7 +63,8 @@ export function NextCTA({
   const isEndOfFlow = !to;
 
   React.useEffect(() => {
-    if (!isComplete || isEndOfFlow || !flow) return;
+    // 當 caller 自定 customMainCTA 時，Enter 唔再有單一目的地，跳過全局 binding
+    if (!isComplete || isEndOfFlow || !flow || customMainCTA) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       const tag = t?.tagName?.toLowerCase();
@@ -66,7 +73,7 @@ export function NextCTA({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isComplete, isEndOfFlow, flow, router]);
+  }, [isComplete, isEndOfFlow, flow, customMainCTA, router]);
 
   const handleClick = () => {
     if (state === "locked" || isEndOfFlow || !flow) return;
@@ -131,7 +138,9 @@ export function NextCTA({
 
       {extras}
 
-      {isEndOfFlow ? (
+      {customMainCTA ? (
+        customMainCTA
+      ) : isEndOfFlow ? (
         <button className="inline-flex items-center gap-2 rounded-[10px] border border-wms-ink bg-wms-ink px-4 py-2.5 text-[14px] font-semibold text-white">
           <Check size={14} strokeWidth={2.5} /> 流程結束
         </button>
