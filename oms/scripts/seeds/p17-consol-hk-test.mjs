@@ -104,7 +104,7 @@ async function createInbound(db, client, seq) {
     warehouseCode: WAREHOUSE,
     carrier_inbound_code: carrier,
     tracking_no: tracking,
-    tracking_no_normalized: tracking.toLowerCase(),
+    tracking_no_normalized: tracking.replace(/[^a-zA-Z0-9]/g, "").toLowerCase(),
     tracking_no_other: null,
     inbound_source: "regular",
     size_estimate: seq < 2 ? "small" : "medium",

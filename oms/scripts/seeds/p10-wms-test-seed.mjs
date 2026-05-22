@@ -223,7 +223,7 @@ async function createInbound(db, client, idx, accountMap) {
   const contains_liquid = !contains_battery && r > 0.85; // 15%
 
   const tracking = jpTrackingNo();
-  const trackingNorm = tracking.replace(/[\s-]/g, "").toLowerCase();
+  const trackingNorm = tracking.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const now = new Date();
 
   const singleShipping =

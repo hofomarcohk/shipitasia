@@ -363,5 +363,7 @@ export type NotificationV1 = z.infer<typeof NotificationSchema>;
 // ── trackingNo normalize (Phase 4 §1.2.3 + 7.4) ──────────────
 
 export function normalizeTrackingNo(raw: string): string {
-  return raw.replace(/-/g, "").replace(/\s/g, "").toUpperCase();
+  // lowercase + strip all non-alphanumeric chars (—, -, spaces, /, etc.)
+  // so OMS forecast 與 WMS scan 落 DB 的 normalized key 永遠一致
+  return raw.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
 }

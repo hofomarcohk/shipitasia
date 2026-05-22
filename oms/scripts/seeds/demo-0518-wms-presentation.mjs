@@ -226,7 +226,7 @@ async function main() {
       warehouseCode: WAREHOUSE_CODE,
       carrier_inbound_code: rand(CARRIERS),
       tracking_no: tracking,
-      tracking_no_normalized: tracking.replace(/[\s-]/g, "").toLowerCase(),
+      tracking_no_normalized: tracking.replace(/[^a-zA-Z0-9]/g, "").toLowerCase(),
       tracking_no_other: null,
       inbound_source: rand(SOURCES),
       size_estimate: rand(SIZES),
