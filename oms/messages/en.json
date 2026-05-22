@@ -170,6 +170,7 @@
     "ops_arrive_monitor": "Arrive Monitor",
     "ops_pick": "Desktop Pick",
     "ops_pick_batch": "Pick Batch",
+    "ops_pick_confirm": "Pick Confirm",
     "ops_pack": "Desktop Pack",
     "ops_weigh": "Weigh & Palletize",
     "ops_label_print": "Label Print",
