@@ -208,6 +208,14 @@ export function WeighPageClient() {
   const [echo, setEcho] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  // 掃完箱還未 confirm weigh 嗰陣 hold 緊待 weigh 嘅 box；
+  // confirm 之後先 call save-box → scan-box → 入 session
+  const [pendingBox, setPendingBox] = React.useState<string | null>(null);
+  const [pendingWeight, setPendingWeight] = React.useState("");
+  const [pendingDims, setPendingDims] = React.useState({ l: "", w: "", h: "" });
+  const [tolerancePrompt, setTolerancePrompt] = React.useState<string | null>(
+    null
+  );
 
   const reload = React.useCallback(async () => {
     try {
@@ -224,25 +232,72 @@ export function WeighPageClient() {
     reload();
   }, [reload]);
 
-  const handleScan = async (boxNo: string) => {
+  // 掃箱：只 hold 入 pending 狀態，等倉庫員手動 input 重量
+  const handleScan = (boxNo: string) => {
     setError(null);
+    setTolerancePrompt(null);
+    setEcho(boxNo);
+    setPendingBox(boxNo);
+    setPendingWeight("");
+    setPendingDims({ l: "", w: "", h: "" });
+  };
+
+  // 確認重量：先 save-box 入磅 → 跟住 scan-box 入 palletize session
+  const confirmWeigh = async (force = false) => {
+    if (!pendingBox) return;
     setBusy(true);
+    setError(null);
     try {
-      const res = await post_request(
-        "/api/wms/outbound/weigh-palletize/scan-box",
-        { box_no: boxNo }
+      const saveRes = await post_request(
+        "/api/wms/outbound/weigh-palletize/save-box",
+        {
+          box_no: pendingBox,
+          weight: Number(pendingWeight) || 0,
+          length: Number(pendingDims.l) || 0,
+          width: Number(pendingDims.w) || 0,
+          height: Number(pendingDims.h) || 0,
+          force,
+        }
       );
-      const json = await res.json();
-      if (json?.status !== 200) {
-        throw new Error(json?.message ?? "Scan failed");
+      const saveJson = await saveRes.json();
+      if (saveJson?.status !== 200) {
+        // 過 tolerance 但唔 force → 彈確認 prompt
+        if (
+          /tolerance|over|公斤|差異/i.test(saveJson?.message ?? "") &&
+          !force
+        ) {
+          setTolerancePrompt(saveJson.message);
+          return;
+        }
+        throw new Error(saveJson?.message ?? "Save weight failed");
       }
-      setEcho(boxNo);
+      // 接住 scan-box 入 session（同一個 box）
+      const scanRes = await post_request(
+        "/api/wms/outbound/weigh-palletize/scan-box",
+        { box_no: pendingBox }
+      );
+      const scanJson = await scanRes.json();
+      if (scanJson?.status !== 200) {
+        throw new Error(scanJson?.message ?? "Palletize scan failed");
+      }
+      setPendingBox(null);
+      setPendingWeight("");
+      setPendingDims({ l: "", w: "", h: "" });
+      setTolerancePrompt(null);
       await reload();
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
       setBusy(false);
     }
+  };
+
+  const cancelPending = () => {
+    setPendingBox(null);
+    setPendingWeight("");
+    setPendingDims({ l: "", w: "", h: "" });
+    setTolerancePrompt(null);
+    setEcho(null);
   };
 
   const completeSession = async () => {
@@ -279,7 +334,7 @@ export function WeighPageClient() {
       cta={
         <NextCTA
           state={ctaState}
-          to="print"
+          to="weigh"
           progress={
             state
               ? {
@@ -351,63 +406,154 @@ export function WeighPageClient() {
               onScan={handleScan}
             />
 
-            {/* Scale display */}
+            {/* Scale / weigh input */}
             <div className="overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
               <div className="flex items-center gap-2 border-b border-wms-border bg-wms-surface-alt px-3.5 py-2.5">
                 <ScaleIcon size={15} />
                 <span className="text-[13px] font-semibold">
-                  {session
-                    ? `正喺度秤 · ${session.outbound_id}`
-                    : "等候 box scan"}
+                  {pendingBox
+                    ? `輸入重量 · ${pendingBox}`
+                    : session
+                      ? `正喺度秤 · ${session.outbound_id}`
+                      : "等候 box scan"}
                 </span>
                 <span className="flex-1" />
-                <Pill kind="muted">磅秤連接中</Pill>
+                <Pill kind="muted">手動輸入（磅秤未連接）</Pill>
               </div>
-              <div className="flex items-center gap-5 p-5">
-                <div className="w-[280px] rounded-xl bg-wms-ink px-5 py-4 text-center text-white">
-                  <div className="text-[10.5px] font-medium uppercase tracking-widest text-[#94A3B8]">
-                    SCALE · LIVE
-                  </div>
-                  <div className="my-1 font-wms-mono text-[56px] font-semibold leading-none tracking-tight text-[#86EFAC]">
-                    —
-                    <span className="ml-1 text-[22px] text-[#94A3B8]">kg</span>
-                  </div>
-                  <div className="flex justify-between text-[11px] text-[#94A3B8]">
-                    <span>±0.02</span>
-                    <span>● 待連接</span>
-                  </div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  {session ? (
-                    <>
-                      <div className="font-wms-mono text-lg font-semibold">
-                        {session.scanned_box_nos.at(-1) ?? "—"}
+
+              {pendingBox ? (
+                // 手動輸入重量區（COM3 磅秤未連接時的 fallback UI）
+                <div className="p-4">
+                  <div className="mb-3 grid grid-cols-4 gap-2.5">
+                    <label className="rounded-[10px] border-2 border-wms-brand bg-wms-brand-soft p-2.5">
+                      <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wider text-wms-brand">
+                        重量 (kg)
                       </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-wms-muted">
-                        <span>{session.client_name}</span>
-                        <ArrowRight size={11} />
-                        <span>
-                          {session.outbound_ids.join(", ").slice(0, 60)}
-                        </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={pendingWeight}
+                        onChange={(e) => setPendingWeight(e.target.value)}
+                        autoFocus
+                        placeholder="例: 4.20"
+                        className="w-full border-0 bg-transparent font-wms-mono text-2xl font-bold outline-none"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") confirmWeigh();
+                        }}
+                      />
+                    </label>
+                    <label className="rounded-[10px] border border-wms-border bg-wms-surface-alt p-2.5">
+                      <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wider text-wms-faint">
+                        L (cm)
                       </div>
-                      <div className="mt-2.5 flex gap-3 text-xs">
-                        <div>
-                          <div className="text-[11px] text-wms-faint">
-                            已掃 / 總
-                          </div>
-                          <div className="font-wms-mono text-sm font-semibold">
-                            {session.scanned_box_nos.length} / {session.total}
-                          </div>
-                        </div>
+                      <input
+                        type="number"
+                        value={pendingDims.l}
+                        onChange={(e) =>
+                          setPendingDims((d) => ({ ...d, l: e.target.value }))
+                        }
+                        placeholder="0"
+                        className="w-full border-0 bg-transparent font-wms-mono text-lg font-semibold outline-none"
+                      />
+                    </label>
+                    <label className="rounded-[10px] border border-wms-border bg-wms-surface-alt p-2.5">
+                      <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wider text-wms-faint">
+                        W (cm)
                       </div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-wms-faint">
-                      掃任何箱 barcode 開始新 session
+                      <input
+                        type="number"
+                        value={pendingDims.w}
+                        onChange={(e) =>
+                          setPendingDims((d) => ({ ...d, w: e.target.value }))
+                        }
+                        placeholder="0"
+                        className="w-full border-0 bg-transparent font-wms-mono text-lg font-semibold outline-none"
+                      />
+                    </label>
+                    <label className="rounded-[10px] border border-wms-border bg-wms-surface-alt p-2.5">
+                      <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wider text-wms-faint">
+                        H (cm)
+                      </div>
+                      <input
+                        type="number"
+                        value={pendingDims.h}
+                        onChange={(e) =>
+                          setPendingDims((d) => ({ ...d, h: e.target.value }))
+                        }
+                        placeholder="0"
+                        className="w-full border-0 bg-transparent font-wms-mono text-lg font-semibold outline-none"
+                      />
+                    </label>
+                  </div>
+                  {tolerancePrompt && (
+                    <div className="mb-3 rounded-lg border border-wms-warn-fg/30 bg-wms-warn-bg px-3 py-2 text-[13px] text-wms-warn-fg">
+                      ⚠️ {tolerancePrompt} — 按「確認重量（強制）」覆蓋
                     </div>
                   )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => confirmWeigh(!!tolerancePrompt)}
+                      disabled={busy || !pendingWeight}
+                      className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-2.5 text-[14px] font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                    >
+                      <Check size={15} strokeWidth={2.5} />
+                      {tolerancePrompt ? "確認重量（強制）· ↵" : "確認重量並入 session · ↵"}
+                    </button>
+                    <button
+                      onClick={cancelPending}
+                      className="rounded-lg border border-wms-border bg-wms-surface px-4 py-2.5 text-[13px] hover:bg-wms-row-hover"
+                    >
+                      取消
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center gap-5 p-5">
+                  <div className="w-[280px] rounded-xl bg-wms-ink px-5 py-4 text-center text-white">
+                    <div className="text-[10.5px] font-medium uppercase tracking-widest text-[#94A3B8]">
+                      SCALE · LIVE
+                    </div>
+                    <div className="my-1 font-wms-mono text-[56px] font-semibold leading-none tracking-tight text-[#86EFAC]">
+                      —
+                      <span className="ml-1 text-[22px] text-[#94A3B8]">kg</span>
+                    </div>
+                    <div className="flex justify-between text-[11px] text-[#94A3B8]">
+                      <span>±0.02</span>
+                      <span>● 待連接</span>
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {session ? (
+                      <>
+                        <div className="font-wms-mono text-lg font-semibold">
+                          {session.scanned_box_nos.at(-1) ?? "—"}
+                        </div>
+                        <div className="mt-1 flex items-center gap-1.5 text-[12.5px] text-wms-muted">
+                          <span>{session.client_name}</span>
+                          <ArrowRight size={11} />
+                          <span>
+                            {session.outbound_ids.join(", ").slice(0, 60)}
+                          </span>
+                        </div>
+                        <div className="mt-2.5 flex gap-3 text-xs">
+                          <div>
+                            <div className="text-[11px] text-wms-faint">
+                              已掃 / 總
+                            </div>
+                            <div className="font-wms-mono text-sm font-semibold">
+                              {session.scanned_box_nos.length} / {session.total}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-wms-faint">
+                        掃箱 barcode → 輸入重量 → 自動入 session
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Current group */}

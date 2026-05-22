@@ -2,6 +2,7 @@ import { ApiError } from "@/app/api/api-error";
 import { collections } from "@/cst/collections";
 import { connectToDatabase } from "@/lib/mongo";
 import { PackBoxV1 } from "@/types/PackBoxV1";
+import { sealBox } from "@/services/outbound/pack-v1/actions";
 import { writeWeighPalletizeAudit } from "./audit";
 import {
   buildSameClientHint,
@@ -140,8 +141,14 @@ export async function saveBox(
   const db = await connectToDatabase();
   const now = new Date();
 
-  const box = await findSealedBoxByBoxNo(args.box_no);
+  let box = await findSealedBoxByBoxNo(args.box_no);
   if (!box) throw new ApiError("PACK_BOX_NOT_FOUND", { boxNo: args.box_no });
+  // Auto-seal：進入秤重 = 倉庫物理上已封箱，系統靜默 seal
+  if (box.status === "open" && (box.items?.length ?? 0) > 0) {
+    await sealBox(staff, args.box_no);
+    box = await findSealedBoxByBoxNo(args.box_no);
+    if (!box) throw new ApiError("PACK_BOX_NOT_FOUND", { boxNo: args.box_no });
+  }
   if (box.status !== "sealed") {
     throw new ApiError("PACK_BOX_NOT_SEALED", { boxNo: args.box_no });
   }
@@ -274,8 +281,14 @@ export async function scanBox(
   const db = await connectToDatabase();
   const now = new Date();
 
-  const box = await findSealedBoxByBoxNo(args.box_no);
+  let box = await findSealedBoxByBoxNo(args.box_no);
   if (!box) throw new ApiError("PACK_BOX_NOT_FOUND", { boxNo: args.box_no });
+  // Auto-seal：palletize scan 同樣假設物理已封
+  if (box.status === "open" && (box.items?.length ?? 0) > 0) {
+    await sealBox(staff, args.box_no);
+    box = await findSealedBoxByBoxNo(args.box_no);
+    if (!box) throw new ApiError("PACK_BOX_NOT_FOUND", { boxNo: args.box_no });
+  }
   if (box.status !== "sealed") {
     throw new ApiError("PACK_BOX_NOT_SEALED", { boxNo: args.box_no });
   }
