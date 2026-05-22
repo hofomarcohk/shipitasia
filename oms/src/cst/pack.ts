@@ -4,7 +4,8 @@ export const PACK = {
     SEALED: "sealed",
     CANCELLED: "cancelled",
   } as const,
-  DEFAULT_MAX_SLOTS: 8,
+  // 集運箱無件數上限（以物理空間為準），保留一個 sentinel 避免越界
+  DEFAULT_MAX_SLOTS: 999,
   SINGLE_DIRECT_MAX_SLOTS: 1,
 } as const;
 

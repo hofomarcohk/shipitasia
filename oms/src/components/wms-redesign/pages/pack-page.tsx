@@ -185,8 +185,6 @@ function BoxCard({
 }) {
   const mode = modeForBox(box);
   const items = box.items?.length ?? 0;
-  const max = box.max_slots ?? 8;
-  const pct = Math.min(1, items / max);
   return (
     <div
       className={cn(
@@ -202,22 +200,13 @@ function BoxCard({
           <span className="font-wms-mono text-[12.5px] font-semibold">{box.box_no}</span>
           <span className="flex-1" />
           <span className="font-wms-mono text-[11px] text-wms-muted">
-            {items}/{max}
+            {items} 件
           </span>
           {recommended && <Pill kind="warn">推薦</Pill>}
         </div>
         <div className="mb-1.5 text-[11.5px] text-wms-muted">
           {box.client_code}
           {box.opened_at && ` · 開箱 ${new Date(box.opened_at).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit" })}`}
-        </div>
-        <div className="mb-1.5 h-1 overflow-hidden rounded-sm bg-wms-surface-alt">
-          <div
-            className={cn(
-              "h-full",
-              pct >= 1 ? "bg-wms-danger-fg" : MODE_BAR_BG[mode]
-            )}
-            style={{ width: `${pct * 100}%` }}
-          />
         </div>
         <div className="flex flex-wrap gap-1">
           {(box.items ?? []).slice(0, 6).map((p, i) => (
@@ -297,51 +286,70 @@ function MidHero({
   const isYt = mode === "yt";
   return (
     <div className="flex flex-col gap-3">
-      <div className={cn("rounded-xl border-[1.5px] p-4", MODE_BG[mode], MODE_BORDER[mode])}>
-        <div className="flex items-start gap-3.5">
-          <ModeBadge mode={mode} />
-          <div className={cn("flex-1", MODE_FG[mode])}>
-            <div className="mt-0.5 text-[12.5px] font-medium">
-              {isYt ? (
-                <>YT 件 · 唔分客戶 · 全部去 <strong>YT 香港倉</strong> · 任何 YT 箱都可以入</>
-              ) : (
-                <>呢件係 <strong>{scan.owner.client_name}</strong> 嘅併箱貨 · 已有 {scan.owner.open_boxes.length} 個開緊箱可入</>
-              )}
-            </div>
-            {recommended && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-[13px] text-wms-ink-2">下一步 →</span>
-                <span
-                  className={cn(
-                    "rounded-md border-[1.5px] bg-white px-2.5 py-1 font-wms-mono text-sm font-semibold",
-                    MODE_BORDER[mode]
-                  )}
-                >
-                  放入 {recommended.box_no}
-                </span>
-                <span className="text-xs text-wms-muted">
-                  ({recommended.items?.length ?? 0}/{recommended.max_slots} · 剩{" "}
-                  {Math.max(0, recommended.max_slots - (recommended.items?.length ?? 0))} 格)
-                </span>
-              </div>
-            )}
+      <div className={cn("rounded-xl border-[1.5px] p-5", MODE_BG[mode], MODE_BORDER[mode])}>
+        {/* 大字 Tag + tracking_no：倉庫員最先見到呢件貨係咩 mode + 邊條單 */}
+        <div className="mb-3 flex items-center gap-3">
+          <span className={cn(
+            "inline-flex items-center rounded-full px-4 py-1.5 text-lg font-bold",
+            mode === "consolidated" && "bg-wms-info-bg text-wms-info-fg",
+            mode === "yt" && "bg-purple-100 text-purple-800",
+          )}>
+            {mode === "consolidated" ? "集運" : "YT"}
+          </span>
+          <div className="flex flex-col">
+            <span className="font-wms-mono text-xl font-bold tracking-tight">
+              {scan.item.tracking_no}
+            </span>
+            <span className="text-[13px] text-wms-muted">
+              {isYt ? "YT 香港倉" : scan.owner.client_name}
+            </span>
           </div>
         </div>
-        <div className="mt-3.5 flex flex-wrap items-center gap-2">
+
+        <div className={cn("mb-3 text-[14px]", MODE_FG[mode])}>
+          {isYt ? (
+            <>YT 件 · 唔分客戶 · 全部去 <strong>YT 香港倉</strong> · 任何 YT 箱都可以入</>
+          ) : (
+            <>呢件係 <strong>{scan.owner.client_name}</strong> 嘅併箱貨 · 已有 {scan.owner.open_boxes.length} 個開緊箱可入</>
+          )}
+        </div>
+
+        {recommended && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-[14px] font-medium text-wms-ink-2">下一步 →</span>
+            <span
+              className={cn(
+                "rounded-md border-[1.5px] bg-white px-3 py-1.5 font-wms-mono text-base font-semibold",
+                MODE_BORDER[mode]
+              )}
+            >
+              放入 {recommended.box_no}
+            </span>
+            <span className="text-[13px] text-wms-muted">
+              ({recommended.items?.length ?? 0} 件已入箱)
+            </span>
+          </div>
+        )}
+
+        <div className="text-[12px] text-wms-muted mb-2">
+          💡 提示：可以直接掃箱號 barcode 入箱（系統會擋唔同客戶 / 唔同 mode 嘅箱）
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onConfirm}
             disabled={!recommended}
-            className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-2.5 text-[14px] font-semibold text-white hover:brightness-110 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-3 text-[15px] font-semibold text-white hover:brightness-110 disabled:opacity-50"
           >
-            <Check size={15} strokeWidth={2.5} />
+            <Check size={16} strokeWidth={2.5} />
             確認入 {recommended?.box_no ?? "—"} · ↵
           </button>
-          <button className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-2.5 text-sm hover:bg-wms-row-hover">
+          <button className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-3 text-[14px] hover:bg-wms-row-hover">
             揀其他箱 <ChevronDown size={14} />
           </button>
           <button
             onClick={onOpenNew}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-2.5 text-sm hover:bg-wms-row-hover"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-3 text-[14px] hover:bg-wms-row-hover"
           >
             <Plus size={14} /> 開新箱
           </button>
@@ -356,7 +364,6 @@ function MidHero({
           <div className="flex flex-col gap-1.5">
             {scan.owner.open_boxes.slice(1).map((b) => {
               const items = b.items?.length ?? 0;
-              const max = b.max_slots ?? 8;
               return (
                 <div
                   key={b._id}
@@ -364,14 +371,8 @@ function MidHero({
                 >
                   <span className="font-wms-mono text-sm font-semibold">{b.box_no}</span>
                   <span className="flex-1" />
-                  <div className="h-1 w-20 overflow-hidden rounded-sm bg-wms-surface-alt">
-                    <div
-                      className={MODE_BAR_BG[modeForBox(b)]}
-                      style={{ width: `${(items / max) * 100}%`, height: "100%" }}
-                    />
-                  </div>
-                  <span className="min-w-[32px] text-right font-wms-mono text-[11.5px] text-wms-muted">
-                    {items}/{max}
+                  <span className="min-w-[40px] text-right font-wms-mono text-[11.5px] text-wms-muted">
+                    {items} 件
                   </span>
                 </div>
               );
@@ -412,6 +413,29 @@ export function PackPageClient() {
     setError(null);
     setBusy(true);
     try {
+      const code = v.trim();
+      // BOX-* = 箱號掃描：若已有 pending 件 → 入箱 / 換箱（server 會擋
+      // mode-mismatch、不同客）；無 pending 件 → 提示先掃件。
+      if (/^box-/i.test(code)) {
+        if (!scan) {
+          throw new Error("請先掃一件貨，再掃箱號");
+        }
+        const placeRes = await post_request("/api/wms/outbound/pack/place", {
+          inbound_id: scan.item.inbound_id,
+          outbound_id: scan.item.outbound_id,
+          to_box_no: code,
+          from_box_no: scan.from_box?.box_no ?? null,
+        });
+        const placeJson = await placeRes.json();
+        if (placeJson?.status !== 200) {
+          throw new Error(placeJson?.message ?? "Place failed");
+        }
+        setScan(null);
+        setEcho(null);
+        await reload();
+        return;
+      }
+      // 件號掃描
       const res = await post_request("/api/wms/outbound/pack/scan", {
         scanCode: v,
       });
@@ -466,6 +490,15 @@ export function PackPageClient() {
       if (json?.status !== 200) {
         throw new Error(json?.message ?? "Open box failed");
       }
+      // 新箱開好之後 → 開窗印箱 label
+      const newBoxNo: string | undefined = json?.data?.box?.box_no;
+      if (newBoxNo) {
+        const clientName = scan.owner.client_name ?? scan.owner.client_code ?? "";
+        const printUrl = `/zh-hk/wms/print/box-label?box_no=${encodeURIComponent(
+          newBoxNo
+        )}&client=${encodeURIComponent(clientName)}`;
+        window.open(printUrl, "_blank", "noopener,noreferrer");
+      }
       setScan(null);
       setEcho(null);
       await reload();
@@ -489,7 +522,7 @@ export function PackPageClient() {
       cta={
         <NextCTA
           state={ctaState}
-          to="weigh"
+          to="pack"
           progress={
             state
               ? { done: state.stats.packed_item_count, total: state.stats.packed_item_count + deskCount }
