@@ -28,7 +28,7 @@ import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
 import { Stepper } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
-import { get_request } from "@/lib/httpRequest";
+import { post_request } from "@/lib/httpRequest";
 import { cn } from "@/lib/utils";
 
 interface ReceiveLookupItem {
@@ -48,7 +48,7 @@ const STEPPER = [
   { label: "進入出貨流程", state: "todo" as const },
 ];
 
-const RECENT_SHELVES = ["A-04", "A-05", "B-02", "C-07", "YT-1", "YT-2"];
+const RECENT_SHELVES = ["A001", "A002", "A003"];
 
 function PhotoSlot({
   label,
@@ -162,6 +162,7 @@ export function PutawayPageClient() {
     return () => window.clearTimeout(id);
   }, [toast]);
 
+  // 完全重置（手動「清空」按鈕用）
   const reset = () => {
     setScanned(null);
     setItem(null);
@@ -175,6 +176,17 @@ export function PutawayPageClient() {
     setError(null);
   };
 
+  // 連掃用：成功確認後保留貨架/重量/材積，
+  // 只清「件相關」資料 (件、tracking、照片、錯誤)，
+  // 讓相似包裹倉庫員只需改少數欄位。
+  const softReset = () => {
+    setScanned(null);
+    setItem(null);
+    setBarcodeFile(null);
+    setPackageFile(null);
+    setError(null);
+  };
+
   const handleScan = async (v: string) => {
     setError(null);
     setScanned(v);
@@ -182,8 +194,9 @@ export function PutawayPageClient() {
     // shelve as the PDA (file-input photo upload). The auto-append into
     // today's YT outbound continues to happen server-side in yt-service.
     try {
-      const res = await get_request(
-        `/api/wms/scan/receive/lookup?id=${encodeURIComponent(v)}`
+      const res = await post_request(
+        "/api/wms/scan/receive/lookup",
+        { identifier: v }
       );
       const json = await res.json();
       if (json?.status !== 200) {
@@ -193,6 +206,19 @@ export function PutawayPageClient() {
         throw new Error("唔係預報入庫 — 用 unclaimed-pool 處理");
       }
       const ib: ReceiveLookupItem = json.data.inbound;
+      // 阻擋已上架 / 不可 receive 嘅 status，避免重複上架
+      if (ib.status === "received") {
+        throw new Error("此件已上架（狀態 received），請勿重複上架");
+      }
+      if (ib.status === "cancelled") {
+        throw new Error("此件已取消（cancelled）");
+      }
+      if (ib.status === "abandoned") {
+        throw new Error("此件已棄置（abandoned）");
+      }
+      if (ib.status !== "pending" && ib.status !== "arrived") {
+        throw new Error(`此件狀態 ${ib.status} 不可上架（僅接受 pending / arrived）`);
+      }
       setItem(ib);
       if (ib.actualWeight) setWeight(String(ib.actualWeight));
       if (ib.actualDimension) {
@@ -243,7 +269,7 @@ export function PutawayPageClient() {
       }
       setConfirmed((c) => c + 1);
       setToast(`${item.tracking_no} 上架到 ${shelf} ✓`);
-      reset();
+      softReset();
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
@@ -260,7 +286,7 @@ export function PutawayPageClient() {
       cta={
         <NextCTA
           state={ctaState}
-          to="pick"
+          to="putaway"
           progress={{ done: confirmed, total: confirmed + (item ? 1 : 0) }}
           lockedHint={
             item
@@ -317,14 +343,7 @@ export function PutawayPageClient() {
             autoFocus={!item}
           />
 
-          {!scanned && (
-            <div className="px-3 pb-1 pt-8 text-center text-sm text-wms-muted">
-              ⬆ 用掃描槍掃件貨，系統會自動 surface 件主、SKU、預設貨架
-            </div>
-          )}
-
-          {item && (
-            <>
+          <>
               <div className="mt-4 flex items-start gap-4">
                 <PhotoSlot
                   label="條碼相"
@@ -341,23 +360,41 @@ export function PutawayPageClient() {
 
                 <div className="min-w-0 flex-1">
                   <div className="mb-1.5 flex items-center gap-2">
-                    <h2 className="text-lg font-semibold">
-                      {item.client_id.slice(-6).toUpperCase()}
-                    </h2>
-                    <ModeBadge
-                      mode={
-                        item.shipping_mode === "single_direct"
-                          ? "single"
-                          : "consolidated"
-                      }
-                    />
-                    <span className="flex-1" />
-                    <span className="font-wms-mono text-[11.5px] text-wms-muted">
-                      狀態 {item.status}
-                    </span>
+                    {item ? (
+                      <>
+                        <h2 className="font-wms-mono text-2xl font-bold tracking-tight">
+                          {item.tracking_no}
+                        </h2>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-wms-ok-bg px-2 py-0.5 text-[11px] font-semibold text-wms-ok-fg">
+                          <Check size={12} strokeWidth={3} />
+                          已對到預報
+                        </span>
+                        <span className="flex-1" />
+                        <span className="font-wms-mono text-[11.5px] text-wms-muted">
+                          狀態 {item.status}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-[13px] text-wms-faint">
+                        等候掃描下一件…
+                      </span>
+                    )}
                   </div>
-                  <div className="mb-3 text-[13px] text-wms-muted">
-                    {item.tracking_no}
+                  <div className="mb-3 flex items-center gap-2 text-[13px] text-wms-muted">
+                    {item ? (
+                      <>
+                        <span>件主 {item.client_id.slice(-6).toUpperCase()}</span>
+                        <ModeBadge
+                          mode={
+                            item.shipping_mode === "single_direct"
+                              ? "single"
+                              : "consolidated"
+                          }
+                        />
+                      </>
+                    ) : (
+                      <span> </span>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -450,7 +487,7 @@ export function PutawayPageClient() {
                 </button>
                 <button
                   onClick={confirm}
-                  disabled={busy || !shelf.trim()}
+                  disabled={busy || !item || !shelf.trim()}
                   className="inline-flex items-center gap-2 rounded-[10px] bg-wms-ink px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
                 >
                   <Check size={15} strokeWidth={2.5} />
@@ -458,7 +495,6 @@ export function PutawayPageClient() {
                 </button>
               </div>
             </>
-          )}
         </div>
 
         {toast && (
