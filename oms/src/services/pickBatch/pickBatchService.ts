@@ -755,6 +755,138 @@ export async function listShelvesForBatch(
   return { batch_id, shelves };
 }
 
+// ── batch items list (PC pick-confirm re-scan view) ──────────
+//
+// W5: After printing a pick list, the warehouse staff grabs the items
+// off the shelves (no system action yet — inbound stays "received").
+// They return to PC and re-scan every tracking_no to confirm.
+//
+// This endpoint feeds that confirm UI: it returns one row per inbound
+// in the batch, with its current pending/picked state derived from
+// inbound.status. The actual scan-to-confirm action reuses the
+// existing pick-by-tracking endpoint (which already handles batch
+// scope check, status flip, and auto-advance via
+// checkBatchPickComplete) — we do NOT mint a separate confirm action.
+export interface BatchInboundItem {
+  inbound_id: string;
+  tracking_no: string;
+  outbound_id: string;
+  outbound_short: string;
+  client_id: string;
+  client_code: string | null;
+  declared_name: string | null;
+  locationCode: string | null;
+  status: "pending" | "picked";
+}
+
+export interface BatchItemsResponse {
+  batch_id: string;
+  batch_status: PickBatchStatus;
+  total_items: number;
+  picked_items: number;
+  items: BatchInboundItem[];
+}
+
+export async function listBatchItems(
+  batch_id: string
+): Promise<BatchItemsResponse> {
+  const db = await connectToDatabase();
+  const batch = await getBatch(db, batch_id);
+  const outboundIds: string[] = batch.outbound_ids ?? [];
+  if (outboundIds.length === 0) {
+    return {
+      batch_id,
+      batch_status: batch.status,
+      total_items: 0,
+      picked_items: 0,
+      items: [],
+    };
+  }
+
+  const links = await db
+    .collection(collections.OUTBOUND_INBOUND_LINK)
+    .find({ outbound_id: { $in: outboundIds }, unlinked_at: null })
+    .toArray();
+  if (links.length === 0) {
+    return {
+      batch_id,
+      batch_status: batch.status,
+      total_items: 0,
+      picked_items: 0,
+      items: [],
+    };
+  }
+  const inboundIds = links.map((l: any) => l.inbound_id);
+  const outboundByInbound = new Map<string, string>(
+    links.map((l: any) => [l.inbound_id, l.outbound_id])
+  );
+
+  const inbounds = await db
+    .collection(collections.INBOUND)
+    .find({ _id: { $in: inboundIds as any } })
+    .toArray();
+
+  const itemLocs = await db
+    .collection(collections.ITEM_LOCATION)
+    .find({ itemCode: { $in: inboundIds } })
+    .toArray();
+  const locByInbound = new Map<string, string | null>(
+    itemLocs.map((l: any) => [String(l.itemCode), l.locationCode ?? null])
+  );
+
+  // Declared names for staff-friendly row label.
+  const declaredItems = await db
+    .collection(collections.INBOUND_DECLARED_ITEM)
+    .find({ inbound_request_id: { $in: inboundIds } })
+    .project({ inbound_request_id: 1, product_name: 1, display_order: 1 })
+    .sort({ display_order: 1 })
+    .toArray();
+  const namesByInbound = new Map<string, string[]>();
+  for (const di of declaredItems as any[]) {
+    const arr = namesByInbound.get(di.inbound_request_id) ?? [];
+    arr.push(di.product_name);
+    namesByInbound.set(di.inbound_request_id, arr);
+  }
+  function summarizeNames(id: string): string | null {
+    const names = namesByInbound.get(id);
+    if (!names || names.length === 0) return null;
+    const first = names[0];
+    if (names.length === 1) return first;
+    return `${first} +${names.length - 1} 件`;
+  }
+
+  const { getClientCodeMap } = await import("@/services/clients/code_lookup");
+  const codeMap = await getClientCodeMap(
+    inbounds.map((i: any) => i.client_id)
+  );
+
+  const items: BatchInboundItem[] = inbounds.map((i: any) => {
+    const oid = outboundByInbound.get(String(i._id)) ?? "";
+    return {
+      inbound_id: String(i._id),
+      tracking_no: i.tracking_no ?? "",
+      outbound_id: oid,
+      outbound_short: oid.split("-").slice(-1)[0] || oid,
+      client_id: String(i.client_id),
+      client_code: codeMap.get(String(i.client_id)) ?? null,
+      declared_name: summarizeNames(String(i._id)),
+      locationCode: locByInbound.get(String(i._id)) ?? null,
+      // "received" = on shelf but not yet pickInbound'd → pending confirm.
+      // anything else (picking / packed / departed) = already confirmed.
+      status: i.status === "received" ? "pending" : "picked",
+    };
+  });
+
+  const picked = items.filter((it) => it.status === "picked").length;
+  return {
+    batch_id,
+    batch_status: batch.status,
+    total_items: items.length,
+    picked_items: picked,
+    items,
+  };
+}
+
 export const pickBatchService = {
   createBatch,
   startBatch,
@@ -767,4 +899,5 @@ export const pickBatchService = {
   getBatchDetail,
   listByLocation,
   listShelvesForBatch,
+  listBatchItems,
 };
