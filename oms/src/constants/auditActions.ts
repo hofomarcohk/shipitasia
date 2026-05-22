@@ -80,6 +80,13 @@ export const AUDIT_ACTIONS = {
   unclaimed_self_claimed: "unclaimed_self_claimed",
   unclaimed_disposed: "unclaimed_disposed",
   unclaimed_merged_to_existing: "unclaimed_merged_to_existing",
+  // W3 — cron-driven auto-match between a freshly-created forecast
+  // (inbound_request status="pending") and a row in the unclaimed
+  // pool. Exact tracking_no_normalized match, single candidate →
+  // auto-assigned + accepted on behalf of the client. Multiple
+  // candidates → flagged for CS, no data mutation.
+  unclaimed_auto_matched: "unclaimed_auto_matched",
+  unclaimed_auto_match_ambiguous: "unclaimed_auto_match_ambiguous",
 
   // ── Phase 7 — outbound creation + rate quote + label ─────────
   outbound_created: "outbound_created",
@@ -113,6 +120,10 @@ export const AUDIT_ACTIONS = {
   outbound_label_client_confirmed: "outbound_label_client_confirmed",
   outbound_admin_retry_label: "outbound_admin_retry_label",
   outbound_notify_client_label: "outbound_notify_client_label",
+  // W4 — WMS staff-side retry from the print page when an individual
+  // box's carrier label fetch previously failed (box.label_url == null).
+  // Each retry attempt logs one row regardless of success/failure.
+  outbound_label_fetch_retried: "outbound_label_fetch_retried",
 
   // ── Phase 10 — pick batch + pallet label ───────────────────
   pick_batch_created: "pick_batch_created",

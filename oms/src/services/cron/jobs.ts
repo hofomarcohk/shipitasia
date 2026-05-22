@@ -15,6 +15,11 @@ import {
   scanForAbandonment,
   type AbandonScanReport,
 } from "@/services/unclaimed/abandon-cron";
+import {
+  runUnclaimedAutoMatch,
+  type AutoMatchOptions,
+  type AutoMatchReport,
+} from "@/services/unclaimed/auto-match-cron";
 
 export interface YtRolloverReport {
   warehouses_processed: number;
@@ -64,4 +69,17 @@ export async function runYtDailyRollover(): Promise<YtRolloverReport> {
 
 export async function runAbandonmentScan(): Promise<AbandonScanReport> {
   return scanForAbandonment();
+}
+
+/**
+ * W3 — match late forecasts (inbound_requests freshly created) against
+ * the pending unclaimed pool, auto-assigning + accepting unique
+ * tracking matches. Delegates to the auto-match service for the
+ * actual mutation; this wrapper exists so HTTP routes import the
+ * same indirection as every other cron job.
+ */
+export async function runUnclaimedAutoMatchJob(
+  opts: AutoMatchOptions = {}
+): Promise<AutoMatchReport> {
+  return runUnclaimedAutoMatch(opts);
 }
