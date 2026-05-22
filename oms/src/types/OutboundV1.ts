@@ -412,6 +412,12 @@ export const OutboundBoxSchema = z
     label_obtained_by_operator_type: z
       .enum(["system", "client", "admin", "wms_staff"])
       .nullable(),
+    // W4 — per-box label-fetch retry telemetry. All three are optional
+    // for backward compatibility with legacy rows written before W4;
+    // readers must treat absence as `0 / null`.
+    label_fetch_attempts: z.number().int().nonnegative().optional(),
+    last_label_fetch_error: z.string().nullable().optional(),
+    last_label_fetch_at: z.date().nullable().optional(),
     departed_at: z.date().nullable(),
     pallet_label_id: z.string().nullable().optional(),
     created_by_staff_id: z.string().min(1),
@@ -436,6 +442,10 @@ export interface OutboundBoxPublic {
   tracking_no_carrier: string | null;
   actual_label_fee: number | null;
   label_obtained_at: Date | null;
+  // W4 — retry telemetry; legacy rows surface as 0 / null.
+  label_fetch_attempts: number;
+  last_label_fetch_error: string | null;
+  last_label_fetch_at: Date | null;
   departed_at: Date | null;
   pallet_label_id: string | null;
   createdAt: Date;
@@ -457,6 +467,9 @@ export function projectOutboundBox(doc: any): OutboundBoxPublic {
     tracking_no_carrier: doc.tracking_no_carrier ?? null,
     actual_label_fee: doc.actual_label_fee ?? null,
     label_obtained_at: doc.label_obtained_at ?? null,
+    label_fetch_attempts: doc.label_fetch_attempts ?? 0,
+    last_label_fetch_error: doc.last_label_fetch_error ?? null,
+    last_label_fetch_at: doc.last_label_fetch_at ?? null,
     departed_at: doc.departed_at ?? null,
     pallet_label_id: doc.pallet_label_id ?? null,
     createdAt: doc.createdAt,

@@ -2019,6 +2019,207 @@ export async function listLabelPrintableOutbounds(warehouseCode?: string) {
 }
 
 /**
+ * W4 — Per-box carrier label retry, scoped to the print page.
+ *
+ * Used when an outbound has already reached `label_obtained` but one or
+ * more OUTBOUND_BOX rows still have `label_pdf_path === null` (the
+ * fetchLabelMultiBox happy path can leave individual boxes label-less
+ * when the carrier API fails partway through and we don't roll back
+ * already-fetched siblings). Unlike the admin retry endpoint, this
+ * does NOT change outbound.status and does NOT mutate boxes that
+ * already carry a label.
+ *
+ * attempt_count semantics:
+ *   - `label_fetch_attempts` is incremented by exactly 1 on every call
+ *     regardless of success/failure, including the very first retry
+ *     (legacy rows start at 0, post-W4 rows initialise to 0).
+ *   - On success we also clear `last_label_fetch_error` and bump
+ *     `last_label_fetch_at`.
+ *   - On failure we keep the increment and store the error string +
+ *     timestamp; box stays at status `weight_verified` so a future
+ *     retry can run.
+ */
+export async function retryFetchLabelForOutbound(
+  outbound_id: string,
+  operator_staff_id: string
+): Promise<{
+  status: "success" | "failed" | "no_failed_boxes";
+  label_url: string | null;
+  attempt_count: number;
+  last_fetch_error: string | null;
+  retried_box_no: string | null;
+}> {
+  const db = await connectToDatabase();
+  const ob = await getOutbound(db, outbound_id);
+
+  // Find the first box missing a label. We retry one box per call so
+  // the UI can surface granular progress / per-box errors.
+  const failedBox = await db
+    .collection(collections.OUTBOUND_BOX)
+    .findOne({
+      outbound_id,
+      $or: [{ label_pdf_path: null }, { label_pdf_path: { $exists: false } }],
+    });
+
+  if (!failedBox) {
+    return {
+      status: "no_failed_boxes",
+      label_url: null,
+      attempt_count: 0,
+      last_fetch_error: null,
+      retried_box_no: null,
+    };
+  }
+
+  const previousAttempts = (failedBox.label_fetch_attempts as number) ?? 0;
+  const nextAttempts = previousAttempts + 1;
+  const now = new Date();
+
+  const warehouse = await db
+    .collection(collections.WAREHOUSE)
+    .findOne({ warehouseCode: ob.warehouseCode });
+
+  try {
+    const adapter = await getCarrierAdapter(ob.carrier_code);
+    const result = await adapter.getLabel({
+      outbound_id,
+      destination_country: ob.destination_country,
+      weight_kg: failedBox.weight_actual ?? failedBox.weight_estimate,
+      receiver_name: ob.receiver_address?.name ?? "",
+      receiver_address: [
+        ob.receiver_address?.address,
+        ob.receiver_address?.city,
+        ob.receiver_address?.country_code,
+      ]
+        .filter(Boolean)
+        .join(", "),
+      box_id: String(failedBox._id),
+      box_no: failedBox.box_no,
+      dimensions: failedBox.dimensions,
+      sender_name: warehouse?.name_zh ?? warehouse?.name_en ?? ob.warehouseCode,
+      sender_address: warehouse?.address_zh ?? warehouse?.address_en ?? "",
+    });
+
+    await db.collection(collections.OUTBOUND_BOX).updateOne(
+      { _id: failedBox._id },
+      {
+        $set: {
+          label_pdf_path: result.label_url,
+          tracking_no_carrier: result.tracking_no,
+          actual_label_fee: result.charged_amount,
+          label_obtained_at: now,
+          label_obtained_by_operator_type: "wms_staff",
+          status: "label_obtained",
+          label_fetch_attempts: nextAttempts,
+          last_label_fetch_error: null,
+          last_label_fetch_at: now,
+          updatedAt: now,
+        },
+      }
+    );
+
+    // Mirror the denormalised box label_url onto the outbound's boxes[]
+    // array so print-groups (which reads o.boxes[]) sees the new label
+    // on next reload without needing a full weigh/palletize rebuild.
+    await db.collection(collections.OUTBOUND).updateOne(
+      { _id: outbound_id as any, "boxes.box_no": failedBox.box_no },
+      {
+        $set: {
+          "boxes.$.label_url": result.label_url,
+          "boxes.$.tracking_no": result.tracking_no,
+          updatedAt: now,
+        },
+      }
+    );
+
+    await appendOutboundScan(db, {
+      outbound_id,
+      box_id: String(failedBox._id),
+      type: "label_obtained",
+      operator_staff_id,
+      details: {
+        retry: true,
+        attempt_count: nextAttempts,
+        tracking_no: result.tracking_no,
+        fee: result.charged_amount,
+        box_no: failedBox.box_no,
+      },
+    });
+
+    await logAudit({
+      action: AUDIT_ACTIONS.outbound_label_fetch_retried,
+      actor_type: AUDIT_ACTOR_TYPES.wms_staff,
+      actor_id: operator_staff_id,
+      target_type: AUDIT_TARGET_TYPES.outbound,
+      target_id: outbound_id,
+      details: {
+        outcome: "success",
+        box_no: failedBox.box_no,
+        attempt_count: nextAttempts,
+        carrier_code: ob.carrier_code,
+      },
+    });
+
+    return {
+      status: "success",
+      label_url: result.label_url,
+      attempt_count: nextAttempts,
+      last_fetch_error: null,
+      retried_box_no: failedBox.box_no,
+    };
+  } catch (err) {
+    const errMsg = String((err as any)?.message ?? err);
+    await db.collection(collections.OUTBOUND_BOX).updateOne(
+      { _id: failedBox._id },
+      {
+        $set: {
+          label_fetch_attempts: nextAttempts,
+          last_label_fetch_error: errMsg,
+          last_label_fetch_at: now,
+          updatedAt: now,
+        },
+      }
+    );
+
+    await appendOutboundScan(db, {
+      outbound_id,
+      box_id: String(failedBox._id),
+      type: "label_failed",
+      operator_staff_id,
+      details: {
+        retry: true,
+        attempt_count: nextAttempts,
+        error: errMsg,
+        box_no: failedBox.box_no,
+      },
+    });
+
+    await logAudit({
+      action: AUDIT_ACTIONS.outbound_label_fetch_retried,
+      actor_type: AUDIT_ACTOR_TYPES.wms_staff,
+      actor_id: operator_staff_id,
+      target_type: AUDIT_TARGET_TYPES.outbound,
+      target_id: outbound_id,
+      details: {
+        outcome: "failed",
+        box_no: failedBox.box_no,
+        attempt_count: nextAttempts,
+        error: errMsg,
+        carrier_code: ob.carrier_code,
+      },
+    });
+
+    return {
+      status: "failed",
+      label_url: null,
+      attempt_count: nextAttempts,
+      last_fetch_error: errMsg,
+      retried_box_no: failedBox.box_no,
+    };
+  }
+}
+
+/**
  * Detail panel data for the label-print page: every pack box covering this
  * outbound, the items inside (filtered to this outbound only — pack boxes
  * are client-scoped and can hold items from sibling outbounds), and per-item

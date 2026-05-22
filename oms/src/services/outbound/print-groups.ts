@@ -39,6 +39,14 @@ export interface PrintGroupBox {
   tracking_no: string | null;
   label_url: string | null;
   sealed_at: Date | null;
+  // W4 — surfaced from OUTBOUND_BOX so the print page can show a
+  // per-box retry CTA when label_url is null. Legacy rows missing the
+  // counter columns surface as 0 / null. `outbound_id` is included so
+  // the UI can dispatch the retry call to the right outbound when a
+  // group spans multiple outbound_ids.
+  outbound_id: string;
+  label_fetch_attempts: number;
+  last_label_fetch_error: string | null;
 }
 
 export interface PrintGroup {
@@ -165,6 +173,34 @@ export async function listPrintGroups(
     }
   }
 
+  // W4 — overlay per-box retry telemetry from OUTBOUND_BOX. The outbound
+  // doc carries the denormalised boxes[] (label_url etc.) but not the
+  // retry counter / last error, which live on OUTBOUND_BOX. Key: composite
+  // (outbound_id, box_no).
+  const outboundIds = outbounds.map((o: any) => String(o._id));
+  const boxRetryMap = new Map<
+    string,
+    { attempts: number; last_error: string | null }
+  >();
+  if (outboundIds.length > 0) {
+    const obBoxes = await db
+      .collection(collections.OUTBOUND_BOX)
+      .find({ outbound_id: { $in: outboundIds } })
+      .project({
+        outbound_id: 1,
+        box_no: 1,
+        label_fetch_attempts: 1,
+        last_label_fetch_error: 1,
+      })
+      .toArray();
+    for (const b of obBoxes as any[]) {
+      boxRetryMap.set(`${b.outbound_id}|${b.box_no}`, {
+        attempts: b.label_fetch_attempts ?? 0,
+        last_error: b.last_label_fetch_error ?? null,
+      });
+    }
+  }
+
   const grouped = new Map<string, any[]>();
   for (const o of outbounds) {
     const key = destinationKey(o);
@@ -191,7 +227,9 @@ export async function listPrintGroups(
     const boxes: PrintGroupBox[] = [];
     let total_weight_kg = 0;
     for (const o of items) {
+      const oid = String(o._id);
       for (const b of o.boxes ?? []) {
+        const retry = boxRetryMap.get(`${oid}|${b.box_no}`);
         boxes.push({
           box_no: b.box_no,
           weight: b.weight ?? 0,
@@ -202,6 +240,9 @@ export async function listPrintGroups(
           tracking_no: b.tracking_no ?? null,
           label_url: b.label_url ?? null,
           sealed_at: b.sealed_at ?? null,
+          outbound_id: oid,
+          label_fetch_attempts: retry?.attempts ?? 0,
+          last_label_fetch_error: retry?.last_error ?? null,
         });
         total_weight_kg += b.weight ?? 0;
       }
