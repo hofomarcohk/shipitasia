@@ -179,37 +179,34 @@ export function PrintPageClient() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // W4 — retry carrier label fetch for the next failed box on a given
-  // outbound. Each click drains one failed box; the UI keeps the row
-  // visible (with bumped attempt_count) until the user clicks again or
-  // reloads. We deliberately don't optimistically clear label_url ===
-  // null — backend is the source of truth, we just reload after the
-  // call resolves.
-  const retryLabelFetch = async (outboundId: string, boxNo: string) => {
-    if (retrying.has(outboundId)) return;
+  // W5 — group-level retry: calls /api/wms/print/retry-group with all
+  // outbound_ids in the group. One click retries all failed boxes at once.
+  const retryGroup = async (g: PrintGroup) => {
+    if (retrying.has(g.group_key)) return;
     setRetrying((prev) => {
       const next = new Set(prev);
-      next.add(outboundId);
+      next.add(g.group_key);
       return next;
     });
     setError(null);
     try {
-      const res = await post_request(
-        `/api/wms/outbound/${outboundId}/retry-label-fetch`,
-        {}
-      );
+      const res = await post_request("/api/wms/print/retry-group", {
+        outbound_ids: g.outbound_ids,
+      });
       const json = await res.json();
       if (json?.status !== 200) {
         throw new Error(json?.message ?? "Retry failed");
       }
       const data = json?.data ?? {};
-      if (data.status === "success") {
-        setToast(`箱 ${boxNo} 取單成功 (嘗試 ${data.attempt_count} 次)`);
-      } else if (data.status === "no_failed_boxes") {
-        setToast(`箱 ${boxNo} 已經有面單，無需重試`);
+      if (data.all_success) {
+        setToast(`${g.client_name} 全部取單成功 · 可以列印`);
+        // Auto-open label PDF
+        const url = `/api/wms/outbound/labels-bundle?outbound_ids=${g.outbound_ids.join(",")}`;
+        window.open(url, "_blank", "noopener,noreferrer");
       } else {
+        const failed = (data.results ?? []).filter((r: any) => r.status === "failed");
         setError(
-          `箱 ${boxNo} 取單失敗 (嘗試 ${data.attempt_count} 次): ${data.last_fetch_error ?? "未知錯誤"}`
+          `${g.client_name} 部分取單失敗 (${failed.length} 張): ${failed.map((r: any) => r.error).join("; ")}`
         );
       }
       await reload();
@@ -218,7 +215,7 @@ export function PrintPageClient() {
     } finally {
       setRetrying((prev) => {
         const next = new Set(prev);
-        next.delete(outboundId);
+        next.delete(g.group_key);
         return next;
       });
     }
@@ -461,39 +458,21 @@ export function PrintPageClient() {
                       <StatusPill status={g.status} />
                     </td>
                     <td className="px-3 py-2.5">
-                      {/* W4 — retry CTAs for any boxes whose carrier
-                          label fetch failed. Shown above the regular
-                          print/pickup actions so they're impossible to
-                          miss on a stuck group. */}
+                      {/* W5 — single group-level retry button when any
+                          box is missing a label. Calls /api/wms/print/retry-group
+                          with all outbound_ids in this group. */}
                       {failedBoxes.length > 0 && (
-                        <div className="mb-1.5 flex flex-col gap-1">
-                          {failedBoxes.map((b) => {
-                            const isBusy = retrying.has(b.outbound_id);
-                            return (
-                              <button
-                                key={`retry-${b.outbound_id}-${b.box_no}`}
-                                onClick={() =>
-                                  retryLabelFetch(b.outbound_id, b.box_no)
-                                }
-                                disabled={isBusy}
-                                title={
-                                  b.last_label_fetch_error ??
-                                  "上次取單失敗，按此重試"
-                                }
-                                className="inline-flex items-center gap-1.5 rounded-md border border-wms-danger-fg/40 bg-wms-danger-bg px-2 py-1 text-xs font-semibold text-wms-danger-fg hover:brightness-95 disabled:opacity-60"
-                              >
-                                <AlertTriangle size={12} />
-                                {isBusy
-                                  ? `重試中…`
-                                  : `取單失敗，按此重試 ${b.box_no.replace(/^BX-/, "")}`}
-                                {b.label_fetch_attempts >= 1 && !isBusy && (
-                                  <span className="ml-1 rounded bg-white/60 px-1 font-wms-mono text-[10px]">
-                                    {b.label_fetch_attempts}x
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
+                        <div className="mb-1.5">
+                          <button
+                            onClick={() => retryGroup(g)}
+                            disabled={retrying.has(g.group_key)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-wms-danger-fg/40 bg-wms-danger-bg px-3 py-1.5 text-xs font-semibold text-wms-danger-fg hover:brightness-95 disabled:opacity-60"
+                          >
+                            <AlertTriangle size={12} />
+                            {retrying.has(g.group_key)
+                              ? "重新取單中…"
+                              : `重新取單 · ${failedBoxes.length} 箱未有面單`}
+                          </button>
                         </div>
                       )}
                       {g.status === "ready_to_print" && (

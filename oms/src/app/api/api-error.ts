@@ -1,6 +1,10 @@
 import { ApiErrorList } from "@/cst/error-list";
 
 class ApiError extends Error {
+  /** Raw interpolation data — kept so the middleware can re-render
+   *  the message in whichever langCode the client sent. */
+  public data?: { [key: string]: string };
+
   constructor(
     errorCode: string,
     data?: {
@@ -31,6 +35,7 @@ class ApiError extends Error {
     // set error code
     this.name = errorCode;
     this.message = message;
+    this.data = data;
     // set error status
   }
 }

@@ -23,14 +23,27 @@ export const cmsMiddleware = async (
       ...ApiErrorList.INTERNAL_SERVER_ERROR,
     };
     if (e instanceof ApiError) {
-      const langCode = headers.get("langCode") ?? "en";
+      // v1 為 HK 客戶為主，未傳 header 默認用繁中。frontend 傳 langCode header 可覆蓋。
+      const langCode = headers.get("langCode") ?? "zh_hk";
       const errorCode = e.name;
-      let errorMessage = e.message;
+      const entry = ApiErrorList[errorCode as keyof typeof ApiErrorList];
 
-      if (ApiErrorList[errorCode as keyof typeof ApiErrorList]) {
+      if (entry) {
+        // 重新 render template — service 層 throw 時用 default lang 內建 message，
+        // 呢度根據 client lang preference 重組，並用 ApiError.data interpolate。
+        const template =
+          (langCode === "zh_hk" || langCode === "zh_cn" || langCode === "en"
+            ? (entry as any)[langCode]
+            : entry.message) ?? entry.message;
+        let rendered = template as string;
+        if (e.data) {
+          for (const key in e.data) {
+            rendered = rendered.replace(`{${key}}`, e.data[key]);
+          }
+        }
         returnData = {
-          ...ApiErrorList[errorCode as keyof typeof ApiErrorList],
-          message: errorMessage,
+          ...entry,
+          message: rendered,
         };
       }
     } else if (e instanceof z.ZodError) {

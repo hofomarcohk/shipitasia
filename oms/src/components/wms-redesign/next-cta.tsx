@@ -76,7 +76,13 @@ export function NextCTA({
   }, [isComplete, isEndOfFlow, flow, customMainCTA, router]);
 
   const handleClick = () => {
-    if (state === "locked" || isEndOfFlow || !flow) return;
+    if (state === "locked") return;
+    // W5: end-of-flow (to=null) + ready → go back to dashboard
+    if (isEndOfFlow && state === "ready") {
+      router.push("/zh-hk/wms");
+      return;
+    }
+    if (!flow) return;
     router.push(flow.url);
   };
 

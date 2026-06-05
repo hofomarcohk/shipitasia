@@ -127,7 +127,9 @@ export function DepartPageClient() {
     return flatBoxes.find((b) => b.box_no === scannedBox) ?? null;
   }, [scannedBox, flatBoxes]);
 
-  const doneCount = departedNow.size;
+  // W5: only count departed boxes that are still in the current flatBoxes list,
+  // so departed outbounds that dropped off the departable query don't inflate the count.
+  const doneCount = flatBoxes.filter((b) => departedNow.has(b.box_no) || b.status === "departed").length;
   const allDone = total > 0 && doneCount >= total;
 
   const handleScanBox = (v: string) => {

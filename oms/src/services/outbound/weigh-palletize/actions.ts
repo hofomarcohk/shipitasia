@@ -240,7 +240,7 @@ export async function saveBox(
 // (client + warehouse + carrier + receiver address exact-match). A subset
 // of relevant address fields is intentional — we want phone/postcode
 // variants on the SAME shipping address to still combine.
-function destinationKey(ob: any): string {
+export function destinationKey(ob: any): string {
   const a = ob.receiver_address ?? {};
   return JSON.stringify({
     client_id: String(ob.client_id),

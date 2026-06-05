@@ -26,6 +26,16 @@ import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
 import { Stepper } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { get_request, post_request } from "@/lib/httpRequest";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +53,8 @@ interface WeighQueueEntry {
   shipment_type: "single" | "consolidated";
   outbound_status: string;
   boxes: WeighQueueBox[];
+  /** 同當前 active session client + carrier + 收件地址 → 可加入同一組取單 */
+  groupable_with_active?: boolean;
 }
 interface PalletizeQueueEntry extends WeighQueueEntry {
   box_count: number;
@@ -135,11 +147,16 @@ function GroupCard({
   const weighed = (entry.boxes ?? []).filter(
     (b) => b.status === "weighed" || b.status === "scanned"
   ).length;
+  const groupable = !!entry.groupable_with_active;
   return (
     <div
       className={cn(
         "rounded-xl border p-3.5",
-        highlighted ? "border-2 border-wms-warn-fg bg-[#FFFBEB]" : "border-wms-border bg-wms-surface",
+        highlighted
+          ? "border-2 border-wms-warn-fg bg-[#FFFBEB]"
+          : groupable
+            ? "border-2 border-wms-ok-fg bg-wms-ok-bg/40"
+            : "border-wms-border bg-wms-surface",
         complete && "opacity-60"
       )}
     >
@@ -153,6 +170,9 @@ function GroupCard({
               {entry.outbound_id}
             </span>
             {highlighted && <Pill kind="warn">進行中</Pill>}
+            {groupable && !highlighted && !complete && (
+              <Pill kind="ok">可加入當前組</Pill>
+            )}
             {complete && (
               <Pill kind="ok">
                 <Check size={11} strokeWidth={2.5} /> 已取單
@@ -300,10 +320,18 @@ export function WeighPageClient() {
     setEcho(null);
   };
 
+  // W5: label fetch result state — shown as a banner after complete
+  const [labelResult, setLabelResult] = React.useState<{
+    outcome: "obtained" | "batched" | "failed";
+    outbound_ids: string[];
+    error?: string;
+  } | null>(null);
+
   const completeSession = async () => {
     if (!state?.active_session) return;
     setBusy(true);
     setError(null);
+    setLabelResult(null);
     try {
       const res = await post_request(
         "/api/wms/outbound/weigh-palletize/complete",
@@ -314,13 +342,66 @@ export function WeighPageClient() {
         throw new Error(json?.message ?? "Complete failed");
       }
       setEcho(null);
+      setAutoCompleteOpen(false);
+
+      // W5: auto-label fetch — backend already called carrier API during
+      // completeSession. Check outcome and react accordingly.
+      const data = json?.data ?? {};
+      const outcome = data.label_fetch_outcome ?? "failed";
+      const oids: string[] = data.outbound_ids ?? (data.outbound_id ? [data.outbound_id] : []);
+
+      if (outcome === "obtained" || outcome === "batched") {
+        // Success — open merged label PDF in new tab for immediate printing,
+        // then advance to label_printed so orders go straight to depart.
+        if (oids.length > 0) {
+          const url = `/api/wms/outbound/labels-bundle?outbound_ids=${oids.join(",")}`;
+          window.open(url, "_blank", "noopener,noreferrer");
+          // W5: advance to label_printed → depart page
+          try {
+            await post_request("/api/wms/print/advance-to-printed", {
+              outbound_ids: oids,
+            });
+          } catch { /* best-effort */ }
+        }
+        setLabelResult({ outcome, outbound_ids: oids });
+      } else {
+        // Failed — show error, user goes to label-print page to retry
+        setLabelResult({
+          outcome: "failed",
+          outbound_ids: oids,
+          error: data.label_fetch_error ?? "取單失敗",
+        });
+      }
+
       await reload();
     } catch (e: any) {
       setError(e?.message ?? String(e));
+      setAutoCompleteOpen(false);
     } finally {
       setBusy(false);
     }
   };
+
+  // Auto-popup：當前組全部箱掃完 (complete_ready) 且 weigh queue 冇同組嘅其他箱
+  // 可加入時 → 自動彈 confirm dialog，倉庫員按 Enter 即取單，唔需要去揾 button。
+  // 仲有同組箱可加入時刻意唔彈 — 等倉庫員繼續掃落去，session 自動 expand。
+  const [autoCompleteOpen, setAutoCompleteOpen] = React.useState(false);
+  const [autoCompleteDismissed, setAutoCompleteDismissed] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const sess = state?.active_session;
+    if (!sess?.complete_ready) {
+      setAutoCompleteDismissed(null);
+      return;
+    }
+    const hasGroupable = (state?.weigh_queue ?? []).some(
+      (e) => e.groupable_with_active
+    );
+    if (hasGroupable) return;
+    // 用 session primary outbound_id 做 dedup key，避免同一 session reload 多次都重彈
+    const key = sess.outbound_id;
+    if (autoCompleteDismissed === key) return;
+    setAutoCompleteOpen(true);
+  }, [state?.active_session, state?.weigh_queue, autoCompleteDismissed]);
 
   const session = state?.active_session;
   const groupsRemaining =
@@ -329,6 +410,7 @@ export function WeighPageClient() {
     groupsRemaining === 0 && session == null ? "ready" : "locked";
 
   return (
+    <>
     <WmsShell
       crumbs={[{ label: "出貨作業" }, { label: "秤重取單" }]}
       cta={
@@ -355,6 +437,16 @@ export function WeighPageClient() {
             url: "/zh-hk/wms/operations/pack",
             label: "裝箱任務",
           }}
+          extras={
+            ctaState === "ready" && (
+              <a
+                href="/zh-hk/wms/operations/label-print"
+                className="inline-flex items-center gap-1.5 rounded-[10px] border border-wms-danger-fg/40 bg-wms-danger-bg px-4 py-2.5 text-[13px] font-semibold text-wms-danger-fg hover:brightness-95"
+              >
+                重試運單
+              </a>
+            )
+          }
         />
       }
     >
@@ -391,6 +483,75 @@ export function WeighPageClient() {
         {error && (
           <div className="mb-3 rounded-lg border border-wms-danger-fg/30 bg-wms-danger-bg px-3 py-2 text-sm text-wms-danger-fg">
             {error}
+          </div>
+        )}
+
+        {/* W5: label fetch result banner after completeSession */}
+        {labelResult && (
+          <div
+            className={cn(
+              "mb-3 rounded-xl border-[1.5px] p-4",
+              labelResult.outcome === "failed"
+                ? "border-wms-danger-fg/40 bg-wms-danger-bg"
+                : "border-wms-ok-fg/40 bg-[#F0FDF4]"
+            )}
+          >
+            {labelResult.outcome === "failed" ? (
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="mt-0.5 flex-none text-wms-danger-fg" />
+                <div className="flex-1">
+                  <div className="text-[14px] font-semibold text-wms-danger-fg">
+                    取單失敗
+                  </div>
+                  <div className="mt-1 text-[13px] text-wms-danger-fg/80">
+                    {labelResult.error}
+                  </div>
+                  <div className="mt-1 text-[12px] text-wms-danger-fg/60">
+                    出庫單已跌入「面單列印」頁面，請去嗰度重試取單。
+                  </div>
+                  <a
+                    href="/zh-hk/wms/operations/label-print"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-wms-danger-fg px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
+                  >
+                    前往面單列印 →
+                  </a>
+                </div>
+                <button
+                  onClick={() => setLabelResult(null)}
+                  className="text-wms-danger-fg/50 hover:text-wms-danger-fg"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3">
+                <Check size={20} className="mt-0.5 flex-none text-wms-ok-fg" strokeWidth={2.5} />
+                <div className="flex-1">
+                  <div className="text-[14px] font-semibold text-wms-ok-fg">
+                    取單成功 · 面單已彈出列印
+                  </div>
+                  <div className="mt-1 text-[13px] text-wms-ok-fg/80">
+                    {labelResult.outbound_ids.length} 張出庫單已取得面單。如果冇彈出新視窗，請允許彈出式視窗後
+                    <button
+                      onClick={() => {
+                        const url = `/api/wms/outbound/labels-bundle?outbound_ids=${labelResult.outbound_ids.join(",")}`;
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      }}
+                      className="ml-1 font-semibold underline"
+                    >
+                      再印一次
+                    </button>
+                    。訂單已進入離站等候。
+                  </div>
+                </div>
+                <button
+                  onClick={() => setLabelResult(null)}
+                  className="text-wms-ok-fg/50 hover:text-wms-ok-fg"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -644,5 +805,44 @@ export function WeighPageClient() {
         </div>
       </div>
     </WmsShell>
+    <AlertDialog
+      open={autoCompleteOpen}
+      onOpenChange={(open) => {
+        if (!open && session?.outbound_id) {
+          // 倉庫員手動關 dialog（cancel）— mark dismissed 避免下一次 reload 又彈
+          setAutoCompleteDismissed(session.outbound_id);
+        }
+        setAutoCompleteOpen(open);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {session?.client_name} 已冇其他同組箱
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            當前組 {session?.outbound_ids?.length ?? 1} 張出庫單 · 共 {session?.total ?? 0} 箱已全部秤完並掃完置板。
+            倉庫已冇同客戶／同目的地嘅其他箱可以加入呢組。
+            <br />
+            <br />
+            按 <strong>Enter</strong> 或下面確認即直接取單。系統會自動 call carrier API 攞面單，成功嘅話會即刻彈出 PDF 俾你印。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>暫緩 · 我再睇睇</AlertDialogCancel>
+          <AlertDialogAction
+            autoFocus
+            onClick={(e) => {
+              e.preventDefault();
+              completeSession();
+            }}
+            disabled={busy}
+          >
+            {busy ? "處理中…" : "確認取單 · ↵"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

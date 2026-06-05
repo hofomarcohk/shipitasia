@@ -58,7 +58,7 @@ export const CARRIER_MOCK_CONFIG: Record<string, CarrierMockConfig> = {
     base_fee: 25,
     per_kg_fee: 12,
     carrier_multiplier: 1.2,
-    max_weight_kg: 20,
+    max_weight_kg: 100, // W5: fuuffy 無重量限制，只有 YT 有
     supported_countries: ["HK", "TW", "CN", "JP", "SG"],
     fail_rate: 0,
   },

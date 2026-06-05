@@ -2,6 +2,7 @@ import { collections } from "@/cst/collections";
 import { connectToDatabase } from "@/lib/mongo";
 import { PackBoxV1 } from "@/types/PackBoxV1";
 import { TARE_KG, WEIGHT_TOLERANCE_KG } from "./weight";
+import { destinationKey } from "./actions";
 import { ObjectId } from "mongodb";
 
 // Statuses that may still have boxes pending秤重 — once palletize completes,
@@ -100,6 +101,10 @@ export type WeighQueueEntry = {
   shipment_type: "single" | "consolidated";
   outbound_status: string;
   boxes: WeighQueueBox[];
+  /** True if this outbound shares client + warehouse + carrier + receiver
+   *  with the active session, i.e. its boxes can be palletize-scanned
+   *  into the same session without triggering PACK_PALLETIZE_WRONG_OUTBOUND. */
+  groupable_with_active: boolean;
 };
 
 export type PalletizeQueueBox = {
@@ -120,6 +125,8 @@ export type PalletizeQueueEntry = {
   box_count: number;
   total_weight_kg: number;
   boxes: PalletizeQueueBox[];
+  /** Same semantics as WeighQueueEntry.groupable_with_active. */
+  groupable_with_active: boolean;
 };
 
 export type SameClientHintEntry = {
@@ -267,6 +274,33 @@ export async function getWeighPalletizeState(
   const weigh_queue: WeighQueueEntry[] = [];
   const palletize_queue: PalletizeQueueEntry[] = [];
 
+  // P19+ UX：active session 嘅 primary outbound destination key 用嚟標 same-group
+  // entries，frontend 排頭 + 綠 highlight + 「可加入當前組」chip。
+  let activeDestKey: string | null = null;
+  if (lockDoc) {
+    const primaryOid =
+      Array.isArray(lockDoc.outbound_ids) && lockDoc.outbound_ids.length > 0
+        ? String(lockDoc.outbound_ids[0])
+        : lockDoc.outbound_id
+        ? String(lockDoc.outbound_id)
+        : null;
+    if (primaryOid) {
+      const primary = outboundById.get(primaryOid);
+      if (primary) {
+        activeDestKey = destinationKey(primary);
+      } else {
+        // active session 嘅 outbound 已經跌出 weigh-relevant statuses（被
+        // complete 過），單獨 load 一次去 derive key。罕見路徑但要 safe。
+        const fresh = await db
+          .collection(collections.OUTBOUND)
+          .findOne({ _id: primaryOid as any });
+        if (fresh) activeDestKey = destinationKey(fresh);
+      }
+    }
+  }
+  const groupableFor = (ob: any): boolean =>
+    !!activeDestKey && destinationKey(ob) === activeDestKey;
+
   for (const oid of outboundIds) {
     const outbound = outboundById.get(oid);
     if (!outbound) continue;
@@ -289,6 +323,7 @@ export async function getWeighPalletizeState(
         client_name,
         shipment_type: outbound.shipment_type || "consolidated",
         outbound_status: outbound.status,
+        groupable_with_active: groupableFor(outbound),
         boxes: boxes.map((b) => {
           const exp = expectedByBoxNo.get(b.box_no);
           return {
@@ -319,6 +354,7 @@ export async function getWeighPalletizeState(
         client_name,
         shipment_type: outbound.shipment_type || "consolidated",
         outbound_status: outbound.status,
+        groupable_with_active: groupableFor(outbound),
         box_count: boxes.length,
         total_weight_kg:
           Math.round(
@@ -398,9 +434,16 @@ export async function getWeighPalletizeState(
     }
   }
 
-  // Stable sort: oldest outbound first (createdAt asc)
-  weigh_queue.sort((a, b) => a.outbound_id.localeCompare(b.outbound_id));
-  palletize_queue.sort((a, b) => a.outbound_id.localeCompare(b.outbound_id));
+  // Sort: groupable-with-active 排頭（綠 highlight，倉庫員一眼見到可以一齊
+  // 加入當前組），其餘按 outbound_id 字典序。
+  const queueSort = (a: { groupable_with_active: boolean; outbound_id: string }, b: typeof a) => {
+    if (a.groupable_with_active !== b.groupable_with_active) {
+      return a.groupable_with_active ? -1 : 1;
+    }
+    return a.outbound_id.localeCompare(b.outbound_id);
+  };
+  weigh_queue.sort(queueSort);
+  palletize_queue.sort(queueSort);
 
   return { weigh_queue, palletize_queue, active_session };
 }

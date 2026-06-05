@@ -45,12 +45,15 @@ export const YT_CARRIER_CODE = "fuuffy";
 
 // Mock-phase placeholder for the ShipItAsia HK YT hub. Replace via
 // warehouse-level config when real fulfilment goes live.
+// W5: mock-phase address — replace via per-warehouse config at go-live
 const YT_HUB_RECEIVER_ADDRESS: ReceiverAddress = {
   name: "ShipItAsia HK YT Hub",
-  phone: "+852 0000 0000",
+  phone: "+852 2345 6789",
   country_code: "HK",
-  city: "Hong Kong",
-  address: "TBD — set per-warehouse via YT_HUB_ADDRESS config",
+  city: "九龍",
+  district: "觀塘",
+  address: "觀塘巧明街100號友邦九龍大廈20樓",
+  postal_code: "000",
 };
 
 export async function getOrCreateTodayYtOutbound(

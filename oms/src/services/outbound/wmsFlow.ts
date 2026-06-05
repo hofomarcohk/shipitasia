@@ -264,7 +264,9 @@ export async function pickInbound(
   if (!inb) {
     throw new ApiError("INBOUND_NOT_RECEIVED", { inboundIds: input.inbound_id });
   }
-  if (inb.status !== "received") {
+  // W5: outbound creation pushes inbound to "scheduled", so both
+  // "received" and "scheduled" are valid pre-pick states.
+  if (inb.status !== "received" && inb.status !== "scheduled") {
     throw new ApiError("INBOUND_ALREADY_PICKED", {
       inboundIds: input.inbound_id,
     });
@@ -318,9 +320,10 @@ export async function pickInbound(
         },
         { session, upsert: false }
       );
-      // 2) inbound master: received → picking (atomic via filter)
+      // 2) inbound master: received/scheduled → picking (atomic via filter)
+      // W5: outbound creation pushes inbound to "scheduled"
       await db.collection(collections.INBOUND).updateOne(
-        { _id: input.inbound_id as any, status: "received" },
+        { _id: input.inbound_id as any, status: { $in: ["received", "scheduled"] } },
         { $set: { status: "picking", updatedAt: now } },
         { session }
       );
@@ -355,11 +358,12 @@ export async function pickInbound(
     .find({ outbound_id: input.outbound_id, unlinked_at: null })
     .toArray();
   const inboundIds = links.map((l: any) => l.inbound_id);
+  // W5: count inbounds not yet picked (received or scheduled = still pending)
   const stillReceived = await db
     .collection(collections.INBOUND)
     .countDocuments({
       _id: { $in: inboundIds as any },
-      status: "received",
+      status: { $in: ["received", "scheduled"] },
     });
   if (stillReceived === 0 && inboundIds.length > 0) {
     const upd = await db.collection(collections.OUTBOUND).updateOne(
@@ -1174,7 +1178,8 @@ export async function fetchLabelMultiBox(
 ) {
   const db = await connectToDatabase();
   const ob = await getOutbound(db, outbound_id);
-  if (!["weight_verified", "pending_client_label"].includes(ob.status)) {
+  // W5: include "held" — outbounds that failed label fetch land here too
+  if (!["weight_verified", "pending_client_label", "held"].includes(ob.status)) {
     throw new ApiError("OUTBOUND_NOT_AVAILABLE_FOR_LABEL", { status: ob.status });
   }
   // P11/P12 outbounds only have pack_boxes_v1; lazy-sync to outbound_boxes
@@ -1197,9 +1202,10 @@ export async function fetchLabelMultiBox(
   const claim = await db.collection(collections.OUTBOUND).findOneAndUpdate(
     {
       _id: outbound_id as any,
-      status: { $in: ["weight_verified", "pending_client_label"] },
+      // W5: include "held" for retry from print page
+      status: { $in: ["weight_verified", "pending_client_label", "held"] },
     },
-    { $set: { status: "label_obtaining", updatedAt: new Date() } },
+    { $set: { status: "label_obtaining", held_reason: null, held_since: null, held_detail: null, updatedAt: new Date() } },
     { returnDocument: "after" }
   );
   const claimed: any =
@@ -1287,6 +1293,22 @@ export async function fetchLabelMultiBox(
 
     const firstLabel = labelResults[0];
     const now = new Date();
+
+    // W5: mirror label_url + tracking_no into denormalized boxes[] so
+    // print-groups (which reads o.boxes[]) sees labels without needing
+    // a full weigh/palletize rebuild.
+    for (const lr of labelResults) {
+      await db.collection(collections.OUTBOUND).updateOne(
+        { _id: outbound_id as any, "boxes.box_no": lr.box_no },
+        {
+          $set: {
+            "boxes.$.label_url": lr.label_pdf_path,
+            "boxes.$.tracking_no": lr.tracking_no,
+          },
+        }
+      );
+    }
+
     await db.collection(collections.OUTBOUND).updateOne(
       { _id: outbound_id as any },
       {

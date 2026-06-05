@@ -352,6 +352,7 @@ export function projectOutboundV1(doc: any): OutboundRequestV1Public {
     cancel_reason: doc.cancel_reason ?? null,
     customer_remarks: doc.customer_remarks ?? null,
     batch_id: doc.batch_id ?? null,
+    is_yt: !!doc.is_yt,
     disallow_consolidation: !!doc.disallow_consolidation,
     cargo_categories: doc.cargo_categories ?? [],
     label_batch_id: doc.label_batch_id ?? null,

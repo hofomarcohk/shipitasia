@@ -10,9 +10,9 @@
 //   3. Banner shows the bucket + a "下一步" link
 //   4. Last 5 scans rendered as an in-memory history list
 //
-// We intentionally do NOT call the yt-quick / unclaimed-quick endpoints
-// here — desktop usage is paired with photos/anomalies done at receive
-// time, so the form's job is dispatch + guidance, not auto-registration.
+// W5: unmatched (non-YT) scans now auto-call /scan/arrive/unclaimed-quick
+// to create the unclaimed_inbounds record immediately. Users expect the
+// parcel to appear in the "無頭件指派" page right after scanning.
 
 "use client";
 
@@ -82,21 +82,18 @@ const BUCKET_META: Record<
     emoji: "🚛",
     pill: "info",
     banner:
-      "YT 直發件，無 OMS 預報。請於 PDA 「YT 快速登記」掃描器補拍照及秤重後上架。",
-    next: "前往無頭件池查 YT",
-    nextHref: () => "/zh-hk/wms/operations/unclaimed-inbounds",
+      "YT 小包件，已自動建立入庫記錄。請帶去收貨站做秤重、量尺寸同上架，上架後會自動加入今日 YT 出庫單。",
+    next: "前往收貨上架",
+    nextHref: () => "/zh-hk/wms/operations/receive",
   },
   unclaimed: {
     label: "無頭件",
     emoji: "❓",
     pill: "warn",
     banner:
-      "搵唔到對應預報。包裹會進入無頭件池等待客戶或 CS 認領。請去登記頁補資料。",
-    next: "登記無頭件",
-    nextHref: ({ trackingNo }) =>
-      `/zh-hk/wms/pda/scan/inbound-arrive/unclaimed?tracking=${encodeURIComponent(
-        trackingNo
-      )}`,
+      "搵唔到對應預報。已自動建立無頭件記錄，等待 CS 指派客戶。可去無頭件指派頁面睇返。",
+    next: "前往無頭件指派",
+    nextHref: () => "/zh-hk/wms/operations/unclaimed-inbounds",
   },
 };
 
@@ -136,13 +133,51 @@ export default function Page() {
       }
       const data: ArriveResponseData = d.data ?? {};
       const bucket = classifyClient(trimmed, data);
+
+      // W5: auto-register on arrive — create inbound record immediately.
+      let autoId: string | undefined;
+      if (bucket === "yt") {
+        // YT: auto-create inbound under SYS-YT client
+        try {
+          const ur = await fetch("/api/wms/scan/arrive/yt-quick", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tracking_no: trimmed }),
+          });
+          const ud = await ur.json();
+          if (ud.status === 200 && ud.data?.inbound_id) {
+            autoId = ud.data.inbound_id;
+          }
+          // INBOUND_DUPLICATED is fine — means it was already scanned.
+        } catch {
+          // Best-effort; the banner still shows guidance.
+        }
+      } else if (bucket === "unclaimed") {
+        // Unclaimed: auto-create unclaimed_inbounds record
+        try {
+          const ur = await fetch("/api/wms/scan/arrive/unclaimed-quick", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tracking_no: trimmed }),
+          });
+          const ud = await ur.json();
+          if (ud.status === 200 && ud.data?.unclaimed_id) {
+            autoId = ud.data.unclaimed_id;
+          }
+        } catch {
+          // Best-effort; the banner still shows guidance.
+        }
+      }
+
       const row: ScanRow = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         ts: Date.now(),
         trackingNo: trimmed,
         bucket,
-        inboundId: data.inbound_id ? String(data.inbound_id) : undefined,
-        scanId: data.scan_id,
+        inboundId: data.inbound_id ? String(data.inbound_id) : autoId,
+        scanId: data.scan_id ?? autoId,
       };
       setCurrent(row);
       setLastEcho(trimmed);

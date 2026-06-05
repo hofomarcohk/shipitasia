@@ -261,9 +261,9 @@ export const OUTBOUND_WMS_ERROR = {
     status: 400,
     sys_code: "1800063",
     message: "Box does not belong to the locked outbound",
-    en: "Session locked to {locked}; scanned box belongs to {scanned}",
-    zh_hk: "目前已鎖定出庫單 {locked}，掃到的箱屬於 {scanned}，請先完成或取消當前置板",
-    zh_cn: "当前已锁定出库单 {locked}，扫到的箱属于 {scanned}，请先完成或取消当前置板",
+    en: "Session locked to {locked}; scanned box belongs to {scanned}. The two outbounds have different client / warehouse / carrier / receiver — they cannot share a weigh session.",
+    zh_hk: "當前組鎖定咗出庫單 {locked}，但你掃嘅箱屬於 {scanned} — 兩張單嘅客戶／carrier／收件地址唔同，唔可以併入同一組秤重取單。請按右下「完成點箱並取單」結咗當前組，再掃呢個箱開新組；或者按「取消當前組」清咗 session。",
+    zh_cn: "当前组锁定了出库单 {locked}，但你扫的箱属于 {scanned} — 两张单的客户／carrier／收件地址不同，无法并入同一组称重取单。请按右下「完成点箱并取单」结束当前组，再扫这个箱开新组；或按「取消当前组」清空 session。",
   },
   PACK_NO_ACTIVE_SESSION: {
     status: 400,

@@ -40,9 +40,9 @@ export const FLOW: Record<FlowPageId, FlowEntry> = {
     url: "/zh-hk/wms/operations/weigh",
   },
   weigh: {
-    next: "print",
-    label: "印單",
-    url: "/zh-hk/wms/operations/label-print",
+    next: "depart",
+    label: "離站掃描",
+    url: "/zh-hk/wms/operations/depart",
   },
   print: {
     next: "depart",

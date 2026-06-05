@@ -25,6 +25,16 @@ import { NextCTA } from "@/components/wms-redesign/next-cta";
 import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { get_request, post_request } from "@/lib/httpRequest";
 import { cn } from "@/lib/utils";
 
@@ -501,7 +511,34 @@ export function PickConfirmPageClient() {
   const ctaState: "locked" | "ready" =
     batchId && progress.allDone ? "ready" : "locked";
 
+  const [completeConfirmOpen, setCompleteConfirmOpen] = React.useState(false);
+  const [completing, setCompleting] = React.useState(false);
+  const [completeError, setCompleteError] = React.useState<string | null>(null);
+
+  const handleCompletePick = async () => {
+    if (!batchId) return;
+    setCompleting(true);
+    setCompleteError(null);
+    try {
+      const res = await post_request(
+        `/api/wms/pick-batch/${encodeURIComponent(batchId)}/close`,
+        {}
+      );
+      const json = await res.json();
+      if (json?.status !== 200) {
+        throw new Error(json?.message ?? "揀貨完成失敗");
+      }
+      setCompleteConfirmOpen(false);
+      router.push("/zh-hk/wms/operations/pack");
+    } catch (e: any) {
+      setCompleteError(e?.message ?? String(e));
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   return (
+    <>
     <WmsShell
       crumbs={[
         { label: "集運流程" },
@@ -527,6 +564,21 @@ export function PickConfirmPageClient() {
               url: "/zh-hk/wms",
               label: "工作台",
             }}
+            customMainCTA={
+              ctaState === "ready" ? (
+                <button
+                  onClick={() => setCompleteConfirmOpen(true)}
+                  disabled={completing}
+                  className="animate-wms-cta-pulse inline-flex items-center gap-2.5 whitespace-nowrap rounded-[12px] bg-wms-brand px-[26px] py-3.5 text-[16px] font-semibold text-white transition-all hover:scale-[1.03] motion-reduce:animate-none disabled:opacity-60"
+                >
+                  <span>揀貨完成 · 去裝箱</span>
+                  <ArrowRight size={18} strokeWidth={2.5} />
+                  <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 font-wms-mono text-[11px] font-medium">
+                    ↵
+                  </span>
+                </button>
+              ) : undefined
+            }
           />
         ) : undefined
       }
@@ -541,5 +593,36 @@ export function PickConfirmPageClient() {
         <BatchPicker onPick={handlePick} />
       )}
     </WmsShell>
+    <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>確認揀貨完成？</AlertDialogTitle>
+          <AlertDialogDescription>
+            批次 <strong className="font-wms-mono">{batchId}</strong> 已全部 {progress.total} 件確認。
+            <br />
+            <br />
+            按確認後：批次會由 <strong>picked</strong> 推到 <strong>closed</strong>（釋放揀貨站），然後跳去裝箱頁面。closed 之後唔可以再回頭加件揀貨。
+            {completeError && (
+              <span className="mt-3 block rounded-md border border-wms-danger-fg/30 bg-wms-danger-bg px-3 py-2 text-wms-danger-fg">
+                {completeError}
+              </span>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={completing}>返回</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              handleCompletePick();
+            }}
+            disabled={completing}
+          >
+            {completing ? "處理中…" : "確認完成 · 去裝箱"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

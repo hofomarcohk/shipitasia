@@ -16,7 +16,7 @@
 
 "use client";
 
-import { ArrowRight, Filter, Printer, Scan } from "lucide-react";
+import { ArrowRight, Filter, Printer, Scan, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -133,14 +133,9 @@ export function PickPageClient() {
       }
       const batchId = created?.data?._id ?? created?.data?.batch?._id;
       if (!batchId) throw new Error("Batch id missing in response");
-      const startRes = await post_request(
-        `/api/wms/pick-batch/${batchId}/start`,
-        {}
-      );
-      const started = await startRes.json();
-      if (started?.status !== 200) {
-        throw new Error(started?.message ?? "Start batch failed");
-      }
+      // W5: createBatch already sets status=picking (no draft state),
+      // so we skip the separate /start call which would reject with
+      // "BATCH_NOT_DRAFT".
       setSelected(new Set());
       setJustDispatched(true);
       window.setTimeout(() => setJustDispatched(false), 1500);
@@ -153,6 +148,31 @@ export function PickPageClient() {
       setError(e?.message ?? String(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  // W5: one-click YT batch — find all YT outbounds in ready pool and create batch
+  const ytReadies = readies.filter((r) => r.is_yt);
+  const [ytBusy, setYtBusy] = React.useState(false);
+  const createYtBatch = async () => {
+    if (ytReadies.length === 0) return;
+    setYtBusy(true);
+    setError(null);
+    try {
+      const createRes = await post_request("/api/wms/pick-batch", {
+        outbound_ids: ytReadies.map((r) => r._id),
+      });
+      const created = await createRes.json();
+      if (created?.status !== 200) {
+        throw new Error(created?.message ?? "Create YT batch failed");
+      }
+      setJustDispatched(true);
+      window.setTimeout(() => setJustDispatched(false), 1500);
+      await reload();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setYtBusy(false);
     }
   };
 
@@ -411,8 +431,28 @@ export function PickPageClient() {
             </h2>
 
             {selected.size === 0 ? (
-              <div className="rounded-lg bg-wms-surface-alt p-5 text-center text-[13px] text-wms-faint">
-                喺左邊勾選 OB 加入批次
+              <div className="flex flex-col gap-2.5">
+                <div className="rounded-lg bg-wms-surface-alt p-5 text-center text-[13px] text-wms-faint">
+                  喺左邊勾選 OB 加入批次
+                </div>
+                {ytReadies.length > 0 && (
+                  <button
+                    onClick={createYtBatch}
+                    disabled={ytBusy}
+                    className="flex items-center gap-2.5 rounded-[10px] border-[1.5px] border-wms-ok-fg bg-wms-ok-bg px-3.5 py-3 text-left hover:brightness-95 disabled:opacity-50"
+                  >
+                    <Truck size={16} className="text-wms-ok-fg" />
+                    <div className="flex-1">
+                      <div className="text-[13px] font-semibold text-wms-ok-fg">
+                        {ytBusy ? "建立中…" : "生成 YT 揀貨任務"}
+                      </div>
+                      <div className="text-[11px] text-wms-ok-fg/70">
+                        {ytReadies.reduce((s, r) => s + (r.inbound_count ?? 0), 0)} 件 YT 小包 · 一鍵打包今日所有 YT 單
+                      </div>
+                    </div>
+                    <ArrowRight size={14} className="text-wms-ok-fg" />
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -479,6 +519,25 @@ export function PickPageClient() {
                     </div>
                     <ArrowRight size={14} />
                   </button>
+                  {/* W5: YT one-click batch */}
+                  {ytReadies.length > 0 && (
+                    <button
+                      onClick={createYtBatch}
+                      disabled={ytBusy}
+                      className="flex items-center gap-2.5 rounded-[10px] border-[1.5px] border-wms-ok-fg bg-wms-ok-bg px-3.5 py-3 text-left hover:brightness-95 disabled:opacity-50"
+                    >
+                      <Truck size={16} className="text-wms-ok-fg" />
+                      <div className="flex-1">
+                        <div className="text-[13px] font-semibold text-wms-ok-fg">
+                          {ytBusy ? "建立中…" : "生成 YT 揀貨任務"}
+                        </div>
+                        <div className="text-[11px] text-wms-ok-fg/70">
+                          {ytReadies.reduce((s, r) => s + (r.inbound_count ?? 0), 0)} 件 YT 小包 · 一鍵打包今日所有 YT 單
+                        </div>
+                      </div>
+                      <ArrowRight size={14} className="text-wms-ok-fg" />
+                    </button>
+                  )}
                 </div>
               </>
             )}

@@ -11,7 +11,8 @@
 
 "use client";
 
-import { Bell, Clock } from "lucide-react";
+import { Bell, Clock, LogOut } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -122,6 +123,15 @@ export function WmsShell({
           >
             <Bell size={15} />
           </button>
+          <Link
+            href="/zh-hk/logout"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-2.5 py-1.5 text-[12.5px] text-wms-ink-2 hover:bg-wms-row-hover"
+            aria-label="登出"
+            title="登出"
+          >
+            <LogOut size={14} />
+            <span>登出</span>
+          </Link>
         </header>
         <div
           className="relative flex-1 overflow-auto bg-wms-bg"

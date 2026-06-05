@@ -28,7 +28,7 @@ import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
 import { Stepper } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
-import { post_request } from "@/lib/httpRequest";
+import { get_request, post_request } from "@/lib/httpRequest";
 import { cn } from "@/lib/utils";
 
 interface ReceiveLookupItem {
@@ -39,6 +39,7 @@ interface ReceiveLookupItem {
   tracking_no: string;
   actualWeight: number | null;
   actualDimension: { length: number; width: number; height: number } | null;
+  is_yt?: boolean;
 }
 
 const STEPPER = [
@@ -134,6 +135,18 @@ export function PutawayPageClient() {
   const [toast, setToast] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [confirmed, setConfirmed] = React.useState(0);
+
+  // W5: 待收貨清單 — 到咗倉但仲未做收貨嘅件
+  interface PendingItem { _id: string; tracking_no: string; client_id: string; arrivedAt: string; shipping_mode: string; }
+  const [pendingItems, setPendingItems] = React.useState<PendingItem[]>([]);
+  const loadPending = React.useCallback(async () => {
+    try {
+      const res = await get_request("/api/wms/inbound/list?status=arrived&limit=50");
+      const json = await res.json();
+      if (json?.status === 200) setPendingItems(json.data?.items ?? json.data ?? []);
+    } catch { /* non-blocking */ }
+  }, []);
+  React.useEffect(() => { loadPending(); }, [loadPending]);
 
   // Preview URLs from File objects — must be revoked on unmount / change
   // to avoid blob leaks across many sequential scans.
@@ -237,29 +250,40 @@ export function PutawayPageClient() {
       setError("揀貨架先");
       return;
     }
+    // W5: 重量必填；尺寸 YT 件可免，集運/直送必填
+    const w = Number(weight);
+    if (!weight || isNaN(w) || w <= 0) {
+      setError("請輸入重量（kg）");
+      return;
+    }
+    const isYt = item.is_yt === true;
+    if (!isYt) {
+      const l = Number(length), wd = Number(width), h = Number(height);
+      if (!length || !width || !height || isNaN(l) || isNaN(wd) || isNaN(h) || l <= 0 || wd <= 0 || h <= 0) {
+        setError("請輸入完整尺寸（長 × 闊 × 高，cm）");
+        return;
+      }
+    }
     setBusy(true);
     setError(null);
     try {
+      // W5: YT items route to yt-shelve (no wallet charge, auto-append to
+      // today's YT outbound). Regular items use the standard receive endpoint.
+      const isYt = item.is_yt === true;
+      const endpoint = isYt ? "/api/wms/scan/yt-shelve" : "/api/wms/scan/receive";
       const fd = new FormData();
       fd.set("inbound_id", item._id);
+      if (isYt) fd.set("tracking_no", item.tracking_no);
       fd.set("locationCode", shelf.trim());
       if (weight) fd.set("weight", weight);
-      if (length && width && height) {
-        fd.set(
-          "dimension",
-          JSON.stringify({
-            length: Number(length),
-            width: Number(width),
-            height: Number(height),
-          })
-        );
-      }
-      // Photos optional from PC station — backend treats them as
-      // additive (direct-receive mode enforces them server-side when
-      // required). Field names mirror pda-receive exactly.
+      // YT 件尺寸非必填，但 backend schema 要求有值 → 給默認 1×1×1
+      const dim = length && width && height
+        ? { length: Number(length), width: Number(width), height: Number(height) }
+        : isYt ? { length: 1, width: 1, height: 1 } : null;
+      if (dim) fd.set("dimension", JSON.stringify(dim));
       if (barcodeFile) fd.set("photo_barcode", barcodeFile);
       if (packageFile) fd.set("photo_package", packageFile);
-      const res = await fetch("/api/wms/scan/receive", {
+      const res = await fetch(endpoint, {
         method: "POST",
         body: fd,
       });
@@ -270,6 +294,7 @@ export function PutawayPageClient() {
       setConfirmed((c) => c + 1);
       setToast(`${item.tracking_no} 上架到 ${shelf} ✓`);
       softReset();
+      loadPending(); // refresh 待收貨清單
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
@@ -496,6 +521,45 @@ export function PutawayPageClient() {
               </div>
             </>
         </div>
+
+        {/* W5: 待收貨清單 — 到咗倉但仲未上架 */}
+        {pendingItems.length > 0 && (
+          <div className="mt-5 overflow-hidden rounded-xl border border-wms-warn-fg/40 bg-[#FFFBEB]">
+            <div className="flex items-center gap-2 border-b border-wms-warn-fg/20 px-3.5 py-2.5">
+              <AlertTriangle size={14} className="text-wms-warn-fg" />
+              <h3 className="text-sm font-semibold text-wms-warn-fg">
+                待收貨 · {pendingItems.length} 件已到倉但未上架
+              </h3>
+              <span className="text-[11px] text-wms-muted">
+                對應 sidebar badge 數字
+              </span>
+            </div>
+            <table className="w-full text-[12.5px]">
+              <thead>
+                <tr className="border-b border-wms-warn-fg/10 bg-[#FEF9C3]/50 text-[11px] text-wms-muted">
+                  <th className="px-3 py-2 text-left font-medium">Tracking No</th>
+                  <th className="px-3 py-2 text-left font-medium">Inbound ID</th>
+                  <th className="px-3 py-2 text-left font-medium">類型</th>
+                  <th className="px-3 py-2 text-left font-medium">到倉時間</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingItems.map((p) => (
+                  <tr key={p._id} className="border-b border-wms-warn-fg/10 last:border-b-0">
+                    <td className="px-3 py-2 font-wms-mono font-semibold">{p.tracking_no}</td>
+                    <td className="px-3 py-2 font-wms-mono text-wms-muted">{p._id}</td>
+                    <td className="px-3 py-2">
+                      <ModeBadge mode={p.shipping_mode === "single_direct" ? "single" : "consolidated"} />
+                    </td>
+                    <td className="px-3 py-2 text-wms-muted">
+                      {p.arrivedAt ? new Date(p.arrivedAt).toLocaleString("zh-HK", { hour12: false }) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {toast && (
           <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-wms-ink px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)]">

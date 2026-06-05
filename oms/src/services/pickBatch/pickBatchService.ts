@@ -871,9 +871,10 @@ export async function listBatchItems(
       client_code: codeMap.get(String(i.client_id)) ?? null,
       declared_name: summarizeNames(String(i._id)),
       locationCode: locByInbound.get(String(i._id)) ?? null,
-      // "received" = on shelf but not yet pickInbound'd → pending confirm.
-      // anything else (picking / packed / departed) = already confirmed.
-      status: i.status === "received" ? "pending" : "picked",
+      // "received" or "scheduled" = on shelf but not yet pickInbound'd → pending.
+      // W5: outbound creation sets inbound to "scheduled", so both
+      // "received" and "scheduled" mean the item hasn't been pick-confirmed yet.
+      status: (i.status === "received" || i.status === "scheduled") ? "pending" : "picked",
     };
   });
 

@@ -70,7 +70,11 @@ export interface PrintGroup {
   pickup_eta: { start: Date; end: Date } | null;
 }
 
+// W5: include pending_client_label + held so failed-fetch outbounds
+// show up on the print page with retry CTAs visible.
 const IN_SCOPE_STATUSES = [
+  "pending_client_label",
+  "held",
   "label_obtained",
   "label_printed",
   "departed",
@@ -213,8 +217,13 @@ export async function listPrintGroups(
   for (const [group_key, items] of grouped) {
     const first = items[0];
     // Worst-state-wins for group status.
+    // W5: pending_client_label = needs retry, worst possible state.
     let status: PrintGroupStatus = "pickup_scheduled";
     for (const o of items) {
+      if (o.status === "pending_client_label" || o.status === "held") {
+        status = "ready_to_print";
+        break;
+      }
       if (o.status === "label_obtained") {
         status = "ready_to_print";
         break;

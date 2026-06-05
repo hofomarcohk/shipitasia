@@ -1,25 +1,11 @@
 // P17 — depart-page dual-scan: box label + 3PL label matched pair.
 //
-// Per the audit gap report, the legacy depart flow only scanned the
-// box_no; the handoff #depart page requires a paired scan (box label
-// THEN 3PL label) before marking the box departed. This wrapper:
-//
-//   1. Loads the box by box_no, verifies it's in a departable state.
-//   2. Compares the scanned 3PL label against box.tracking_no — the
-//      carrier-assigned tracking number stamped on the box during
-//      label fetch. Mismatch throws DEPART_LABEL_MISMATCH so the PDA
-//      can prompt the operator to confirm they're holding the right
-//      label for the right box.
-//   3. Delegates the actual state transition to departBox() so the
-//      cascade (box → outbound → linked inbounds → audit + scans)
-//      remains the single source of truth.
-//   4. Stamps the dual-scan denormalisation on the box so the depart
-//      page can render the matched-pair tick + the print audit can
-//      prove which 3PL number landed against which box.
-//
-// Comparison is normalisation-tolerant: trim + uppercase both sides.
-// Mock-phase trackings are alphanumeric; production carrier labels
-// often have whitespace from scanner artifacts.
+// W5 — rewritten matching logic:
+//   Same client's tracking labels can be freely swapped between boxes.
+//   Only cross-merchant is rejected. If the scanned 3PL label belongs
+//   to ANY box of the same client → accept + bind. If it belongs to
+//   a different client → reject. If not found in any box → accept as
+//   new binding (e.g. manual label replacement).
 
 import { ApiError } from "@/app/api/api-error";
 import { collections } from "@/cst/collections";
@@ -60,29 +46,55 @@ export async function performDoubleScanDepart(
   if (!box) {
     throw new ApiError("BOX_NOT_FOUND", { boxNo: input.box_no });
   }
-  if (!box.tracking_no) {
-    throw new ApiError("DEPART_LABEL_MISSING", { boxNo: input.box_no });
+
+  // Find which client this box belongs to
+  const outbound = await db
+    .collection(collections.OUTBOUND)
+    .findOne({ _id: box.outbound_id as any });
+  if (!outbound) {
+    throw new ApiError("OUTBOUND_NOT_FOUND", { orderId: box.outbound_id });
   }
-  if (normalize(input.third_party_label) !== normalize(box.tracking_no)) {
-    throw new ApiError("DEPART_LABEL_MISMATCH", {
-      boxNo: input.box_no,
-      scanned: input.third_party_label,
-      expected: box.tracking_no,
-    });
+  const boxClientId = String(outbound.client_id);
+
+  // W5: cross-merchant check — disabled in mock env, enabled in prod.
+  const isMock = process.env.PHASE8_USE_MOCK_CARRIER === "true";
+  if (!isMock) {
+    const scannedNorm = normalize(input.third_party_label);
+    const existingBox = await db
+      .collection(collections.OUTBOUND_BOX)
+      .findOne({
+        $or: [
+          { tracking_no: { $regex: `^${escapeRegex(scannedNorm)}$`, $options: "i" } },
+          { tracking_no_carrier: { $regex: `^${escapeRegex(scannedNorm)}$`, $options: "i" } },
+        ],
+      });
+
+    if (existingBox && existingBox.outbound_id !== box.outbound_id) {
+      const otherOutbound = await db
+        .collection(collections.OUTBOUND)
+        .findOne({ _id: existingBox.outbound_id as any });
+      if (otherOutbound && String(otherOutbound.client_id) !== boxClientId) {
+        throw new ApiError("DEPART_LABEL_MISMATCH", {
+          boxNo: input.box_no,
+          scanned: input.third_party_label,
+          expected: `此運單屬於其他客戶，唔可以 cross-merchant 配對`,
+        });
+      }
+    }
   }
 
-  // Delegate state transition to the existing flow so all downstream
-  // cascades (outbound status, linked inbounds, scans, audit, etc.)
-  // stay in one place. departBox throws if box is no longer in a
-  // departable status.
+  // Delegate state transition to the existing flow
   const departed = await departBox(ctx, input.box_no);
 
   const now = new Date();
+  const bindTracking = input.third_party_label;
   await db.collection(collections.OUTBOUND_BOX).updateOne(
     { _id: box._id },
     {
       $set: {
-        dual_scan_label: box.tracking_no,
+        tracking_no: bindTracking,
+        tracking_no_carrier: bindTracking,
+        dual_scan_label: input.third_party_label,
         dual_scan_at: now,
         dual_scan_by: ctx.staff_id,
         updatedAt: now,
@@ -95,7 +107,11 @@ export async function performDoubleScanDepart(
     box_no: departed.box_no,
     outbound_departed: departed.outbound_departed,
     progress: departed.progress,
-    matched_tracking_no: box.tracking_no,
+    matched_tracking_no: bindTracking,
     matched_at: now,
   };
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

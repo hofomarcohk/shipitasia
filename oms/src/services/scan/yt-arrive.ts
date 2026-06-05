@@ -217,8 +217,8 @@ export async function performYtShelve(
   if (!inbound) throw new ApiError("INBOUND_NOT_FOUND");
   if (inbound.status === "received") throw new ApiError("ALREADY_RECEIVED");
 
+  // W5: PC station may not have camera — photos optional for YT shelve
   const allPhotos = [...photos.barcode_paths, ...photos.package_paths];
-  if (allPhotos.length === 0) throw new ApiError("BARCODE_PHOTO_REQUIRED");
 
   const scan_id = await nextDailyId("S");
   const session = getMongoClient().startSession();

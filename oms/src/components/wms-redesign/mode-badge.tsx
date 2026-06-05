@@ -11,8 +11,8 @@ export type Mode = "consolidated" | "single" | "yt";
 
 const COPY: Record<Mode, { kind: Parameters<typeof Pill>[0]["kind"]; label: string }> = {
   consolidated: { kind: "info", label: "集運" },
-  single: { kind: "ok", label: "單發" },
-  yt: { kind: "purple", label: "YT" },
+  single: { kind: "warn", label: "單發" },
+  yt: { kind: "ok", label: "YT 件" },
 };
 
 export function ModeBadge({ mode }: { mode: Mode | string }) {

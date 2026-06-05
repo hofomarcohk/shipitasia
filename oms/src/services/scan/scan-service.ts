@@ -107,6 +107,7 @@ export async function receiveLookup(
       // Prefer last_scan-derived values when arrive has run
       actualWeight: doc.actualWeight ?? null,
       actualDimension: doc.actualDimension ?? null,
+      is_yt: !!doc.is_yt,
     },
   };
 }

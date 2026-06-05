@@ -29,6 +29,16 @@ import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
 import { Stepper } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { get_request, post_request } from "@/lib/httpRequest";
 import { cn } from "@/lib/utils";
 
@@ -239,11 +249,14 @@ function BoxCard({
 function MidHero({
   scan,
   recommended,
+  compatibleBoxes,
   onConfirm,
   onOpenNew,
 }: {
   scan: ScanResult;
   recommended: StationOpenBox | null;
+  /** Owner open boxes already filtered for mode compatibility. */
+  compatibleBoxes: StationOpenBox[];
   onConfirm: () => void;
   onOpenNew: () => void;
 }) {
@@ -251,32 +264,38 @@ function MidHero({
   if (mode === "single") {
     return (
       <div className="flex flex-col gap-3">
-        <div className={cn("rounded-xl border-[1.5px] p-4", MODE_BG[mode], MODE_BORDER[mode])}>
-          <div className="mb-3 flex items-center gap-3.5">
-            <ModeBadge mode={mode} />
-            <div className={cn("flex-1 text-[13px] font-medium", MODE_FG[mode])}>
-              一單一箱 · 唔需要揀箱 · 直接封袋出單
-            </div>
-          </div>
-          <div className="mb-3 flex items-center gap-3.5 rounded-lg bg-white px-4 py-3">
-            <div className="h-11 w-11 flex-none rounded border border-wms-border bg-[repeating-linear-gradient(135deg,#F1F5F9_0_5px,#E2E8F0_5px_10px)]" />
-            <div className="flex-1">
-              <div className="font-wms-mono text-sm font-semibold">
+        <div className={cn("rounded-xl border-[1.5px] p-5", MODE_BG[mode], MODE_BORDER[mode])}>
+          {/* 大字 Tag + tracking_no：跟 consolidated 同款 layout */}
+          <div className="mb-3 flex items-center gap-3">
+            <span className="inline-flex items-center rounded-full bg-wms-ok-bg px-4 py-1.5 text-lg font-bold text-wms-ok-fg">
+              單發
+            </span>
+            <div className="flex flex-col">
+              <span className="font-wms-mono text-xl font-bold tracking-tight">
                 {scan.item.tracking_no}
-              </div>
-              <div className="mt-0.5 text-xs text-wms-muted">
-                {scan.item.product_name ?? "—"} · {scan.owner.client_name}
-              </div>
+              </span>
+              <span className="text-[13px] text-wms-muted">
+                {scan.owner.client_name}
+              </span>
             </div>
           </div>
-          <button
-            onClick={onConfirm}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-wms-ink py-3.5 text-base font-semibold text-white hover:brightness-110"
-          >
-            <Box size={17} /> 封袋 · 自動建箱 · ↵
-          </button>
-          <div className="mt-2.5 text-center text-[11.5px] text-wms-muted">
-            系統自動編號 · 自動進入秤重隊列
+
+          <div className={cn("mb-3 text-[14px]", MODE_FG[mode])}>
+            呢件係 <strong>{scan.owner.client_name}</strong> 嘅直發單 · 一單一箱 · 唔需要揀箱
+          </div>
+
+          <div className="text-[12px] text-wms-muted mb-2">
+            💡 提示：系統自動編號 · 完成裝箱時統一封袋進入秤重隊列
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={onConfirm}
+              className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-3 text-[15px] font-semibold text-white hover:brightness-110"
+            >
+              <Box size={16} strokeWidth={2.5} />
+              入箱 · 自動建箱 · ↵
+            </button>
           </div>
         </div>
       </div>
@@ -309,8 +328,10 @@ function MidHero({
         <div className={cn("mb-3 text-[14px]", MODE_FG[mode])}>
           {isYt ? (
             <>YT 件 · 唔分客戶 · 全部去 <strong>YT 香港倉</strong> · 任何 YT 箱都可以入</>
+          ) : compatibleBoxes.length > 0 ? (
+            <>呢件係 <strong>{scan.owner.client_name}</strong> 嘅併箱貨 · 已有 {compatibleBoxes.length} 個開緊箱可入</>
           ) : (
-            <>呢件係 <strong>{scan.owner.client_name}</strong> 嘅併箱貨 · 已有 {scan.owner.open_boxes.length} 個開緊箱可入</>
+            <>呢件係 <strong>{scan.owner.client_name}</strong> 嘅併箱貨 · 暫時冇兼容嘅開緊箱 · 開新箱裝</>
           )}
         </div>
 
@@ -336,33 +357,46 @@ function MidHero({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={onConfirm}
-            disabled={!recommended}
-            className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-3 text-[15px] font-semibold text-white hover:brightness-110 disabled:opacity-50"
-          >
-            <Check size={16} strokeWidth={2.5} />
-            確認入 {recommended?.box_no ?? "—"} · ↵
-          </button>
-          <button className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-3 text-[14px] hover:bg-wms-row-hover">
-            揀其他箱 <ChevronDown size={14} />
-          </button>
-          <button
-            onClick={onOpenNew}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-3 text-[14px] hover:bg-wms-row-hover"
-          >
-            <Plus size={14} /> 開新箱
-          </button>
+          {recommended ? (
+            <>
+              <button
+                onClick={onConfirm}
+                className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-3 text-[15px] font-semibold text-white hover:brightness-110"
+              >
+                <Check size={16} strokeWidth={2.5} />
+                確認入 {recommended.box_no} · ↵
+              </button>
+              {compatibleBoxes.length > 1 && (
+                <button className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-3 text-[14px] hover:bg-wms-row-hover">
+                  揀其他箱 <ChevronDown size={14} />
+                </button>
+              )}
+              <button
+                onClick={onOpenNew}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-3 text-[14px] hover:bg-wms-row-hover"
+              >
+                <Plus size={14} /> 開新箱
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onConfirm}
+              className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-3 text-[15px] font-semibold text-white hover:brightness-110"
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              開新箱 · ↵
+            </button>
+          )}
         </div>
       </div>
-      {/* Alternates */}
-      {scan.owner.open_boxes.length > 1 && (
+      {/* Alternates — 只列同 mode 兼容嘅箱 */}
+      {compatibleBoxes.length > 1 && (
         <div className="rounded-xl border border-wms-border bg-wms-surface p-3">
           <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-wider text-wms-faint">
             其他可選箱
           </div>
           <div className="flex flex-col gap-1.5">
-            {scan.owner.open_boxes.slice(1).map((b) => {
+            {compatibleBoxes.slice(1).map((b) => {
               const items = b.items?.length ?? 0;
               return (
                 <div
@@ -509,14 +543,51 @@ export function PackPageClient() {
     }
   };
 
-  const recommended: StationOpenBox | null =
-    scan?.owner.open_boxes?.[0] ?? null;
+
+  // 只 recommend 同 mode 兼容嘅箱：consolidated 唔可以入 single_direct 箱，
+  // YT 唔可以入 non-YT 箱，反之亦然。後端 placeItem 都會 reject，但 frontend
+  // 要先過濾，唔好俾倉庫員見到「已有 N 個可入」但 click 落去 reject 嘅錯覺。
+  const compatibleOwnerBoxes: StationOpenBox[] = React.useMemo(() => {
+    if (!scan) return [];
+    const wanted = modeForItem(scan.item);
+    return (scan.owner.open_boxes ?? []).filter(
+      (b) => modeForBox(b) === wanted
+    );
+  }, [scan]);
+  const recommended: StationOpenBox | null = compatibleOwnerBoxes[0] ?? null;
 
   const deskCount = state?.desk?.length ?? 0;
   const ctaState: "locked" | "ready" =
     deskCount === 0 && state ? "ready" : "locked";
 
+  const [completeConfirmOpen, setCompleteConfirmOpen] = React.useState(false);
+  const [completing, setCompleting] = React.useState(false);
+  const openBoxCount = state?.stats.open_box_count ?? 0;
+
+  const handleCompletePacking = async () => {
+    setCompleting(true);
+    setError(null);
+    try {
+      const res = await post_request(
+        "/api/wms/outbound/pack/complete-session",
+        {}
+      );
+      const json = await res.json();
+      if (json?.status !== 200) {
+        throw new Error(json?.message ?? "完成裝箱失敗");
+      }
+      setCompleteConfirmOpen(false);
+      router.push("/zh-hk/wms/operations/weigh");
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+      setCompleteConfirmOpen(false);
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   return (
+    <>
     <WmsShell
       crumbs={[{ label: "出貨作業" }, { label: "裝箱任務" }]}
       cta={
@@ -530,6 +601,21 @@ export function PackPageClient() {
           }
           lockedHint={deskCount > 0 ? `仲有 ${deskCount} 件未入箱` : undefined}
           back={{ url: "/zh-hk/wms/operations/pick-batch", label: "揀貨任務" }}
+          customMainCTA={
+            ctaState === "ready" ? (
+              <button
+                onClick={() => setCompleteConfirmOpen(true)}
+                disabled={completing}
+                className="animate-wms-cta-pulse inline-flex items-center gap-2.5 whitespace-nowrap rounded-[12px] bg-wms-brand px-[26px] py-3.5 text-[16px] font-semibold text-white transition-all hover:scale-[1.03] motion-reduce:animate-none disabled:opacity-60"
+              >
+                <span>完成裝箱 · 去秤重取單</span>
+                <ArrowRight size={18} strokeWidth={2.5} />
+                <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 font-wms-mono text-[11px] font-medium">
+                  ↵
+                </span>
+              </button>
+            ) : undefined
+          }
         />
       }
     >
@@ -606,7 +692,18 @@ export function PackPageClient() {
               <MidHero
                 scan={scan}
                 recommended={recommended}
-                onConfirm={() => recommended && placeIntoBox(recommended.box_no)}
+                compatibleBoxes={compatibleOwnerBoxes}
+                onConfirm={() => {
+                  // single 一單一箱：直接 open 新箱（封袋延後到「完成裝箱」一齊做）
+                  // consolidated/yt：有推薦現成箱就入，冇就由 onOpenNew 處理
+                  if (scan.item.shipment_type === "single") {
+                    openNewBox();
+                  } else if (recommended) {
+                    placeIntoBox(recommended.box_no);
+                  } else {
+                    openNewBox();
+                  }
+                }}
                 onOpenNew={openNewBox}
               />
             )}
@@ -696,5 +793,31 @@ export function PackPageClient() {
         </div>
       </div>
     </WmsShell>
+    <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>完成裝箱？</AlertDialogTitle>
+          <AlertDialogDescription>
+            桌面已清空，{openBoxCount} 個開緊嘅箱會被自動封箱（空箱會取消），所有 outbound 狀態會推到 <strong>packed</strong> 並進入秤重 queue。
+            <br />
+            <br />
+            確認所有貨件已正確入箱？呢個動作之後唔可以再加件入箱。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={completing}>返回繼續裝箱</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              handleCompletePacking();
+            }}
+            disabled={completing}
+          >
+            {completing ? "處理中…" : "確認完成 · 去秤重取單"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
