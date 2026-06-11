@@ -64,9 +64,9 @@ export const LoginForm = () => {
                 <Label htmlFor="email">{t("auth.register.email")}</Label>
                 <Input
                   id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="admin 或 you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
