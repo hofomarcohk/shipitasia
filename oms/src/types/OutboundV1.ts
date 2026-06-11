@@ -315,6 +315,7 @@ export interface OutboundRequestV1Public {
   cancel_reason: string | null;
   customer_remarks: string | null;
   batch_id: string | null;
+  is_yt: boolean;
   disallow_consolidation: boolean;
   cargo_categories: string[];
   label_batch_id: string | null;

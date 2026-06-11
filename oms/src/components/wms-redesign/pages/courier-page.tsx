@@ -75,7 +75,7 @@ export function CourierPageClient() {
           <AlertTriangle size={18} className="mt-px flex-none" />
           <div>
             <strong>YT 流程</strong> 共用 system-owned fuuffy 帳號統一取單 ·
-            唔似集運係各客戶自己嘅 courier 帳號 ·
+            與集運不同，並非各客戶自有的 courier 帳號 ·
             呢度維護一個 SIA 內部帳號就足夠所有 YT 件用。
           </div>
         </div>

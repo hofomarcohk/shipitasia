@@ -1,11 +1,14 @@
-// P17 — Scanner bar. Auto-focused input wrapped with a red blinking
-// dot + SCAN label + optional echo chip of the last successful scan.
-// Mirrors handoff /wms-shared.jsx Scanner.
+// W6 — Scanner bar (Direction A). The protagonist of every operations
+// page: 58px tall, white face, 2px signage-black border with a solid
+// 4px offset shadow. Red blinking dot + SCAN tag + 16.5px input +
+// ↵ Enter keycap. Echo of the last successful scan hangs below the
+// bar's right edge in mono green.
+//
+// Behaviour is unchanged: autofocus, Enter submits + clears.
 
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
 import * as React from "react";
 
 export interface ScannerProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -40,43 +43,47 @@ export function Scanner({
   }, [autoFocus, disabled]);
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2.5 rounded-[10px] border-[1.5px] border-wms-ink bg-wms-surface px-3 py-2 text-[13px]",
-        disabled && "opacity-60",
-        className
-      )}
-      {...rest}
-    >
-      <span
-        className="h-[7px] w-[7px] rounded-full bg-wms-danger-fg"
-        style={{ animation: disabled ? "none" : "wms-blink 1.4s infinite" }}
-      />
-      <span className="font-wms-mono text-[11px] font-semibold tracking-[0.04em]">
-        SCAN
-      </span>
-      <input
-        ref={inputRef}
-        type="text"
-        placeholder={placeholder}
-        disabled={disabled}
+    <div className={cn("relative", echo && "mb-4", className)}>
+      <div
         className={cn(
-          "min-w-0 flex-1 border-0 bg-transparent font-wms-mono text-[13px] text-wms-ink outline-none placeholder:text-wms-faint",
-          inputClassName
+          "flex h-[52px] items-center gap-3 rounded-[3px] border-2 border-wms-ink bg-wms-surface px-4",
+          "shadow-[4px_4px_0_rgba(22,24,27,0.16)]",
+          disabled && "opacity-60"
         )}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            const v = (e.target as HTMLInputElement).value.trim();
-            if (v && onScan) onScan(v);
-            (e.target as HTMLInputElement).value = "";
-          }
-        }}
-      />
+        {...rest}
+      >
+        <span
+          className="h-[10px] w-[10px] flex-none rounded-full bg-wms-danger"
+          style={{ animation: disabled ? "none" : "wms-blink 1.6s infinite" }}
+        />
+        <span className="flex-none font-wms-mono text-[12px] font-bold tracking-[0.22em] text-wms-faint">
+          SCAN
+        </span>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          disabled={disabled}
+          className={cn(
+            "min-w-0 flex-1 border-0 bg-transparent font-wms-mono text-[16px] text-wms-ink caret-wms-brand outline-none placeholder:font-wms placeholder:text-[15px] placeholder:text-wms-faint",
+            inputClassName
+          )}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const v = (e.target as HTMLInputElement).value.trim();
+              if (v && onScan) onScan(v);
+              (e.target as HTMLInputElement).value = "";
+            }
+          }}
+        />
+        <span className="flex-none rounded-[2px] border border-wms-faint px-2 py-[3px] font-wms-mono text-[11.5px] text-wms-faint">
+          ↵ Enter
+        </span>
+      </div>
       {echo && (
-        <span className="inline-flex items-center gap-1 rounded bg-wms-ok-bg px-2 py-[2px] font-wms-mono text-[11.5px] text-wms-ok-fg">
-          <Check size={11} strokeWidth={2.5} />
-          {echo}
+        <span className="absolute -bottom-[19px] right-1 font-wms-mono text-[12px] text-wms-ok-fg">
+          上次掃描 · {echo} ✓
         </span>
       )}
     </div>

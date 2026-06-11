@@ -262,7 +262,7 @@ export const OUTBOUND_WMS_ERROR = {
     sys_code: "1800063",
     message: "Box does not belong to the locked outbound",
     en: "Session locked to {locked}; scanned box belongs to {scanned}. The two outbounds have different client / warehouse / carrier / receiver — they cannot share a weigh session.",
-    zh_hk: "當前組鎖定咗出庫單 {locked}，但你掃嘅箱屬於 {scanned} — 兩張單嘅客戶／carrier／收件地址唔同，唔可以併入同一組秤重取單。請按右下「完成點箱並取單」結咗當前組，再掃呢個箱開新組；或者按「取消當前組」清咗 session。",
+    zh_hk: "當前組已鎖定出庫單 {locked}，掃描的箱屬於 {scanned} — 兩張單的客戶／carrier／收件地址不同，不可併入同一組秤重取單。請先點擊「完成點箱並取單」結束當前組，再掃描此箱開新組；或點擊「取消當前組」清除作業。",
     zh_cn: "当前组锁定了出库单 {locked}，但你扫的箱属于 {scanned} — 两张单的客户／carrier／收件地址不同，无法并入同一组称重取单。请按右下「完成点箱并取单」结束当前组，再扫这个箱开新组；或按「取消当前组」清空 session。",
   },
   PACK_NO_ACTIVE_SESSION: {
@@ -310,7 +310,7 @@ export const OUTBOUND_WMS_ERROR = {
     sys_code: "1800069",
     message: "3PL label does not match the box's carrier tracking number",
     en: "{boxNo}: 3PL label {scanned} does not match expected {expected}",
-    zh_hk: "{boxNo}：掃到嘅 3PL 單號 {scanned} 同箱嘅運單號 {expected} 唔對；請對返同一箱",
+    zh_hk: "{boxNo}：掃描的 3PL 單號 {scanned} 與箱的運單號 {expected} 不符；請核對同一箱的標籤",
     zh_cn: "{boxNo}：扫到的 3PL 单号 {scanned} 与箱的运单号 {expected} 不对；请对回同一箱",
   },
   DEPART_LABEL_MISSING: {

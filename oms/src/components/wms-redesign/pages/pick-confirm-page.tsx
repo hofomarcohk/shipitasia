@@ -14,6 +14,11 @@
 //
 // URL: /[locale]/wms/operations/pick-confirm?batchId=PB-...
 // Without batchId → batch picker view.
+//
+// W6 — Direction A visual conformance: outboundSteps(0) stepper,
+// solid 14px progress bar, item-row confirm columns with green tick
+// circles, solid green completion banner, keycap in the dialog CTA.
+// Logic untouched.
 
 "use client";
 
@@ -21,9 +26,11 @@ import { ArrowRight, Check } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
+import { ModeBadge } from "@/components/wms-redesign/mode-badge";
 import { NextCTA } from "@/components/wms-redesign/next-cta";
 import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
+import { Stepper, outboundSteps } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
 import {
   AlertDialog,
@@ -67,11 +74,24 @@ interface BatchItemsData {
 
 type Flash = { kind: "ok" | "warn" | "err"; text: string } | null;
 
+const TH = "px-3 py-2.5 text-left text-[11px] font-bold tracking-[0.1em] text-wms-faint";
+
 function statusPill(status: string) {
   if (status === "picking") return <Pill kind="warn">揀貨中</Pill>;
-  if (status === "picked") return <Pill kind="ok">揀完</Pill>;
+  if (status === "picked") return <Pill kind="ok">揀貨完成</Pill>;
   if (status === "draft") return <Pill kind="muted">建構中</Pill>;
   return <Pill kind="muted">{status}</Pill>;
+}
+
+function StepperStrip() {
+  return (
+    <div className="mb-3 flex items-center gap-3 rounded-xl border border-wms-border bg-wms-surface-alt px-4 py-2">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-wms-faint">
+        出貨流程
+      </span>
+      <Stepper steps={outboundSteps(0)} />
+    </div>
+  );
 }
 
 function BatchPicker({
@@ -110,36 +130,43 @@ function BatchPicker({
 
   return (
     <div className="px-[22px] py-3.5">
-      <div className="mb-3.5 flex items-center gap-3">
-        <h1 className="text-[22px] font-semibold tracking-tight">
-          揀貨完成確認
-        </h1>
-        <Pill kind="muted">揀完返 PC 再掃確認</Pill>
+      <StepperStrip />
+
+      <div className="mb-4">
+        <div className="flex items-center gap-3">
+          <h1 className="font-wms-disp text-[24px] font-extrabold tracking-[0.01em]">
+            揀貨完成確認
+          </h1>
+          <Pill kind="muted">紙本路徑</Pill>
+        </div>
+        <div className="mt-0.5 text-[12.5px] text-wms-muted">
+          揀貨完成後返回 PC，逐件掃描 tracking 核實
+        </div>
       </div>
 
       {error && (
-        <div className="mb-3 rounded-lg border border-wms-danger-fg/30 bg-wms-danger-bg px-4 py-3 text-sm text-wms-danger-fg">
+        <div className="mb-3 rounded-lg border border-wms-danger/30 bg-wms-danger-bg px-4 py-3 text-sm font-semibold text-wms-danger-fg">
           {error}
         </div>
       )}
 
       <div className="overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
         <div className="flex items-center gap-2 border-b border-wms-border px-3.5 py-2.5">
-          <h3 className="text-sm font-semibold">揀貨中嘅批次</h3>
+          <h3 className="font-wms-disp text-[13px] font-bold">揀貨中的批次</h3>
           <Pill kind="muted">{batches.length}</Pill>
           <span className="flex-1" />
           <span className="text-[11.5px] text-wms-faint">
-            揀盡所有件後自動標 picked
+            全部件掃描確認後自動標記 picked
           </span>
         </div>
         <table className="w-full text-[12.5px]">
           <thead>
-            <tr className="border-b border-wms-border bg-wms-surface-alt text-[11.5px] text-wms-muted">
-              <th className="px-3 py-2.5 text-left font-medium">批次 #</th>
-              <th className="px-3 py-2.5 text-left font-medium">OB 數</th>
-              <th className="px-3 py-2.5 text-left font-medium">啟動時間</th>
-              <th className="px-3 py-2.5 text-left font-medium">狀態</th>
-              <th className="px-3 py-2.5 text-right font-medium" />
+            <tr className="border-b border-wms-border bg-wms-surface-alt">
+              <th className={TH}>批次 #</th>
+              <th className={TH}>出庫單數</th>
+              <th className={TH}>啟動時間</th>
+              <th className={TH}>狀態</th>
+              <th className="px-3 py-2.5 text-right" />
             </tr>
           </thead>
           <tbody>
@@ -153,7 +180,7 @@ function BatchPicker({
             {!loading && batches.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-3 py-6 text-center text-wms-faint">
-                  暫無揀貨中嘅批次
+                  暫無揀貨中的批次
                 </td>
               </tr>
             )}
@@ -167,8 +194,10 @@ function BatchPicker({
                   <td className="px-3 py-2.5 font-wms-mono font-semibold">
                     {b._id}
                   </td>
-                  <td className="px-3 py-2.5">{b.outbound_ids?.length ?? 0}</td>
-                  <td className="px-3 py-2.5 text-wms-muted">
+                  <td className="px-3 py-2.5 font-wms-mono">
+                    {b.outbound_ids?.length ?? 0}
+                  </td>
+                  <td className="px-3 py-2.5 font-wms-mono text-wms-muted">
                     {b.started_at
                       ? new Date(b.started_at).toLocaleTimeString("zh-HK", {
                           hour: "2-digit",
@@ -295,58 +324,44 @@ function ConfirmScanView({
   const allDone = total > 0 && pending === 0;
   const pct = total > 0 ? Math.round((picked / total) * 100) : 0;
 
-  // 向上層 report 進度，俾 parent 渲染 NextCTA「下一步：去裝箱」
+  // 向上層 report 進度，讓 parent 渲染 NextCTA「下一步：去裝箱」
   React.useEffect(() => {
     onProgressChange?.({ allDone, picked, total });
   }, [allDone, picked, total, onProgressChange]);
 
   return (
     <div className="px-[22px] py-3.5">
-      <div className="mb-3.5 flex items-center gap-3">
+      <StepperStrip />
+
+      <div className="mb-4 flex items-center gap-3">
         <button
           onClick={onBack}
           className="rounded-md border border-wms-border px-2.5 py-1 text-xs hover:bg-wms-row-hover"
         >
-          ← 揀別個批次
+          ← 選擇其他批次
         </button>
-        <h1 className="text-[22px] font-semibold tracking-tight">
-          揀貨完成確認
-        </h1>
-        <span className="font-wms-mono text-sm text-wms-muted">{batchId}</span>
-        {data && statusPill(data.batch_status)}
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="font-wms-disp text-[24px] font-extrabold tracking-[0.01em]">
+              揀貨完成確認
+            </h1>
+            <span className="font-wms-mono text-sm text-wms-muted">
+              {batchId}
+            </span>
+            {data && statusPill(data.batch_status)}
+          </div>
+          <div className="mt-0.5 text-[12.5px] text-wms-muted">
+            紙本路徑 — 逐件掃描 tracking 核實
+          </div>
+        </div>
         <span className="flex-1" />
       </div>
 
       {error && (
-        <div className="mb-3 rounded-lg border border-wms-danger-fg/30 bg-wms-danger-bg px-4 py-3 text-sm text-wms-danger-fg">
+        <div className="mb-3 rounded-lg border border-wms-danger/30 bg-wms-danger-bg px-4 py-3 text-sm font-semibold text-wms-danger-fg">
           {error}
         </div>
       )}
-
-      <div className="mb-3.5 rounded-xl border border-wms-border bg-wms-surface p-4">
-        <div className="mb-2 flex items-center gap-3">
-          <span className="text-[11.5px] font-semibold uppercase tracking-wider text-wms-faint">
-            進度
-          </span>
-          <span className="font-wms-mono text-lg font-semibold">
-            {picked} / {total}
-          </span>
-          <Pill kind={allDone ? "ok" : pending > 0 ? "warn" : "muted"}>
-            {allDone ? "全部已確認" : `仲有 ${pending} 件未掃`}
-          </Pill>
-          <span className="flex-1" />
-          <span className="font-wms-mono text-sm text-wms-muted">{pct}%</span>
-        </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-wms-surface-alt">
-          <div
-            className={cn(
-              "h-full transition-all",
-              allDone ? "bg-wms-ok-fg" : "bg-wms-ink"
-            )}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
 
       <div className="mb-3.5">
         <Scanner
@@ -355,125 +370,128 @@ function ConfirmScanView({
           disabled={busy || allDone}
           onScan={onScan}
         />
-        {allDone && (
-          <div className="mt-2 rounded-lg border border-wms-ok-fg/30 bg-wms-ok-bg px-4 py-3 text-sm text-wms-ok-fg">
-            ✓ 此批次全部件已確認。批次已自動標為 picked，可前往裝箱。
-          </div>
-        )}
-        {flash && (
+      </div>
+
+      <div className="mb-3.5 flex items-center gap-3.5">
+        <div className="h-[14px] flex-1 overflow-hidden border border-wms-border-strong bg-wms-surface-alt">
           <div
-            className={cn(
-              "mt-2 rounded-lg px-4 py-2 text-sm",
-              flash.kind === "ok" &&
-                "border border-wms-ok-fg/30 bg-wms-ok-bg text-wms-ok-fg",
-              flash.kind === "warn" &&
-                "border border-wms-warn-fg/30 bg-wms-warn-bg text-wms-warn-fg",
-              flash.kind === "err" &&
-                "border border-wms-danger-fg/30 bg-wms-danger-bg text-wms-danger-fg"
-            )}
-          >
-            {flash.text}
-          </div>
+            className="h-full bg-wms-ok-strong transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className="whitespace-nowrap text-[14px] font-bold">
+          <span className="font-wms-mono">
+            {picked}/{total}
+          </span>{" "}
+          件已確認
+        </span>
+        {!allDone && total > 0 && (
+          <Pill kind="warn-soft">尚有 {pending} 件未掃描</Pill>
         )}
       </div>
+
+      {allDone && (
+        <div className="mb-3.5 flex items-start gap-3.5 rounded-[4px] bg-wms-ok-strong px-[18px] py-3.5 text-white">
+          <Check size={22} strokeWidth={2.5} className="mt-0.5 flex-none" />
+          <div className="min-w-0 flex-1">
+            <div className="font-wms-disp text-[17px] font-extrabold tracking-[0.01em]">
+              批次全件已確認 ·{" "}
+              <span className="font-wms-mono">
+                {picked}/{total}
+              </span>
+            </div>
+            <div className="mt-0.5 text-[12.5px] opacity-85">
+              批次已自動標記 picked。按底欄「確認完成 ·
+              去裝箱」推進至裝箱 — 確認後批次 closed，不可回頭。
+            </div>
+          </div>
+        </div>
+      )}
+      {flash && (
+        <div
+          className={cn(
+            "mb-3.5 rounded-lg px-4 py-2 text-sm font-semibold",
+            flash.kind === "ok" &&
+              "border border-wms-ok-fg/30 bg-wms-ok-bg text-wms-ok-fg",
+            flash.kind === "warn" &&
+              "border border-wms-warn-fg/30 bg-wms-warn-bg text-wms-warn-fg",
+            flash.kind === "err" &&
+              "border border-wms-danger/30 bg-wms-danger-bg text-wms-danger-fg"
+          )}
+        >
+          {flash.text}
+        </div>
+      )}
 
       <div className="flex gap-3">
         <div className="flex-1 overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
           <div className="flex items-center gap-2 border-b border-wms-border px-3.5 py-2.5">
-            <h3 className="text-sm font-semibold">未確認</h3>
+            <h3 className="font-wms-disp text-[13px] font-bold">未確認</h3>
             <Pill kind={pending > 0 ? "warn" : "ok"}>{pending}</Pill>
           </div>
-          <table className="w-full text-[12.5px]">
-            <thead>
-              <tr className="border-b border-wms-border bg-wms-surface-alt text-[11.5px] text-wms-muted">
-                <th className="px-3 py-2 text-left font-medium">Tracking</th>
-                <th className="px-3 py-2 text-left font-medium">OB</th>
-                <th className="px-3 py-2 text-left font-medium">客戶</th>
-                <th className="px-3 py-2 text-left font-medium">貨架</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.items
-                .filter((it) => it.status === "pending")
-                .map((it) => (
-                  <tr
-                    key={it.inbound_id}
-                    className="border-b border-wms-border last:border-b-0"
-                  >
-                    <td className="px-3 py-2 font-wms-mono">{it.tracking_no}</td>
-                    <td className="px-3 py-2 font-wms-mono text-wms-muted">
-                      {it.outbound_short}
-                    </td>
-                    <td className="px-3 py-2">
-                      {it.client_code ??
-                        it.client_id.slice(-4).toUpperCase()}
-                    </td>
-                    <td className="px-3 py-2 font-wms-mono text-wms-muted">
-                      {it.locationCode ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              {pending === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-3 py-6 text-center text-wms-faint"
-                  >
-                    全部已確認
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <div>
+            {data?.items
+              .filter((it) => it.status === "pending")
+              .map((it) => (
+                <div
+                  key={it.inbound_id}
+                  className="flex items-center gap-2.5 border-b border-wms-border px-3 py-2 text-[13px] last:border-b-0"
+                >
+                  {it.tracking_no.startsWith("YT") && <ModeBadge mode="yt" />}
+                  <span className="font-wms-mono">{it.tracking_no}</span>
+                  <span className="font-wms-mono text-[12px] text-wms-faint">
+                    {it.outbound_short}
+                  </span>
+                  <span className="text-[12px] text-wms-faint">
+                    {it.client_code ?? it.client_id.slice(-4).toUpperCase()}
+                  </span>
+                  <span className="ml-auto inline-flex items-center rounded-[4px] border-[1.5px] border-wms-border-strong bg-wms-surface px-2 py-[2px] font-wms-mono text-[12px] font-bold">
+                    {it.locationCode ?? "—"}
+                  </span>
+                </div>
+              ))}
+            {pending === 0 && (
+              <div className="px-3 py-6 text-center text-[13px] text-wms-faint">
+                全部已確認
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
           <div className="flex items-center gap-2 border-b border-wms-border px-3.5 py-2.5">
-            <h3 className="text-sm font-semibold">已確認</h3>
+            <h3 className="font-wms-disp text-[13px] font-bold text-wms-ok-fg">
+              已確認
+            </h3>
             <Pill kind="ok">{picked}</Pill>
           </div>
-          <table className="w-full text-[12.5px]">
-            <thead>
-              <tr className="border-b border-wms-border bg-wms-surface-alt text-[11.5px] text-wms-muted">
-                <th className="w-8 px-3 py-2 text-left font-medium" />
-                <th className="px-3 py-2 text-left font-medium">Tracking</th>
-                <th className="px-3 py-2 text-left font-medium">OB</th>
-                <th className="px-3 py-2 text-left font-medium">客戶</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.items
-                .filter((it) => it.status === "picked")
-                .map((it) => (
-                  <tr
-                    key={it.inbound_id}
-                    className="border-b border-wms-border last:border-b-0"
-                  >
-                    <td className="px-3 py-2 text-wms-ok-fg">
-                      <Check size={14} strokeWidth={2.5} />
-                    </td>
-                    <td className="px-3 py-2 font-wms-mono">{it.tracking_no}</td>
-                    <td className="px-3 py-2 font-wms-mono text-wms-muted">
-                      {it.outbound_short}
-                    </td>
-                    <td className="px-3 py-2">
-                      {it.client_code ??
-                        it.client_id.slice(-4).toUpperCase()}
-                    </td>
-                  </tr>
-                ))}
-              {picked === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-3 py-6 text-center text-wms-faint"
-                  >
-                    尚未確認任何件
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <div>
+            {data?.items
+              .filter((it) => it.status === "picked")
+              .map((it) => (
+                <div
+                  key={it.inbound_id}
+                  className="flex items-center gap-2.5 border-b border-wms-border px-3 py-2 text-[13px] opacity-75 last:border-b-0"
+                >
+                  <span className="inline-grid h-[17px] w-[17px] flex-none place-items-center rounded-full bg-wms-ok-strong text-[10.5px] font-extrabold text-white">
+                    ✓
+                  </span>
+                  {it.tracking_no.startsWith("YT") && <ModeBadge mode="yt" />}
+                  <span className="font-wms-mono">{it.tracking_no}</span>
+                  <span className="font-wms-mono text-[12px] text-wms-faint">
+                    {it.outbound_short}
+                  </span>
+                  <span className="text-[12px] text-wms-faint">
+                    {it.client_code ?? it.client_id.slice(-4).toUpperCase()}
+                  </span>
+                </div>
+              ))}
+            {picked === 0 && (
+              <div className="px-3 py-6 text-center text-[13px] text-wms-faint">
+                尚未確認任何件
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -490,7 +508,7 @@ export function PickConfirmPageClient() {
     total: number;
   }>({ allDone: false, picked: 0, total: 0 });
 
-  // Reset progress 當切換到別個 batch / 或返到列表
+  // Reset progress 當切換至其他 batch / 或返回列表
   React.useEffect(() => {
     setProgress({ allDone: false, picked: 0, total: 0 });
   }, [batchId]);
@@ -557,7 +575,7 @@ export function PickConfirmPageClient() {
             lockedHint={
               progress.total === 0
                 ? "等候批次資料載入…"
-                : `仲有 ${progress.total - progress.picked} 件未確認`
+                : `尚有 ${progress.total - progress.picked} 件未確認`
             }
             justFlipped={progress.allDone}
             back={{
@@ -598,12 +616,12 @@ export function PickConfirmPageClient() {
         <AlertDialogHeader>
           <AlertDialogTitle>確認揀貨完成？</AlertDialogTitle>
           <AlertDialogDescription>
-            批次 <strong className="font-wms-mono">{batchId}</strong> 已全部 {progress.total} 件確認。
+            批次 <strong className="font-wms-mono">{batchId}</strong> 全部 {progress.total} 件已確認。
             <br />
             <br />
-            按確認後：批次會由 <strong>picked</strong> 推到 <strong>closed</strong>（釋放揀貨站），然後跳去裝箱頁面。closed 之後唔可以再回頭加件揀貨。
+            確認後批次將由 <strong>picked</strong> 推進至 <strong>closed</strong>(釋放揀貨站)，並前往裝箱頁面。closed 後不可再回頭加件。
             {completeError && (
-              <span className="mt-3 block rounded-md border border-wms-danger-fg/30 bg-wms-danger-bg px-3 py-2 text-wms-danger-fg">
+              <span className="mt-3 block rounded-md border border-wms-danger/30 bg-wms-danger-bg px-3 py-2 text-wms-danger-fg">
                 {completeError}
               </span>
             )}
@@ -618,7 +636,16 @@ export function PickConfirmPageClient() {
             }}
             disabled={completing}
           >
-            {completing ? "處理中…" : "確認完成 · 去裝箱"}
+            {completing ? (
+              "處理中…"
+            ) : (
+              <>
+                確認完成 · 去裝箱
+                <span className="ml-1.5 rounded bg-white/20 px-1.5 font-wms-mono text-[11px]">
+                  ↵
+                </span>
+              </>
+            )}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

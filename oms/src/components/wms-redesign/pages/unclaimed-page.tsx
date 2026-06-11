@@ -195,7 +195,7 @@ export function UnclaimedPageClient() {
               無頭件池
             </h1>
             <div className="mt-1 text-[13px] text-wms-muted">
-              無 OMS 預報嘅集運件 · 30 天未認領將視作棄件
+              無 OMS 預報的集運件 · 30 天未認領將視作棄件
             </div>
           </div>
           <span className="flex-1" />
@@ -375,7 +375,7 @@ export function UnclaimedPageClient() {
                 </div>
                 {candidates.length === 0 ? (
                   <div className="mb-2.5 rounded-md bg-wms-surface-alt p-3 text-center text-xs text-wms-faint">
-                    冇 tracking 完全 match 的客戶 pending inbound
+                    沒有 tracking 完全符合的客戶待入庫預報
                   </div>
                 ) : (
                   <div className="mb-2.5 flex flex-col gap-1.5">

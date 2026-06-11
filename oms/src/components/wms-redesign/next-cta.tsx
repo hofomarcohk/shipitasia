@@ -33,7 +33,7 @@ export interface NextCTAProps {
   /** Extra nodes injected between progress chip and the main CTA. */
   extras?: React.ReactNode;
   /**
-   * 替換預設「下一步 · {label}」單一 CTA。傳入時內置按鈕完全唔 render，
+   * 替換預設「下一步 · {label}」單一 CTA。傳入時內置按鈕不再 render，
    * 由 caller 自定（例如同時提供兩條分支讓倉庫員揀）。
    */
   customMainCTA?: React.ReactNode;
@@ -63,13 +63,16 @@ export function NextCTA({
   const isEndOfFlow = !to;
 
   React.useEffect(() => {
-    // 當 caller 自定 customMainCTA 時，Enter 唔再有單一目的地，跳過全局 binding
-    if (!isComplete || isEndOfFlow || !flow || customMainCTA) return;
+    // 當 caller 自訂 customMainCTA 時，Enter 不再有單一目的地，跳過全局 binding。
+    // end-of-flow (to=null) + ready → Enter 返回工作台。
+    if (!isComplete || customMainCTA) return;
+    const dest = isEndOfFlow ? "/zh-hk/wms" : flow?.url;
+    if (!dest) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       const tag = t?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
-      if (e.key === "Enter") router.push(flow.url);
+      if (e.key === "Enter") router.push(dest);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -86,19 +89,21 @@ export function NextCTA({
     router.push(flow.url);
   };
 
+  // W6 — Direction A: full-width signage-black bar with 3px ink top
+  // border. Ready state turns the whole bar into a black→green
+  // gradient with a green top border.
   return (
     <div
       className={cn(
-        "absolute inset-x-0 bottom-0 z-[5] flex min-h-[68px] items-center gap-3.5 border-t border-wms-border bg-white px-[22px] py-3",
-        state === "urgent" &&
-          "bg-[linear-gradient(90deg,#FEF3C7_0%,#FFFFFF_40%)]",
+        "absolute inset-x-0 bottom-0 z-[5] flex min-h-[64px] items-center gap-3.5 px-[22px] py-3",
+        "border-t-[3px] border-wms-ink bg-wms-side-bg",
         state === "ready" &&
-          "bg-[linear-gradient(90deg,#DCFCE7_0%,#FFFFFF_40%)]"
+          "border-wms-ok-strong bg-[linear-gradient(90deg,#1d1f23_30%,#11532e_100%)]"
       )}
     >
       {back && (
         <button
-          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] text-wms-ink-2 hover:bg-wms-row-hover"
+          className="inline-flex items-center gap-1.5 rounded-[3px] px-2 py-1.5 text-[13px] font-semibold text-wms-side-ink2 hover:text-wms-side-ink"
           onClick={() => router.push(back.url)}
         >
           ← {back.label}
@@ -106,74 +111,77 @@ export function NextCTA({
       )}
 
       {progress && (
-        <div
-          className={cn(
-            "flex items-center gap-2 rounded-full bg-wms-bg px-3 py-1.5 text-[12.5px] text-wms-muted",
-            isComplete && "bg-wms-ok-bg text-wms-ok-fg"
-          )}
-        >
+        <div className="flex items-center gap-2 text-[13.5px] text-wms-side-ink2">
           {isComplete ? (
             <>
-              <Check size={13} strokeWidth={2.5} />
-              <span className="font-wms-mono font-semibold text-wms-ok-fg">
+              <Check size={14} strokeWidth={2.5} className="text-[#7ce0a6]" />
+              <span className="font-wms-mono font-bold text-[#7ce0a6]">
                 全部完成
               </span>
-              · {progress.total} 件
+              <span>· {progress.total} 件</span>
             </>
           ) : (
-            <>
-              進度{" "}
-              <span className="font-wms-mono font-semibold text-wms-ink">
-                {progress.done}/{progress.total}
-              </span>
-            </>
+            <span className="font-wms-mono font-bold">
+              {progress.done}/{progress.total}
+            </span>
           )}
         </div>
       )}
 
+      <span className="flex-1" />
+
       {state === "locked" && lockedHint && (
-        <span className="text-[12.5px] text-wms-muted">{lockedHint}</span>
+        <span className="text-[12.5px] text-wms-side-ink3">{lockedHint}</span>
       )}
       {state === "urgent" && urgentHint && (
-        <span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-wms-urgent-amber">
+        <span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-[#f5ad42]">
           <Clock size={14} /> {urgentHint}
         </span>
       )}
-
-      <span className="flex-1" />
 
       {extras}
 
       {customMainCTA ? (
         customMainCTA
       ) : isEndOfFlow ? (
-        <button className="inline-flex items-center gap-2 rounded-[10px] border border-wms-ink bg-wms-ink px-4 py-2.5 text-[14px] font-semibold text-white">
-          <Check size={14} strokeWidth={2.5} /> 流程結束
+        <button
+          onClick={handleClick}
+          className={cn(
+            "inline-flex items-center gap-2.5 whitespace-nowrap rounded-[3px] px-6 py-[11px] font-wms-disp text-[15.5px] font-extrabold tracking-[0.02em]",
+            state === "ready"
+              ? "animate-wms-cta-pulse bg-wms-ok-strong text-white motion-reduce:animate-none"
+              : "cursor-not-allowed bg-[#34373c] text-wms-side-ink3"
+          )}
+        >
+          <Check size={15} strokeWidth={2.5} /> {labelFinal ?? "流程完成"}
+          {state === "ready" && (
+            <span className="rounded-[2px] border border-white/45 bg-white/20 px-[7px] py-[2px] font-wms-mono text-[12px] font-medium">
+              ↵
+            </span>
+          )}
         </button>
       ) : (
         <button
           onClick={handleClick}
           disabled={state === "locked"}
           className={cn(
-            "inline-flex items-center gap-2.5 whitespace-nowrap rounded-[12px] border border-transparent font-semibold transition-all",
+            "inline-flex items-center gap-2.5 whitespace-nowrap rounded-[3px] font-wms-disp font-extrabold tracking-[0.02em] transition-all",
             state === "locked" &&
-              "cursor-not-allowed border-wms-border bg-wms-bg px-3.5 py-2 text-[13px] text-wms-faint",
+              "cursor-not-allowed bg-[#34373c] px-4 py-2.5 text-[13.5px] text-wms-side-ink3",
             state === "urgent" &&
-              "animate-wms-cta-urgent bg-wms-urgent-amber px-[22px] py-3 text-[15px] text-white shadow-[0_6px_18px_rgba(180,83,9,0.25)]",
+              "animate-wms-cta-urgent bg-wms-warn-fg px-[22px] py-3 text-[15px] text-white motion-reduce:animate-none",
             state === "ready" &&
-              "animate-wms-cta-pulse bg-wms-brand px-[26px] py-3.5 text-[16px] text-white hover:scale-[1.03] motion-reduce:animate-none"
+              "animate-wms-cta-pulse bg-wms-ok-strong px-6 py-[11px] text-[15.5px] text-white hover:brightness-110 motion-reduce:animate-none"
           )}
         >
-          <span>
-            下一步 · {labelFinal}
-          </span>
+          <span>下一步 · {labelFinal}</span>
           <ArrowRight
-            size={state === "ready" ? 18 : 14}
+            size={state === "ready" ? 17 : 14}
             strokeWidth={state === "ready" ? 2.5 : 2}
             className={cn(state === "locked" && "opacity-50")}
           />
           {state === "ready" && (
-            <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 font-wms-mono text-[11px] font-medium">
+            <span className="rounded-[2px] border border-white/45 bg-white/20 px-[7px] py-[2px] font-wms-mono text-[12px] font-medium">
               ↵
             </span>
           )}

@@ -69,48 +69,59 @@ const config = {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        // P17 WMS redesign tokens (handoff). Hex values match the
-        // prototype so the production build matches the design canvas
-        // pixel-for-pixel.
+        // W6 — Direction A「工場日勤」design tokens (claude-design handoff).
+        // Warm-concrete bg × signage black × safety-yellow accent;
+        // solid status colours, squared corners, offset solid shadows.
         wms: {
-          bg: "#F3F4F6",
+          bg: "#ECEAE6",
           surface: "#FFFFFF",
-          "surface-alt": "#FAFAFB",
-          border: "#E5E7EB",
-          "border-strong": "#D4D4D8",
-          ink: "#0B0B0F",
-          "ink-2": "#27272A",
-          muted: "#6B7280",
-          faint: "#9CA3AF",
-          brand: "#5887C4",
-          "brand-soft": "#E8F0FB",
-          "ok-bg": "#DCFCE7",
-          "ok-fg": "#15803D",
-          "warn-bg": "#FEF3C7",
-          "warn-fg": "#A16207",
-          "danger-bg": "#FEE2E2",
-          "danger-fg": "#B91C1C",
-          "info-bg": "#DBEAFE",
-          "info-fg": "#1D4ED8",
+          "surface-alt": "#F1EFEA",
+          border: "#D4D0C8",
+          "border-strong": "#C9C5BD",
+          ink: "#16181B",
+          "ink-2": "#3C4046",
+          muted: "#6A6E75",
+          faint: "#83878D",
+          brand: "#3A6FB5",
+          "brand-soft": "#DBE7F5",
+          accent: "#F6C945",
+          ok: "#1D8A4E",
+          "ok-strong": "#157A42",
+          "ok-bg": "#DDEFE3",
+          "ok-fg": "#157A42",
+          warn: "#E07C12",
+          "warn-bg": "#FBE9D2",
+          "warn-fg": "#C8690A",
+          danger: "#CF3326",
+          "danger-bg": "#FDF3F2",
+          "danger-fg": "#CF3326",
+          "info-bg": "#DBE7F5",
+          "info-fg": "#2E62A6",
           "purple-bg": "#EDE9FE",
           "purple-fg": "#6D28D9",
-          "row-hover": "#F8FAFC",
-          "row-select": "#F1F5F9",
-          "urgent-amber": "#B45309",
+          "row-hover": "#F6F4EF",
+          "row-select": "#DBE7F5",
+          "urgent-amber": "#C8690A",
+          // dark signage sidebar / CTA bar
+          "side-bg": "#1D1F23",
+          "side-ink": "#F2F1EE",
+          "side-ink2": "#B6B9BE",
+          "side-ink3": "#7D8187",
+          "side-sep": "#34373C",
         },
       },
       fontFamily: {
-        // WMS redesign — Geist for body, Geist Mono for numbers/code.
+        // W6 — Noto Sans HK body, Archivo display, IBM Plex Mono for IDs.
         wms: [
-          "Geist",
-          "Plus Jakarta Sans",
+          "Noto Sans HK",
           "-apple-system",
           "BlinkMacSystemFont",
           "system-ui",
           "sans-serif",
         ],
+        "wms-disp": ["Archivo", "Noto Sans HK", "system-ui", "sans-serif"],
         "wms-mono": [
-          "Geist Mono",
+          "IBM Plex Mono",
           "JetBrains Mono",
           "ui-monospace",
           "monospace",
@@ -141,10 +152,10 @@ const config = {
               "0 0 0 12px var(--cta-accent-00), 0 8px 22px var(--cta-accent-40)",
           },
         },
-        // WMS NextCTA urgent-state pulse (amber).
+        // WMS NextCTA urgent-state pulse (Direction A orange).
         "wms-cta-urgent": {
-          "0%, 100%": { boxShadow: "0 6px 18px rgba(180, 83, 9, 0.25)" },
-          "50%": { boxShadow: "0 6px 18px rgba(180, 83, 9, 0.55)" },
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(200, 105, 10, 0.55)" },
+          "50%": { boxShadow: "0 0 0 7px rgba(200, 105, 10, 0)" },
         },
         // Scanner red-dot blink.
         "wms-blink": {

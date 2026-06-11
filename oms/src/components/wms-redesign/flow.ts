@@ -31,7 +31,7 @@ export const FLOW: Record<FlowPageId, FlowEntry> = {
   // Outbound chain
   pick: {
     next: "pack",
-    label: "裝箱任務",
+    label: "桌面裝箱",
     url: "/zh-hk/wms/operations/pack",
   },
   pack: {
@@ -83,10 +83,11 @@ export const FLOW: Record<FlowPageId, FlowEntry> = {
   settings: { next: null, label: null, url: "/zh-hk/wms/admin/settings" },
 };
 
+// W6 — 4-step main line: 印單 folded into 秤重取單 (labels are fetched
+// + printed at weigh completion); 重印面單 is a recovery branch.
 export const SHIPPING_STEPS: { id: FlowPageId; label: string }[] = [
   { id: "pick", label: "揀貨" },
   { id: "pack", label: "裝箱" },
   { id: "weigh", label: "秤重取單" },
-  { id: "print", label: "印單" },
   { id: "depart", label: "離站" },
 ];

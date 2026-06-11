@@ -100,19 +100,6 @@ const STAGE_ICON: Record<string, React.ReactNode> = {
   reprint: <Tag size={16} />,
 };
 
-const TONE_STYLES: Record<StageTone, string> = {
-  neutral: "border-wms-border bg-wms-surface hover:bg-wms-row-hover",
-  active: "border-wms-brand/40 bg-wms-brand-soft hover:brightness-[0.98]",
-  warn: "border-wms-danger-fg/40 bg-wms-danger-bg hover:brightness-[0.98]",
-  done: "border-wms-ok-fg/30 bg-wms-ok-bg hover:brightness-[0.98]",
-};
-const TONE_NUM: Record<StageTone, string> = {
-  neutral: "text-wms-ink",
-  active: "text-wms-brand",
-  warn: "text-wms-danger-fg",
-  done: "text-wms-ok-fg",
-};
-
 const HELD_REASON_LABEL: Record<string, string> = {
   label_failed_retry: "取單失敗",
   carrier_auth_failed: "Carrier 認證失敗",
@@ -120,6 +107,9 @@ const HELD_REASON_LABEL: Record<string, string> = {
   insufficient_balance: "餘額不足",
 };
 
+// W6 — Direction A stage card: white face, icon + label top row, 34px
+// mono number; has-work = 1.5px ink border + 4px safety-yellow left
+// bar; exception card flips to red. Whole card clicks into the station.
 function StageBoard({
   stages,
   onJump,
@@ -129,49 +119,62 @@ function StageBoard({
 }) {
   return (
     <div className="grid grid-cols-7 gap-2.5">
-      {stages.map((s, i) => (
-        <React.Fragment key={s.key}>
+      {stages.map((s) => {
+        const danger = s.tone === "warn";
+        const active = s.count > 0;
+        return (
           <button
+            key={s.key}
             onClick={() => onJump(s.action_url)}
             className={cn(
-              "group relative flex flex-col gap-1.5 rounded-xl border-[1.5px] p-3 text-left transition",
-              TONE_STYLES[s.tone]
+              "group relative flex flex-col gap-1 overflow-hidden rounded-[4px] border bg-wms-surface px-3.5 py-3 text-left transition hover:bg-wms-row-hover",
+              active
+                ? danger
+                  ? "border-[1.5px] border-wms-danger"
+                  : "border-[1.5px] border-wms-ink"
+                : "border-wms-border"
             )}
           >
-            <div className="flex items-center justify-between">
+            {active && (
               <span
                 className={cn(
-                  "inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white/70",
-                  TONE_NUM[s.tone]
+                  "absolute inset-y-0 left-0 w-[4px]",
+                  danger ? "bg-wms-danger" : "bg-wms-accent"
                 )}
-              >
-                {STAGE_ICON[s.key]}
-              </span>
+              />
+            )}
+            <div
+              className={cn(
+                "flex items-center gap-1.5 text-[12.5px] font-semibold",
+                danger ? "text-wms-danger" : "text-wms-faint"
+              )}
+            >
+              {STAGE_ICON[s.key]}
+              <span>{s.label}</span>
               <ArrowRight
-                size={13}
-                className="text-wms-faint opacity-0 transition group-hover:opacity-100"
+                size={12}
+                className="ml-auto text-wms-faint opacity-0 transition group-hover:opacity-100"
               />
             </div>
             <div
               className={cn(
-                "font-wms-mono text-[24px] font-semibold leading-none",
-                TONE_NUM[s.tone]
+                "font-wms-mono text-[34px] font-bold leading-[1.1]",
+                danger ? "text-wms-danger" : "text-wms-ink"
               )}
             >
               {s.count}
-              <span className="ml-0.5 text-[12px] font-normal text-wms-faint">
+              <span className="ml-1 font-wms text-[13px] font-medium text-wms-faint">
                 {s.unit}
               </span>
             </div>
-            <div className="text-[12.5px] font-medium text-wms-ink">
-              {s.label}
-            </div>
             {s.hint && (
-              <div className="text-[10.5px] text-wms-faint">{s.hint}</div>
+              <div className="truncate text-[11.5px] text-wms-faint">
+                {s.hint}
+              </div>
             )}
           </button>
-        </React.Fragment>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -226,25 +229,27 @@ function TrendBars({ days }: { days: TrendDay[] }) {
             key={d.date}
             className="flex flex-1 flex-col items-center gap-1.5"
           >
-            <div className="flex h-[96px] w-full items-end justify-center gap-1">
+            <div
+              className={cn(
+                "flex h-[96px] w-full items-end justify-center gap-[3px] px-1",
+                isToday && "rounded-[2px] bg-wms-surface-alt"
+              )}
+            >
               <div
-                className="w-[42%] rounded-t bg-wms-info-fg/70"
+                className="w-[11px] bg-wms-brand"
                 style={{ height: `${(d.inbound / max) * 100}%` }}
                 title={`到倉 ${d.inbound} 件`}
               />
               <div
-                className={cn(
-                  "w-[42%] rounded-t",
-                  isToday ? "bg-wms-brand" : "bg-wms-ok-fg/70"
-                )}
+                className="w-[11px] bg-wms-ok"
                 style={{ height: `${(d.outbound / max) * 100}%` }}
                 title={`離站 ${d.outbound} 單`}
               />
             </div>
             <div
               className={cn(
-                "text-[10.5px] tabular-nums",
-                isToday ? "font-semibold text-wms-ink" : "text-wms-faint"
+                "text-[11px] tabular-nums",
+                isToday ? "font-bold text-wms-ink" : "text-wms-faint"
               )}
             >
               {d.label}
@@ -259,20 +264,20 @@ function TrendBars({ days }: { days: TrendDay[] }) {
 function Funnel({ stages }: { stages: FunnelStage[] }) {
   const max = Math.max(1, ...stages.map((s) => s.count));
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2.5">
       {stages.map((s) => (
         <div key={s.key} className="flex items-center gap-2.5">
-          <div className="w-[68px] flex-none text-right text-[12px] text-wms-muted">
+          <div className="w-[74px] flex-none text-right text-[12.5px] font-medium text-wms-ink-2">
             {s.label}
           </div>
-          <div className="relative h-7 flex-1 overflow-hidden rounded-md bg-wms-surface-alt">
+          <div className="relative h-[18px] flex-1 overflow-hidden bg-wms-surface-alt">
             <div
-              className="absolute inset-y-0 left-0 rounded-md bg-gradient-to-r from-wms-brand/80 to-wms-brand/50 transition-all"
-              style={{ width: `${(s.count / max) * 100}%` }}
+              className="absolute inset-y-0 left-0 bg-wms-brand transition-all"
+              style={{ width: `${Math.max(s.count > 0 ? 8 : 0, (s.count / max) * 100)}%` }}
             />
-            <div className="absolute inset-0 flex items-center px-2.5 font-wms-mono text-[12.5px] font-semibold text-wms-ink">
-              {s.count}
-            </div>
+          </div>
+          <div className="w-[28px] text-right font-wms-mono text-[14px] font-bold">
+            {s.count}
           </div>
         </div>
       ))}
@@ -322,24 +327,42 @@ export default function WmsHomePage() {
   const jump = (url: string) => router.push(url);
   const dateLabel = todayLabel(new Date());
 
+  // W6 — wall clock (design w-head-clock), ticks every 30s with reload
+  const [clock, setClock] = React.useState("");
+  React.useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      setClock(
+        `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+      );
+    };
+    tick();
+    const id = setInterval(tick, 15000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <WmsShell crumbs={[{ label: "工作台" }]}>
       <div className="p-[22px]">
         {/* Greeting + scan */}
         <div className="mb-4 flex items-end gap-3.5">
           <div>
-            <h1 className="text-[24px] font-semibold tracking-tight">
-              倉庫工作台
+            <h1 className="font-wms-disp text-[24px] font-extrabold tracking-[0.01em]">
+              工作台
             </h1>
-            <div className="mt-0.5 text-[13px] text-wms-muted">
-              {dateLabel} · 埼玉倉 JP-SAITAMA-01
+            <div className="mt-0.5 text-[12.5px] text-wms-muted">
+              {dateLabel} · 埼玉倉 JP-SAITAMA-01 ·{" "}
+              <span className="font-medium text-wms-ok-fg">● 30 秒自動刷新</span>
             </div>
           </div>
           <span className="flex-1" />
+          <span className="font-wms-mono text-[26px] font-semibold text-wms-ink-2">
+            {clock}
+          </span>
           <button
             onClick={load}
             disabled={refreshing}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-3 py-2 text-[12.5px] text-wms-ink-2 hover:bg-wms-row-hover disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-[3px] border border-wms-border-strong bg-wms-surface px-3 py-2 text-[12.5px] font-semibold text-wms-ink-2 hover:bg-wms-row-hover disabled:opacity-60"
           >
             <RefreshCw
               size={14}
@@ -349,7 +372,7 @@ export default function WmsHomePage() {
           </button>
           <div className="w-[300px]">
             <Scanner
-              placeholder="掃 inbound / outbound barcode…"
+              placeholder="掃描入庫 / 出庫單條碼…"
               onScan={(v) => {
                 const t = v.trim();
                 if (t.startsWith("OUT-")) jump("/zh-hk/wms/operations/outbound-list");
@@ -368,9 +391,11 @@ export default function WmsHomePage() {
         {/* Stage board */}
         <div className="mb-4">
           <div className="mb-2 flex items-center gap-2">
-            <h2 className="text-[15px] font-semibold">階段看板</h2>
+            <h2 className="font-wms-disp text-[13px] font-bold tracking-[0.1em] text-wms-ink-2">
+              階段看板
+            </h2>
             <span className="text-[12px] text-wms-faint">
-              即時在製品 · 點卡片直接入該站
+              即時在製品 · 點擊卡片直接進入該站
             </span>
           </div>
           {data ? (
@@ -394,7 +419,7 @@ export default function WmsHomePage() {
             <div className="overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
               <div className="flex items-center gap-2 border-b border-wms-border px-3.5 py-2.5">
                 <PackageCheck size={15} className="text-wms-ink-2" />
-                <h3 className="text-sm font-semibold">出貨吞吐</h3>
+                <h3 className="font-wms-disp text-[13px] font-bold tracking-[0.06em] text-wms-ink-2">出貨吞吐</h3>
                 <span className="text-[11.5px] text-wms-faint">
                   完成量 · 今日 / 7 日 / 30 日
                 </span>
@@ -408,14 +433,16 @@ export default function WmsHomePage() {
 
             <div className="rounded-xl border border-wms-border bg-wms-surface p-3.5">
               <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-sm font-semibold">近 7 日趨勢</h3>
+                <h3 className="font-wms-disp text-[13px] font-bold tracking-[0.06em] text-wms-ink-2">
+                  近 7 日趨勢
+                </h3>
                 <span className="flex-1" />
                 <span className="inline-flex items-center gap-1 text-[11px] text-wms-muted">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-wms-info-fg/70" />
+                  <span className="h-2.5 w-2.5 rounded-[2px] bg-wms-brand" />
                   到倉
                 </span>
                 <span className="inline-flex items-center gap-1 text-[11px] text-wms-muted">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-wms-ok-fg/70" />
+                  <span className="h-2.5 w-2.5 rounded-[2px] bg-wms-ok" />
                   離站
                 </span>
               </div>
@@ -432,7 +459,7 @@ export default function WmsHomePage() {
             <div className="rounded-xl border border-wms-border bg-wms-surface p-3.5">
               <div className="mb-3 flex items-center gap-2">
                 <Layers size={15} className="text-wms-ink-2" />
-                <h3 className="text-sm font-semibold">即時出貨漏斗</h3>
+                <h3 className="font-wms-disp text-[13px] font-bold tracking-[0.06em] text-wms-ink-2">即時出貨漏斗</h3>
               </div>
               {data ? (
                 <Funnel stages={data.funnel} />
@@ -444,15 +471,15 @@ export default function WmsHomePage() {
             <div className="overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
               <div className="flex items-center gap-2 border-b border-wms-border px-3.5 py-2.5">
                 <AlertTriangle size={15} className="text-wms-danger-fg" />
-                <h3 className="text-sm font-semibold">異常佇列</h3>
+                <h3 className="font-wms-disp text-[13px] font-bold tracking-[0.06em] text-wms-danger">異常佇列</h3>
                 {data && data.anomalies.length > 0 && (
                   <Pill kind="danger">{data.anomalies.length}</Pill>
                 )}
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col gap-2 p-3">
                 {data && data.anomalies.length === 0 && (
-                  <div className="px-3.5 py-8 text-center text-[13px] text-wms-faint">
-                    冇異常 · 全部單正常流轉
+                  <div className="py-6 text-center text-[13px] text-wms-faint">
+                    沒有異常 · 全部單據正常流轉
                   </div>
                 )}
                 {data?.anomalies.map((a) => (
@@ -461,22 +488,22 @@ export default function WmsHomePage() {
                     onClick={() =>
                       jump("/zh-hk/wms/operations/label-print")
                     }
-                    className="flex items-center gap-3 border-b border-wms-border px-3.5 py-2.5 text-left last:border-b-0 hover:bg-wms-row-hover"
+                    className="flex items-center gap-3 rounded-[3px] border border-wms-border-strong bg-wms-danger-bg px-3 py-2 text-left hover:brightness-[0.98]"
                   >
-                    <div className="flex-1">
-                      <div className="font-wms-mono text-[12.5px] font-semibold">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-wms-mono text-[13px] font-bold">
                         {a.outbound_id}
                       </div>
-                      <div className="text-[11.5px] text-wms-muted">
+                      <div className="truncate text-[12px] text-wms-muted">
                         {HELD_REASON_LABEL[a.held_reason ?? ""] ??
                           a.held_reason ??
                           a.status}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Pill kind="warn">{timeSince(a.held_since)}</Pill>
-                    </div>
-                    <ArrowRight size={13} className="text-wms-faint" />
+                    <Pill kind="warn-soft">滯留 {timeSince(a.held_since)}</Pill>
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-bold text-wms-danger">
+                      去重印面單 <ArrowRight size={12} />
+                    </span>
                   </button>
                 ))}
               </div>

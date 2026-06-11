@@ -13,15 +13,22 @@
 // W5: unmatched (non-YT) scans now auto-call /scan/arrive/unclaimed-quick
 // to create the unclaimed_inbounds record immediately. Users expect the
 // parcel to appear in the "無頭件指派" page right after scanning.
+//
+// W6 — Direction A visual conformance: solid signage banners, header
+// tally strip (derived from the in-memory scan list, purely visual),
+// disp h1 + mono ids. Routing / fetch logic unchanged.
 
 "use client";
 
+import { AlertTriangle, PackageCheck, Truck } from "lucide-react";
 import * as React from "react";
 
+import { ModeBadge } from "@/components/wms-redesign/mode-badge";
 import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
 import { Stepper } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
+import { cn } from "@/lib/utils";
 
 type Bucket = "forecasted" | "yt" | "unclaimed";
 
@@ -61,8 +68,7 @@ const BUCKET_META: Record<
   Bucket,
   {
     label: string;
-    emoji: string;
-    pill: "ok" | "info" | "warn";
+    tone: "ok" | "danger";
     banner: string;
     next: string;
     nextHref: (ctx: { trackingNo: string; inboundId?: string }) => string;
@@ -70,31 +76,34 @@ const BUCKET_META: Record<
 > = {
   forecasted: {
     label: "集運有預報",
-    emoji: "📦",
-    pill: "ok",
+    tone: "ok",
     banner:
-      "預報命中。狀態已標記為「已到倉」，請帶包裹去收件上架站做拍照、秤重同上架。",
+      "已對應預報，狀態已標記為「已到倉」。請將包裹送往收貨站秤重上架。",
     next: "前往收件上架",
     nextHref: () => "/zh-hk/wms/operations/receive",
   },
   yt: {
     label: "YT 件",
-    emoji: "🚛",
-    pill: "info",
+    tone: "ok",
     banner:
-      "YT 小包件，已自動建立入庫記錄。請帶去收貨站做秤重、量尺寸同上架，上架後會自動加入今日 YT 出庫單。",
+      "YT 小包件，已自動建立入庫記錄。請送往收貨站秤重上架，上架後會自動加入當日 YT 出庫單。",
     next: "前往收貨上架",
     nextHref: () => "/zh-hk/wms/operations/receive",
   },
   unclaimed: {
     label: "無頭件",
-    emoji: "❓",
-    pill: "warn",
+    tone: "danger",
     banner:
-      "搵唔到對應預報。已自動建立無頭件記錄，等待 CS 指派客戶。可去無頭件指派頁面睇返。",
+      "找不到對應預報，已自動建立無頭件記錄，等待 CS 指派客戶。可前往無頭件指派頁面查看。",
     next: "前往無頭件指派",
     nextHref: () => "/zh-hk/wms/operations/unclaimed-inbounds",
   },
+};
+
+const BUCKET_ICON: Record<Bucket, React.ReactNode> = {
+  forecasted: <PackageCheck size={22} className="mt-0.5 flex-none" />,
+  yt: <Truck size={22} className="mt-0.5 flex-none" />,
+  unclaimed: <AlertTriangle size={22} className="mt-0.5 flex-none" />,
 };
 
 export default function Page() {
@@ -127,7 +136,7 @@ export default function Page() {
           error: d.message || "Failed",
         };
         setCurrent(row);
-        setHistory((h) => [row, ...h].slice(0, MAX_HISTORY));
+        setHistory((h) => [row, ...h]);
         setError(d.message || "Failed");
         return;
       }
@@ -181,13 +190,23 @@ export default function Page() {
       };
       setCurrent(row);
       setLastEcho(trimmed);
-      setHistory((h) => [row, ...h].slice(0, MAX_HISTORY));
+      setHistory((h) => [row, ...h]);
     } catch (e: any) {
       setError(String(e?.message ?? e));
     } finally {
       setBusy(false);
     }
   }, []);
+
+  // Direction A header tally — derived from the in-memory scan list
+  // (purely visual; error rows excluded from bucket counts).
+  const okRows = history.filter((r) => !r.error);
+  const tally = {
+    total: okRows.length,
+    forecasted: okRows.filter((r) => r.bucket === "forecasted").length,
+    yt: okRows.filter((r) => r.bucket === "yt").length,
+    unclaimed: okRows.filter((r) => r.bucket === "unclaimed").length,
+  };
 
   return (
     <WmsShell crumbs={[{ label: "起始流程" }, { label: "到倉掃描" }]}>
@@ -206,15 +225,37 @@ export default function Page() {
           />
         </div>
 
-        <div className="mb-3.5 flex items-center gap-3">
-          <h1 className="text-[22px] font-semibold tracking-tight">到倉掃描</h1>
-          <Pill kind="brand">PC + USB 掃描器</Pill>
-          <Pill kind="muted">PDA 仍可同步使用</Pill>
+        <div className="mb-4 flex items-end gap-3">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="font-wms-disp text-[24px] font-extrabold tracking-[0.01em]">
+                到倉掃描
+              </h1>
+              <Pill kind="brand">PC + USB 掃描器</Pill>
+              <Pill kind="muted">PDA 仍可同步使用</Pill>
+            </div>
+            <div className="mt-0.5 text-[12.5px] text-wms-muted">
+              純分流 · 不拍照 · 不秤重 — 掃描後即放上到倉車
+            </div>
+          </div>
+          <span className="flex-1" />
+          <div className="flex items-baseline gap-3.5 text-[13px] font-semibold text-wms-ink-2">
+            <span>
+              今日{" "}
+              <span className="font-wms-mono text-[24px] font-bold">
+                {tally.total}
+              </span>{" "}
+              件
+            </span>
+            <span className="text-wms-info-fg">預報 {tally.forecasted}</span>
+            <span className="text-wms-ok-fg">YT {tally.yt}</span>
+            <span className="text-wms-danger">無頭 {tally.unclaimed}</span>
+          </div>
         </div>
 
         <div className="mb-3.5">
           <Scanner
-            placeholder="掃 / 鍵入運單號（按 Enter 提交）"
+            placeholder="掃描或輸入運單號（按 Enter 提交）"
             echo={lastEcho}
             disabled={busy}
             onScan={submitScan}
@@ -222,8 +263,14 @@ export default function Page() {
         </div>
 
         {error && (
-          <div className="mb-3 rounded-[10px] border border-wms-danger-bg bg-wms-danger-bg px-4 py-3 text-[13px] text-wms-danger-fg">
-            <strong>失敗</strong> · {error}
+          <div className="mb-3 flex items-start gap-3.5 rounded-[4px] bg-wms-danger px-[18px] py-3.5 text-white">
+            <AlertTriangle size={22} className="mt-0.5 flex-none" />
+            <div className="min-w-0 flex-1">
+              <div className="font-wms-disp text-[17px] font-extrabold tracking-[0.01em]">
+                掃描失敗
+              </div>
+              <div className="mt-0.5 text-[12.5px] opacity-85">{error}</div>
+            </div>
           </div>
         )}
 
@@ -231,31 +278,41 @@ export default function Page() {
 
         <div className="mt-5">
           <div className="mb-2 flex items-center gap-2">
-            <h2 className="text-[15px] font-semibold">最近 5 筆掃描</h2>
+            <h2 className="font-wms-disp text-[15px] font-bold">
+              最近 {MAX_HISTORY} 筆掃描
+            </h2>
             <span className="text-[12px] text-wms-faint">
-              （只保留於本頁，重整即清空）
+              （僅保留於本頁，重新整理後清空）
             </span>
           </div>
           {history.length === 0 ? (
-            <div className="rounded-[10px] border border-dashed border-wms-border bg-wms-surface-alt px-4 py-6 text-center text-[13px] text-wms-faint">
-              未有掃描記錄
+            <div className="rounded-[4px] border border-dashed border-wms-border bg-wms-surface-alt px-4 py-6 text-center text-[13px] text-wms-faint">
+              尚無掃描記錄
             </div>
           ) : (
-            <div className="overflow-hidden rounded-[10px] border border-wms-border bg-wms-surface">
+            <div className="overflow-hidden rounded-[4px] border border-wms-border bg-wms-surface">
               <table className="w-full border-collapse text-[13px]">
-                <thead className="bg-wms-surface-alt text-[11.5px] uppercase tracking-wider text-wms-faint">
+                <thead className="bg-wms-surface-alt">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold">時間</th>
-                    <th className="px-3 py-2 text-left font-semibold">運單號</th>
-                    <th className="px-3 py-2 text-left font-semibold">分類</th>
-                    <th className="px-3 py-2 text-left font-semibold">
+                    <th className="px-3 py-2 text-left text-[11px] font-bold tracking-[0.1em] text-wms-faint">
+                      時間
+                    </th>
+                    <th className="px-3 py-2 text-left text-[11px] font-bold tracking-[0.1em] text-wms-faint">
+                      運單號
+                    </th>
+                    <th className="px-3 py-2 text-left text-[11px] font-bold tracking-[0.1em] text-wms-faint">
+                      分類
+                    </th>
+                    <th className="px-3 py-2 text-left text-[11px] font-bold tracking-[0.1em] text-wms-faint">
                       Inbound ID
                     </th>
-                    <th className="px-3 py-2 text-left font-semibold">狀態</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-bold tracking-[0.1em] text-wms-faint">
+                      狀態
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((row) => (
+                  {history.slice(0, MAX_HISTORY).map((row) => (
                     <tr
                       key={row.id}
                       className="border-t border-wms-border hover:bg-wms-row-hover"
@@ -269,21 +326,26 @@ export default function Page() {
                         {row.trackingNo}
                       </td>
                       <td className="px-3 py-2">
-                        <Pill kind={BUCKET_META[row.bucket].pill}>
-                          {BUCKET_META[row.bucket].emoji}{" "}
-                          {BUCKET_META[row.bucket].label}
-                        </Pill>
+                        {row.bucket === "yt" ? (
+                          <ModeBadge mode="yt" />
+                        ) : row.bucket === "unclaimed" ? (
+                          <Pill kind="danger">無頭</Pill>
+                        ) : (
+                          <Pill kind="ok">{BUCKET_META.forecasted.label}</Pill>
+                        )}
                       </td>
                       <td className="px-3 py-2 font-wms-mono text-[12px]">
                         {row.inboundId ?? "—"}
                       </td>
                       <td className="px-3 py-2 text-[12px]">
                         {row.error ? (
-                          <span className="text-wms-danger-fg">
+                          <span className="font-semibold text-wms-danger">
                             {row.error}
                           </span>
                         ) : (
-                          <span className="text-wms-muted">OK</span>
+                          <span className="font-wms-mono text-wms-muted">
+                            OK
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -300,36 +362,35 @@ export default function Page() {
 
 function ResultBanner({ row }: { row: ScanRow }) {
   const meta = BUCKET_META[row.bucket];
-  const bgByKind: Record<typeof meta.pill, string> = {
-    ok: "bg-wms-ok-bg text-wms-ok-fg",
-    info: "bg-wms-info-bg text-wms-info-fg",
-    warn: "bg-wms-warn-bg text-wms-warn-fg",
-  };
   const href = meta.nextHref({
     trackingNo: row.trackingNo,
     inboundId: row.inboundId,
   });
   return (
     <div
-      className={`flex items-start gap-3 rounded-[10px] px-4 py-3 text-[13px] ${bgByKind[meta.pill]}`}
+      className={cn(
+        "flex items-start gap-3.5 rounded-[4px] px-[18px] py-3.5 text-white",
+        meta.tone === "ok" ? "bg-wms-ok-strong" : "bg-wms-danger"
+      )}
     >
-      <span className="text-[20px] leading-[1]">{meta.emoji}</span>
-      <div className="flex-1">
-        <div className="mb-1 flex items-center gap-2">
-          <strong className="text-[14px]">{meta.label}</strong>
-          <span className="font-wms-mono text-[12px] opacity-80">
-            {row.trackingNo}
-          </span>
+      {BUCKET_ICON[row.bucket]}
+      <div className="min-w-0 flex-1">
+        <div className="font-wms-disp text-[17px] font-extrabold tracking-[0.01em]">
+          {meta.label} ·{" "}
+          <span className="font-wms-mono">{row.trackingNo}</span>
+        </div>
+        <div className="mt-0.5 text-[12.5px] opacity-85">
+          {meta.banner}
           {row.inboundId && (
-            <span className="font-wms-mono text-[12px] opacity-80">
-              · {row.inboundId}
-            </span>
+            <>
+              {" "}
+              · <span className="font-wms-mono">{row.inboundId}</span>
+            </>
           )}
         </div>
-        <div className="opacity-90">{meta.banner}</div>
         <a
           href={href}
-          className="mt-1.5 inline-block text-[12.5px] font-semibold underline"
+          className="mt-1.5 inline-block text-[12.5px] font-bold text-white underline"
         >
           {meta.next} →
         </a>

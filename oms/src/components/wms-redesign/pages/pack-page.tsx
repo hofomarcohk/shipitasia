@@ -1,25 +1,21 @@
-// P17 — handoff #pack (mode-first) page.
+// W6 — 桌面裝箱 workbench model (Direction A redesign).
 //
-// Three columns:
-//   - left: 在桌面 (open desk items waiting to be packed)
-//   - mid:  scanner bar + mode-specific in-hand hero
-//   - right: 進行中嘅箱 (open boxes; eligible group on top, dim others)
+// Mental model: left = 桌面手邊貨, right = 箱. The scanned item renders
+// as a full-width HERO CARD (mode-coloured 3px border + huge badge)
+// whose right side states the next action:
+//   single        → 一單一箱 · Enter 自動建箱
+//   consolidated  → 建議入 BOX-xxx · Enter 接受；掃其他箱條碼即入該箱
+//   yt            → 任何 YT 箱可入，同上
+// The ONLY button on the bench is「＋ 開新箱」— placing into an
+// existing box is scan-driven (BOX-* barcode) or Enter-accept.
 //
-// In-hand hero renders 1 of 3 layouts based on the scanned item's mode
-// (consolidated / single / yt). Mode also drives left-bar colour on
-// desk rows + box cards. Confirmation places the item in a box and
-// refreshes state from /api/wms/outbound/pack/state.
+// All handlers / API flow are unchanged from the pre-redesign page:
+// scan → /pack/scan, place → /pack/place, new box → /pack/open-box
+// (auto-opens box-label print), complete → /pack/complete-session.
 
 "use client";
 
-import {
-  ArrowRight,
-  Box,
-  Check,
-  ChevronDown,
-  Plus,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Box, Plus, ScanLine } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -27,7 +23,7 @@ import { ModeBadge, type Mode } from "@/components/wms-redesign/mode-badge";
 import { NextCTA } from "@/components/wms-redesign/next-cta";
 import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
-import { Stepper } from "@/components/wms-redesign/stepper";
+import { Stepper, outboundSteps } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
 import {
   AlertDialog,
@@ -105,315 +101,182 @@ function modeForBox(b: StationOpenBox): Mode {
   return "consolidated";
 }
 
-const MODE_BG: Record<Mode, string> = {
-  consolidated: "bg-wms-info-bg",
-  single: "bg-wms-ok-bg",
-  yt: "bg-wms-purple-bg",
+// Direction A hero-card border / shadow per mode
+const HERO_BORDER: Record<Mode, string> = {
+  consolidated:
+    "border-wms-info-fg shadow-[5px_5px_0_rgba(46,98,166,0.18)]",
+  single: "border-wms-warn-fg shadow-[5px_5px_0_rgba(200,105,10,0.18)]",
+  yt: "border-wms-ok-strong shadow-[5px_5px_0_rgba(21,122,66,0.18)]",
 };
-const MODE_FG: Record<Mode, string> = {
+const MODE_TEXT: Record<Mode, string> = {
   consolidated: "text-wms-info-fg",
-  single: "text-wms-ok-fg",
-  yt: "text-wms-purple-fg",
-};
-const MODE_BORDER: Record<Mode, string> = {
-  consolidated: "border-wms-info-fg/30",
-  single: "border-wms-ok-fg/30",
-  yt: "border-wms-purple-fg/30",
-};
-const MODE_BAR_BG: Record<Mode, string> = {
-  consolidated: "bg-wms-info-fg",
-  single: "bg-wms-ok-fg",
-  yt: "bg-wms-purple-fg",
+  single: "text-wms-warn-fg",
+  yt: "text-wms-ok-fg",
 };
 
-const STEPPER = [
-  { label: "揀貨", state: "done" as const },
-  { label: "裝箱", state: "current" as const },
-  { label: "秤重取單", state: "todo" as const },
-  { label: "印單", state: "todo" as const },
-  { label: "離站", state: "todo" as const },
-];
-
-// ── helper components ─────────────────────────────────────
-
-function DeskRow({
-  item,
-  active,
-  onClick,
-}: {
-  item: StationDeskItem;
-  active: boolean;
-  onClick: () => void;
-}) {
-  const mode = modeForItem(item);
+function Keycap({ children = "↵", sm }: { children?: React.ReactNode; sm?: boolean }) {
   return (
-    <div
-      onClick={onClick}
+    <span
       className={cn(
-        "mb-1.5 flex cursor-pointer items-stretch overflow-hidden rounded-lg border bg-wms-surface",
-        active ? "border-wms-ink bg-wms-surface-alt" : "border-wms-border hover:bg-wms-row-hover"
+        "rounded-[2px] bg-wms-ink font-wms-mono font-bold leading-[1.2] text-wms-bg",
+        sm ? "px-[7px] py-[2px] text-[12px]" : "px-2.5 py-[3px] text-[15px]"
       )}
     >
-      <div className={cn("w-[3px] flex-none", MODE_BAR_BG[mode])} />
-      <div className="flex flex-1 items-center gap-2.5 p-2 px-2.5">
-        <div className="min-w-0 flex-1">
-          <div className="mb-0.5 flex items-center gap-1.5">
-            <ModeBadge mode={mode} />
-            <span className="font-wms-mono text-[11.5px] font-medium text-wms-ink-2">
-              {item.tracking_no}
-            </span>
-          </div>
-          <div className="truncate text-[11.5px] text-wms-muted">
-            {item.product_name ?? "—"} · {item.client_code}
-          </div>
-        </div>
-        <button
-          className={cn(
-            "rounded-md border px-2 py-1 text-[11px] font-medium",
-            active
-              ? "border-wms-ink bg-wms-ink text-white"
-              : "border-wms-border bg-wms-surface text-wms-ink-2 hover:bg-wms-row-hover"
-          )}
-        >
-          {active ? "在手" : "Scan"}
-        </button>
-      </div>
-    </div>
+      {children}
+    </span>
   );
 }
 
-function BoxCard({
-  box,
-  dimmed,
-  recommended,
-  onClickPlace,
-}: {
-  box: StationOpenBox;
-  dimmed?: boolean;
-  recommended?: boolean;
-  onClickPlace?: () => void;
-}) {
-  const mode = modeForBox(box);
-  const items = box.items?.length ?? 0;
-  return (
-    <div
-      className={cn(
-        "mb-2 flex items-stretch overflow-hidden rounded-[10px] border bg-wms-surface",
-        recommended ? "border-2 border-wms-warn-fg bg-[#FFFEF7]" : "border-wms-border",
-        dimmed && "opacity-50"
-      )}
-    >
-      <div className={cn("w-[3px] flex-none", MODE_BAR_BG[mode])} />
-      <div className="flex-1 p-2.5">
-        <div className="mb-1 flex items-center gap-1.5">
-          <ModeBadge mode={mode} />
-          <span className="font-wms-mono text-[12.5px] font-semibold">{box.box_no}</span>
-          <span className="flex-1" />
-          <span className="font-wms-mono text-[11px] text-wms-muted">
-            {items} 件
-          </span>
-          {recommended && <Pill kind="warn">推薦</Pill>}
-        </div>
-        <div className="mb-1.5 text-[11.5px] text-wms-muted">
-          {box.client_code}
-          {box.opened_at && ` · 開箱 ${new Date(box.opened_at).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit" })}`}
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {(box.items ?? []).slice(0, 6).map((p, i) => (
-            <span
-              key={i}
-              className="rounded border border-wms-border bg-wms-surface-alt px-1.5 py-px font-wms-mono text-[10px] text-wms-muted"
-            >
-              {p.tracking_no?.slice(-6) ?? "?"}
-            </span>
-          ))}
-          {items > 6 && (
-            <span className="text-[10px] text-wms-faint">+{items - 6}</span>
-          )}
-        </div>
-        {onClickPlace && !dimmed && (
-          <div className="mt-2 flex justify-end">
-            <button
-              onClick={onClickPlace}
-              className="inline-flex items-center gap-1 rounded-md border border-wms-border bg-wms-surface px-2 py-1 text-[11px] hover:bg-wms-row-hover"
-            >
-              入呢箱 <ArrowRight size={11} />
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function MidHero({
+// ── hero scan card ────────────────────────────────────────
+function HeroScanCard({
   scan,
   recommended,
-  compatibleBoxes,
-  onConfirm,
-  onOpenNew,
 }: {
   scan: ScanResult;
   recommended: StationOpenBox | null;
-  /** Owner open boxes already filtered for mode compatibility. */
-  compatibleBoxes: StationOpenBox[];
-  onConfirm: () => void;
-  onOpenNew: () => void;
 }) {
   const mode = modeForItem(scan.item);
-  if (mode === "single") {
-    return (
-      <div className="flex flex-col gap-3">
-        <div className={cn("rounded-xl border-[1.5px] p-5", MODE_BG[mode], MODE_BORDER[mode])}>
-          {/* 大字 Tag + tracking_no：跟 consolidated 同款 layout */}
-          <div className="mb-3 flex items-center gap-3">
-            <span className="inline-flex items-center rounded-full bg-wms-ok-bg px-4 py-1.5 text-lg font-bold text-wms-ok-fg">
-              單發
-            </span>
-            <div className="flex flex-col">
-              <span className="font-wms-mono text-xl font-bold tracking-tight">
-                {scan.item.tracking_no}
-              </span>
-              <span className="text-[13px] text-wms-muted">
-                {scan.owner.client_name}
-              </span>
-            </div>
-          </div>
-
-          <div className={cn("mb-3 text-[14px]", MODE_FG[mode])}>
-            呢件係 <strong>{scan.owner.client_name}</strong> 嘅直發單 · 一單一箱 · 唔需要揀箱
-          </div>
-
-          <div className="text-[12px] text-wms-muted mb-2">
-            💡 提示：系統自動編號 · 完成裝箱時統一封袋進入秤重隊列
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={onConfirm}
-              className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-3 text-[15px] font-semibold text-white hover:brightness-110"
-            >
-              <Box size={16} strokeWidth={2.5} />
-              入箱 · 自動建箱 · ↵
-            </button>
-          </div>
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-5 rounded-[3px] border-[3px] bg-wms-surface px-5 py-3.5",
+        HERO_BORDER[mode]
+      )}
+    >
+      <ModeBadge mode={mode} huge />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-wms-mono text-[27px] font-bold tracking-[0.01em]">
+          {scan.item.tracking_no}
+        </div>
+        <div className="mt-0.5 text-[14px] font-semibold text-wms-ink-2">
+          {mode === "yt" ? "YT 香港倉" : scan.owner.client_name} ·{" "}
+          <span className="font-wms-mono text-[13px] text-wms-faint">
+            {scan.item.outbound_id}
+          </span>
         </div>
       </div>
-    );
-  }
-  // consolidated + yt share the same shell
-  const isYt = mode === "yt";
+      <div className="flex flex-none flex-col items-end gap-1.5 text-right">
+        {mode === "single" ? (
+          <>
+            <div className="flex items-center gap-2.5 font-wms-disp text-[18px] font-extrabold">
+              一單一箱 → 入箱 · 自動建箱 <Keycap />
+            </div>
+            <div className="flex items-center gap-1.5 text-[13px] text-wms-faint">
+              按 Enter 即自動建箱 — 無需選箱
+            </div>
+          </>
+        ) : recommended ? (
+          <>
+            <div className="flex items-center gap-2.5 font-wms-disp text-[18px] font-extrabold">
+              建議入{" "}
+              <span className="font-wms-mono">{recommended.box_no}</span>{" "}
+              <Keycap />
+            </div>
+            <div className="flex items-center gap-1.5 text-[13px] text-wms-faint">
+              <ScanLine size={13} />
+              要入其他箱？直接掃描該箱的條碼即可
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2.5 font-wms-disp text-[18px] font-extrabold">
+              {mode === "yt" ? "未有 YT 箱 → 開新箱" : "無現成箱 → 開新箱"}{" "}
+              <Keycap />
+            </div>
+            <div className="flex items-center gap-1.5 text-[13px] text-wms-faint">
+              按 Enter 即開新箱並列印箱標籤
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── box card (bench right) ────────────────────────────────
+function BoxCard({
+  box,
+  recommended,
+  eligible,
+  ghostItem,
+  onPlace,
+}: {
+  box: StationOpenBox;
+  recommended?: boolean;
+  eligible?: boolean;
+  /** Tracking no of the in-hand item previewed into the recommended box. */
+  ghostItem?: string | null;
+  onPlace?: () => void;
+}) {
+  const mode = modeForBox(box);
+  const items = box.items ?? [];
   return (
-    <div className="flex flex-col gap-3">
-      <div className={cn("rounded-xl border-[1.5px] p-5", MODE_BG[mode], MODE_BORDER[mode])}>
-        {/* 大字 Tag + tracking_no：倉庫員最先見到呢件貨係咩 mode + 邊條單 */}
-        <div className="mb-3 flex items-center gap-3">
-          <span className={cn(
-            "inline-flex items-center rounded-full px-4 py-1.5 text-lg font-bold",
-            mode === "consolidated" && "bg-wms-info-bg text-wms-info-fg",
-            mode === "yt" && "bg-purple-100 text-purple-800",
-          )}>
-            {mode === "consolidated" ? "集運" : "YT"}
-          </span>
-          <div className="flex flex-col">
-            <span className="font-wms-mono text-xl font-bold tracking-tight">
-              {scan.item.tracking_no}
+    <div
+      onClick={eligible && onPlace ? onPlace : undefined}
+      className={cn(
+        "flex flex-col gap-2 rounded-[3px] border-[1.5px] bg-wms-surface p-3",
+        recommended
+          ? "border-[2.5px] border-wms-brand shadow-[4px_4px_0_rgba(58,111,181,0.18)]"
+          : "border-wms-border-strong",
+        eligible && onPlace && "cursor-pointer hover:bg-wms-row-hover",
+        !eligible && !recommended && "opacity-50"
+      )}
+    >
+      <div className="flex items-center gap-2 text-wms-ink-2">
+        <Box size={15} />
+        <span className="font-wms-mono text-[14px] font-bold text-wms-ink">
+          {box.box_no}
+        </span>
+        <span className="flex-1" />
+        {recommended ? (
+          <Pill kind="brand">建議入此箱</Pill>
+        ) : (
+          <Pill kind="warn-soft">未封</Pill>
+        )}
+      </div>
+      <div className="flex items-center gap-2 text-[13px] font-bold">
+        <ModeBadge mode={mode} />
+        {box.client_code}
+      </div>
+      <div className="flex flex-col gap-1 border-t border-wms-border pt-2">
+        {items.slice(0, 5).map((p, i) => (
+          <div key={i} className="flex items-center gap-2 text-[12.5px]">
+            <span className="inline-flex h-[15px] w-[15px] flex-none items-center justify-center rounded-full bg-wms-ok-strong text-[9.5px] font-extrabold text-white">
+              ✓
             </span>
-            <span className="text-[13px] text-wms-muted">
-              {isYt ? "YT 香港倉" : scan.owner.client_name}
-            </span>
+            <span className="truncate font-wms-mono">{p.tracking_no}</span>
           </div>
-        </div>
-
-        <div className={cn("mb-3 text-[14px]", MODE_FG[mode])}>
-          {isYt ? (
-            <>YT 件 · 唔分客戶 · 全部去 <strong>YT 香港倉</strong> · 任何 YT 箱都可以入</>
-          ) : compatibleBoxes.length > 0 ? (
-            <>呢件係 <strong>{scan.owner.client_name}</strong> 嘅併箱貨 · 已有 {compatibleBoxes.length} 個開緊箱可入</>
-          ) : (
-            <>呢件係 <strong>{scan.owner.client_name}</strong> 嘅併箱貨 · 暫時冇兼容嘅開緊箱 · 開新箱裝</>
-          )}
-        </div>
-
-        {recommended && (
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="text-[14px] font-medium text-wms-ink-2">下一步 →</span>
-            <span
-              className={cn(
-                "rounded-md border-[1.5px] bg-white px-3 py-1.5 font-wms-mono text-base font-semibold",
-                MODE_BORDER[mode]
-              )}
-            >
-              放入 {recommended.box_no}
+        ))}
+        {items.length > 5 && (
+          <span className="text-[11px] text-wms-faint">
+            +{items.length - 5} 件
+          </span>
+        )}
+        {ghostItem && (
+          <div className="flex items-center gap-2 rounded-[2px] border-[1.5px] border-dashed border-wms-brand bg-wms-info-bg px-1.5 py-[3px] text-[12.5px] text-wms-brand">
+            <span className="inline-flex h-[15px] w-[15px] flex-none items-center justify-center rounded-full bg-wms-brand text-[11px] font-extrabold text-white">
+              +
             </span>
-            <span className="text-[13px] text-wms-muted">
-              ({recommended.items?.length ?? 0} 件已入箱)
+            <span className="truncate font-wms-mono font-bold text-wms-info-fg">
+              {ghostItem}
             </span>
           </div>
         )}
-
-        <div className="text-[12px] text-wms-muted mb-2">
-          💡 提示：可以直接掃箱號 barcode 入箱（系統會擋唔同客戶 / 唔同 mode 嘅箱）
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {recommended ? (
-            <>
-              <button
-                onClick={onConfirm}
-                className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-3 text-[15px] font-semibold text-white hover:brightness-110"
-              >
-                <Check size={16} strokeWidth={2.5} />
-                確認入 {recommended.box_no} · ↵
-              </button>
-              {compatibleBoxes.length > 1 && (
-                <button className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-3 text-[14px] hover:bg-wms-row-hover">
-                  揀其他箱 <ChevronDown size={14} />
-                </button>
-              )}
-              <button
-                onClick={onOpenNew}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-4 py-3 text-[14px] hover:bg-wms-row-hover"
-              >
-                <Plus size={14} /> 開新箱
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={onConfirm}
-              className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-3 text-[15px] font-semibold text-white hover:brightness-110"
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              開新箱 · ↵
-            </button>
-          )}
-        </div>
       </div>
-      {/* Alternates — 只列同 mode 兼容嘅箱 */}
-      {compatibleBoxes.length > 1 && (
-        <div className="rounded-xl border border-wms-border bg-wms-surface p-3">
-          <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-wider text-wms-faint">
-            其他可選箱
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {compatibleBoxes.slice(1).map((b) => {
-              const items = b.items?.length ?? 0;
-              return (
-                <div
-                  key={b._id}
-                  className="flex items-center gap-2.5 rounded-lg border border-wms-border bg-wms-surface px-2.5 py-2"
-                >
-                  <span className="font-wms-mono text-sm font-semibold">{b.box_no}</span>
-                  <span className="flex-1" />
-                  <span className="min-w-[40px] text-right font-wms-mono text-[11.5px] text-wms-muted">
-                    {items} 件
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <div className="mt-auto flex items-center justify-between border-t border-wms-border pt-2 text-[12.5px]">
+        <span className="text-wms-faint">
+          <span className="font-wms-mono">{items.length}</span> 件
+        </span>
+        {recommended ? (
+          <span className="inline-flex items-center gap-1.5 text-[13px] font-extrabold text-wms-brand">
+            確認入此箱 <Keycap sm>↵</Keycap>
+          </span>
+        ) : eligible ? (
+          <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-wms-faint">
+            <ScanLine size={13} /> 掃箱條碼入此箱
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -448,11 +311,11 @@ export function PackPageClient() {
     setBusy(true);
     try {
       const code = v.trim();
-      // BOX-* = 箱號掃描：若已有 pending 件 → 入箱 / 換箱（server 會擋
-      // mode-mismatch、不同客）；無 pending 件 → 提示先掃件。
+      // BOX-* 條碼：已有在手件 → 入箱／換箱（server 會阻擋不同模式、
+      // 不同客戶的箱）；未掃件 → 提示先掃件。
       if (/^box-/i.test(code)) {
         if (!scan) {
-          throw new Error("請先掃一件貨，再掃箱號");
+          throw new Error("請先掃描一件貨，再掃描箱條碼");
         }
         const placeRes = await post_request("/api/wms/outbound/pack/place", {
           inbound_id: scan.item.inbound_id,
@@ -524,7 +387,7 @@ export function PackPageClient() {
       if (json?.status !== 200) {
         throw new Error(json?.message ?? "Open box failed");
       }
-      // 新箱開好之後 → 開窗印箱 label
+      // 新箱建立後 → 開新分頁列印箱標籤
       const newBoxNo: string | undefined = json?.data?.box?.box_no;
       if (newBoxNo) {
         const clientName = scan.owner.client_name ?? scan.owner.client_code ?? "";
@@ -543,10 +406,8 @@ export function PackPageClient() {
     }
   };
 
-
-  // 只 recommend 同 mode 兼容嘅箱：consolidated 唔可以入 single_direct 箱，
-  // YT 唔可以入 non-YT 箱，反之亦然。後端 placeItem 都會 reject，但 frontend
-  // 要先過濾，唔好俾倉庫員見到「已有 N 個可入」但 click 落去 reject 嘅錯覺。
+  // 只建議模式兼容的箱：集運不可入單發專箱、YT 不可入非 YT 箱，
+  // 反之亦然。後端 placeItem 亦會阻擋；前端先過濾避免誤導。
   const compatibleOwnerBoxes: StationOpenBox[] = React.useMemo(() => {
     if (!scan) return [];
     const wanted = modeForItem(scan.item);
@@ -555,6 +416,36 @@ export function PackPageClient() {
     );
   }, [scan]);
   const recommended: StationOpenBox | null = compatibleOwnerBoxes[0] ?? null;
+
+  // Enter-accept：在手件存在且掃描欄空白時，Enter＝接受建議
+  // （single→自動建箱；有建議箱→入建議箱；否則開新箱）。
+  const confirmCurrent = React.useCallback(() => {
+    if (!scan || busy) return;
+    if (modeForItem(scan.item) === "single") {
+      openNewBox();
+    } else if (recommended) {
+      placeIntoBox(recommended.box_no);
+    } else {
+      openNewBox();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scan, recommended, busy]);
+
+  React.useEffect(() => {
+    if (!scan) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) {
+        const v = (t as HTMLInputElement).value;
+        if (v && v.trim() !== "") return; // scanner 有內容 → 由 scanner 處理
+      }
+      e.preventDefault();
+      confirmCurrent();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [scan, confirmCurrent]);
 
   const deskCount = state?.desk?.length ?? 0;
   const ctaState: "locked" | "ready" =
@@ -586,10 +477,23 @@ export function PackPageClient() {
     }
   };
 
+  // bench right: in-hand 時按兼容性分組
+  const wanted = scan ? modeForItem(scan.item) : null;
+  const wantedClient =
+    scan && wanted
+      ? wanted === "yt"
+        ? SYSTEM_CLIENT_ID
+        : scan.owner.client_id
+      : null;
+  const isEligible = (b: StationOpenBox) =>
+    !!scan &&
+    modeForBox(b) === wanted &&
+    (wanted === "yt" || b.client_id === wantedClient);
+
   return (
     <>
     <WmsShell
-      crumbs={[{ label: "出貨作業" }, { label: "裝箱任務" }]}
+      crumbs={[{ label: "出貨作業" }, { label: "桌面裝箱" }]}
       cta={
         <NextCTA
           state={ctaState}
@@ -599,18 +503,18 @@ export function PackPageClient() {
               ? { done: state.stats.packed_item_count, total: state.stats.packed_item_count + deskCount }
               : undefined
           }
-          lockedHint={deskCount > 0 ? `仲有 ${deskCount} 件未入箱` : undefined}
-          back={{ url: "/zh-hk/wms/operations/pick-batch", label: "揀貨任務" }}
+          lockedHint={deskCount > 0 ? `尚有 ${deskCount} 件未入箱` : undefined}
+          back={{ url: "/zh-hk/wms/operations/pick-batch", label: "揀貨批次" }}
           customMainCTA={
             ctaState === "ready" ? (
               <button
                 onClick={() => setCompleteConfirmOpen(true)}
                 disabled={completing}
-                className="animate-wms-cta-pulse inline-flex items-center gap-2.5 whitespace-nowrap rounded-[12px] bg-wms-brand px-[26px] py-3.5 text-[16px] font-semibold text-white transition-all hover:scale-[1.03] motion-reduce:animate-none disabled:opacity-60"
+                className="animate-wms-cta-pulse inline-flex items-center gap-2.5 whitespace-nowrap rounded-[3px] bg-wms-ok-strong px-6 py-[11px] font-wms-disp text-[15.5px] font-extrabold tracking-[0.02em] text-white hover:brightness-110 motion-reduce:animate-none disabled:opacity-60"
               >
                 <span>完成裝箱 · 去秤重取單</span>
-                <ArrowRight size={18} strokeWidth={2.5} />
-                <span className="ml-1 rounded bg-white/20 px-1.5 py-0.5 font-wms-mono text-[11px] font-medium">
+                <ArrowRight size={17} strokeWidth={2.5} />
+                <span className="rounded-[2px] border border-white/45 bg-white/20 px-[7px] py-[2px] font-wms-mono text-[12px] font-medium">
                   ↵
                 </span>
               </button>
@@ -620,174 +524,157 @@ export function PackPageClient() {
       }
     >
       <div className="flex h-full flex-col px-5 py-3.5">
-        <div className="mb-2.5 flex items-center gap-3 rounded-xl border border-wms-border bg-wms-surface-alt px-4 py-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-wms-faint">
-            出貨流程
-          </span>
-          <Stepper steps={STEPPER} />
+        <div className="mb-3 flex items-end gap-3">
+          <div>
+            <h1 className="font-wms-disp text-[24px] font-extrabold tracking-[0.01em]">
+              桌面裝箱
+            </h1>
+            <div className="mt-0.5 text-[12.5px] text-wms-muted">
+              左＝桌面手邊貨 · 右＝箱 — ↵ 入建議箱；掃箱條碼入指定箱；唯一按鍵＝開新箱
+            </div>
+          </div>
           <span className="flex-1" />
+          <Stepper steps={outboundSteps(1)} />
           {state && (
             <span className="text-xs text-wms-muted">
-              已入 <strong className="font-wms-mono">{state.stats.packed_item_count}</strong> · 待{" "}
+              已入箱 <strong className="font-wms-mono">{state.stats.packed_item_count}</strong> · 待入{" "}
               <strong className="font-wms-mono">{deskCount}</strong>
             </span>
           )}
         </div>
 
-        <div className="mb-3 flex items-center gap-3">
-          <h1 className="text-[22px] font-semibold tracking-tight">裝箱任務</h1>
-          <Pill kind="muted">
-            {state ? `${state.stats.open_box_count} 個開緊箱 · ${deskCount} 件待入箱` : "載入中…"}
-          </Pill>
-          <span className="flex-1" />
-          <button className="inline-flex items-center gap-1.5 rounded-md border border-wms-border bg-wms-surface px-2.5 py-1 text-xs hover:bg-wms-row-hover">
-            <Sparkles size={13} /> 重組模式
-          </button>
-        </div>
-
         {error && (
-          <div className="mb-2 rounded-lg border border-wms-danger-fg/30 bg-wms-danger-bg px-3 py-2 text-sm text-wms-danger-fg">
+          <div className="mb-2 rounded-[3px] bg-wms-danger px-3 py-2 text-[13px] font-semibold text-white">
             {error}
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 gap-3">
+        <div className="mb-3">
+          <Scanner
+            placeholder="掃描桌面上的件 · 系統自動辨識 集運 / 單發 / YT"
+            echo={echo ?? undefined}
+            onScan={handleScan}
+          />
+        </div>
+
+        {scan && (
+          <div className="mb-3">
+            <HeroScanCard scan={scan} recommended={recommended} />
+          </div>
+        )}
+
+        <div className="grid min-h-0 flex-1 grid-cols-[360px_1fr] gap-3">
           {/* LEFT: desk */}
-          <div className="flex w-[320px] flex-none flex-col overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
+          <div className="flex flex-col overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
             <div className="flex items-center gap-1.5 border-b border-wms-border px-3 py-2.5">
-              <h3 className="text-[13px] font-semibold">在桌面</h3>
-              <Pill kind="muted">{deskCount} 件</Pill>
-              <span className="flex-1" />
-              <span className="text-[11px] text-wms-faint">按 mode 排序</span>
+              <h3 className="font-wms-disp text-[12px] font-bold tracking-[0.1em] text-wms-ink-2">
+                桌面 · 手邊貨
+              </h3>
+              <Pill kind={deskCount > 0 ? "warn-soft" : "ok-soft"}>
+                剩 {deskCount} 件
+              </Pill>
             </div>
-            <div className="flex-1 overflow-auto p-2.5">
+            <div className="flex-1 overflow-auto p-2">
               {state?.desk?.length === 0 && (
-                <div className="rounded-md bg-wms-surface-alt p-4 text-center text-xs text-wms-faint">
-                  桌面已空 · 等下一輪揀貨完成
+                <div className="rounded-[3px] bg-wms-surface-alt p-4 text-center text-xs text-wms-faint">
+                  桌面已清空 · 等待下一輪揀貨完成
                 </div>
               )}
-              {state?.desk?.map((it) => (
-                <DeskRow
-                  key={it.inbound_id}
-                  item={it}
-                  active={scan?.item.inbound_id === it.inbound_id}
-                  onClick={() => handleScan(it.tracking_no)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* MID: in-hand */}
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5 overflow-auto">
-            <Scanner
-              placeholder="掃下一件貨 · 系統自動辨認 併箱 / 單發 / YT"
-              echo={echo ?? undefined}
-              onScan={handleScan}
-            />
-            {!scan ? (
-              <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-wms-border bg-wms-surface text-sm text-wms-faint">
-                掃一件貨開始裝箱
-              </div>
-            ) : (
-              <MidHero
-                scan={scan}
-                recommended={recommended}
-                compatibleBoxes={compatibleOwnerBoxes}
-                onConfirm={() => {
-                  // single 一單一箱：直接 open 新箱（封袋延後到「完成裝箱」一齊做）
-                  // consolidated/yt：有推薦現成箱就入，冇就由 onOpenNew 處理
-                  if (scan.item.shipment_type === "single") {
-                    openNewBox();
-                  } else if (recommended) {
-                    placeIntoBox(recommended.box_no);
-                  } else {
-                    openNewBox();
-                  }
-                }}
-                onOpenNew={openNewBox}
-              />
-            )}
-          </div>
-
-          {/* RIGHT: boxes */}
-          <div className="flex w-[320px] flex-none flex-col overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
-            <div className="flex items-center gap-1.5 border-b border-wms-border px-3 py-2.5">
-              <h3 className="text-[13px] font-semibold">進行中嘅箱</h3>
-              <Pill kind="muted">{state?.open_boxes?.length ?? 0} 個</Pill>
-              <span className="flex-1" />
-              {scan && (
-                <span
-                  className={cn(
-                    "text-[11px] font-semibold uppercase",
-                    MODE_FG[modeForItem(scan.item)]
-                  )}
-                >
-                  過濾: {modeForItem(scan.item)}
-                </span>
-              )}
-            </div>
-            <div className="flex-1 overflow-auto p-2.5">
-              {state && scan ? (
-                (() => {
-                  const wanted = modeForItem(scan.item);
-                  const wantedClient =
-                    wanted === "yt" ? SYSTEM_CLIENT_ID : scan.owner.client_id;
-                  const eligible = state.open_boxes.filter(
-                    (b) => modeForBox(b) === wanted && b.client_id === wantedClient
-                  );
-                  const others = state.open_boxes.filter(
-                    (b) => !eligible.includes(b)
-                  );
-                  return (
-                    <>
-                      <div
-                        className={cn(
-                          "mb-1.5 text-[11px] font-semibold uppercase tracking-wider",
-                          MODE_FG[wanted]
-                        )}
-                      >
-                        可入
+              {state?.desk?.map((it) => {
+                const active = scan?.item.inbound_id === it.inbound_id;
+                return (
+                  <div
+                    key={it.inbound_id}
+                    onClick={() => handleScan(it.tracking_no)}
+                    className={cn(
+                      "mb-1 flex cursor-pointer items-center gap-2.5 rounded-[3px] border px-2.5 py-2",
+                      active
+                        ? "border-wms-warn-fg bg-wms-warn-bg shadow-[inset_3px_0_0_#C8690A]"
+                        : "border-transparent hover:bg-wms-row-hover"
+                    )}
+                  >
+                    <ModeBadge mode={modeForItem(it)} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-wms-mono text-[12.5px] font-semibold">
+                        {it.tracking_no}
                       </div>
-                      {eligible.length === 0 ? (
-                        <div className="mb-2 rounded-md bg-wms-surface-alt p-2 text-center text-[11px] text-wms-faint">
-                          冇現成箱 · 開新箱
-                        </div>
-                      ) : (
-                        eligible.map((b, i) => (
-                          <BoxCard
-                            key={b._id}
-                            box={b}
-                            recommended={i === 0}
-                            onClickPlace={() => placeIntoBox(b.box_no)}
-                          />
-                        ))
-                      )}
-                      {others.length > 0 && (
-                        <>
-                          <div className="mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-wider text-wms-faint">
-                            唔可入
-                          </div>
-                          {others.map((b) => (
-                            <BoxCard key={b._id} box={b} dimmed />
-                          ))}
-                        </>
-                      )}
-                    </>
-                  );
-                })()
-              ) : state ? (
-                state.open_boxes.length === 0 ? (
-                  <div className="rounded-md bg-wms-surface-alt p-4 text-center text-xs text-wms-faint">
-                    暫無開箱
+                      <div className="truncate text-[11.5px] text-wms-muted">
+                        {it.client_name}
+                      </div>
+                    </div>
+                    {active && <Pill kind="warn">掃描中</Pill>}
                   </div>
-                ) : (
-                  state.open_boxes.map((b) => <BoxCard key={b._id} box={b} />)
-                )
+                );
+              })}
+            </div>
+            <div className="border-t border-wms-border px-3 py-2.5 text-[12.5px] font-semibold text-wms-faint">
+              今日已入箱{" "}
+              <span className="font-wms-mono">
+                {state?.stats.packed_item_count ?? 0}
+              </span>{" "}
+              件
+            </div>
+          </div>
+
+          {/* RIGHT: boxes bench */}
+          <div className="flex min-w-0 flex-col gap-2 overflow-auto">
+            <div className="font-wms-disp text-[12px] font-bold tracking-[0.12em] text-wms-ink-2">
+              未封箱 · {state?.open_boxes?.length ?? 0}
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 2xl:grid-cols-3">
+              {(state?.open_boxes ?? []).map((b) => {
+                const rec = !!scan && recommended?._id === b._id && wanted !== "single";
+                const eligible = isEligible(b) && !rec;
+                return (
+                  <BoxCard
+                    key={b._id}
+                    box={b}
+                    recommended={rec}
+                    eligible={scan ? eligible : true}
+                    ghostItem={rec ? scan!.item.tracking_no : null}
+                    onPlace={
+                      scan && (rec || eligible)
+                        ? () => placeIntoBox(b.box_no)
+                        : undefined
+                    }
+                  />
+                );
+              })}
+              {/* new-box card */}
+              {scan && wanted === "single" ? (
+                <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-[3px] border-[2.5px] border-dashed border-wms-warn-fg bg-wms-warn-bg p-3 text-wms-warn-fg">
+                  <div className="text-[14px] font-bold">
+                    自動建箱 · 單發專箱
+                  </div>
+                  <span className="font-wms-mono text-[12px] opacity-80">
+                    {scan.item.tracking_no}
+                  </span>
+                  <button
+                    onClick={openNewBox}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1.5 text-[13px] font-extrabold"
+                  >
+                    入箱 · 自動建箱 <Keycap sm>↵</Keycap>
+                  </button>
+                </div>
               ) : (
-                <div className="rounded-md bg-wms-surface-alt p-4 text-center text-xs text-wms-faint">
-                  載入中…
+                <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-[3px] border-[1.5px] border-dashed border-wms-border-strong p-3 text-wms-faint">
+                  <button
+                    onClick={openNewBox}
+                    disabled={!scan || busy}
+                    className="inline-flex items-center gap-1.5 rounded-[3px] bg-wms-brand px-4 py-2 text-[13px] font-bold text-white disabled:opacity-40"
+                  >
+                    <Plus size={14} /> 開新箱
+                  </button>
+                  <div className="text-center text-[11.5px]">
+                    入現有箱無需按鍵 — 掃描箱條碼即可
+                  </div>
                 </div>
               )}
+            </div>
+
+            <div className="mt-auto border-t border-wms-border pt-2.5 text-[11.5px] text-wms-faint">
+              規則：集運同客戶才可同箱 · YT 件可互通 cross 箱 · YT 與集運／單發混箱會被系統阻擋
             </div>
           </div>
         </div>
@@ -796,24 +683,25 @@ export function PackPageClient() {
     <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>完成裝箱？</AlertDialogTitle>
+          <AlertDialogTitle className="text-wms-danger">完成裝箱？</AlertDialogTitle>
           <AlertDialogDescription>
-            桌面已清空，{openBoxCount} 個開緊嘅箱會被自動封箱（空箱會取消），所有 outbound 狀態會推到 <strong>packed</strong> 並進入秤重 queue。
+            桌面已清空。{openBoxCount} 個未封箱將自動封箱（空箱會取消），所有出庫單狀態推進至 <strong>packed</strong> 並進入秤重佇列。
             <br />
             <br />
-            確認所有貨件已正確入箱？呢個動作之後唔可以再加件入箱。
+            確認所有貨件已正確入箱？此步驟之後不可再加件入箱。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={completing}>返回繼續裝箱</AlertDialogCancel>
           <AlertDialogAction
+            autoFocus
             onClick={(e) => {
               e.preventDefault();
               handleCompletePacking();
             }}
             disabled={completing}
           >
-            {completing ? "處理中…" : "確認完成 · 去秤重取單"}
+            {completing ? "處理中…" : "確認 · 去秤重取單 ↵"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

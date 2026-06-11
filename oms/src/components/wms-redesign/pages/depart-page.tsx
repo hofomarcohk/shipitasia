@@ -8,16 +8,14 @@
 // All matching enforcement lives on the server (see
 // services/outbound/double-scan-depart.ts) — this page only sequences
 // the two scans and shows the green-tick paired UI on success.
+//
+// W6 — Direction A「工場日勤」restyle: 4-step canonical stepper,
+// .w-pair dual-scan card, solid red inline error bar, full-page green
+// celebrate card with the 安排攬收 action.
 
 "use client";
 
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  Home,
-  Zap,
-} from "lucide-react";
+import { AlertTriangle, Check, Home, Truck, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -25,7 +23,7 @@ import { ModeBadge, type Mode } from "@/components/wms-redesign/mode-badge";
 import { NextCTA } from "@/components/wms-redesign/next-cta";
 import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
-import { Stepper } from "@/components/wms-redesign/stepper";
+import { Stepper, outboundSteps } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
 import { get_request, post_request } from "@/lib/httpRequest";
 import { cn } from "@/lib/utils";
@@ -52,14 +50,6 @@ interface FlatBox {
   status: string;
 }
 
-const STEPPER = [
-  { label: "揀貨", state: "done" as const },
-  { label: "裝箱", state: "done" as const },
-  { label: "秤重取單", state: "done" as const },
-  { label: "印單", state: "done" as const },
-  { label: "離站", state: "current" as const },
-];
-
 function modeOf(o: { client_id: string; shipment_type: string; is_yt?: boolean }): Mode {
   if (o.is_yt || o.client_id === SYSTEM_CLIENT_ID) return "yt";
   if (o.shipment_type === "single") return "single";
@@ -73,6 +63,9 @@ export function DepartPageClient() {
   const [error, setError] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  // W6 — schedule-pickup in flight (celebrate card button) — guards
+  // against double-clicks.
+  const [scheduling, setScheduling] = React.useState(false);
   const [departedNow, setDepartedNow] = React.useState<Map<string, string>>(
     new Map()
   );
@@ -132,6 +125,17 @@ export function DepartPageClient() {
   const doneCount = flatBoxes.filter((b) => departedNow.has(b.box_no) || b.status === "departed").length;
   const allDone = total > 0 && doneCount >= total;
 
+  // Latest depart time in this session (HH:MM strings — lexicographic max
+  // is the latest) for the celebrate-card stats line.
+  const lastDepartTime = React.useMemo(() => {
+    let last: string | null = null;
+    for (const b of flatBoxes) {
+      const t = departedNow.get(b.box_no);
+      if (t && (!last || t > last)) last = t;
+    }
+    return last;
+  }, [flatBoxes, departedNow]);
+
   const handleScanBox = (v: string) => {
     setError(null);
     setScannedBox(v);
@@ -139,7 +143,7 @@ export function DepartPageClient() {
 
   const handleScanLabel = async (v: string) => {
     if (!scannedBox) {
-      setError("先掃箱 label (STEP 1)");
+      setError("請先掃描箱標籤（STEP 1）");
       return;
     }
     setBusy(true);
@@ -171,6 +175,39 @@ export function DepartPageClient() {
     }
   };
 
+  // W6 — celebrate-card action: schedule today's pickups for every
+  // outbound on this page. Backend batches per carrier and may reject
+  // for status reasons — surface its message in the error bar.
+  const schedulePickup = async () => {
+    if (scheduling) return;
+    const outbound_ids = Array.from(
+      new Set(flatBoxes.map((b) => b.outbound_id))
+    );
+    if (outbound_ids.length === 0) return;
+    setScheduling(true);
+    setError(null);
+    try {
+      const res = await post_request("/api/wms/outbound/schedule-pickup", {
+        outbound_ids,
+      });
+      const json = await res.json();
+      if (json?.status !== 200) {
+        throw new Error(json?.message ?? "Schedule failed");
+      }
+      const breakdown = json?.data?.breakdown ?? [];
+      const summary = breakdown
+        .map(
+          (b: any) => `${b.carrier_code.toUpperCase()} ${b.outbound_count}張`
+        )
+        .join(" · ");
+      setToast(summary ? `已預約攬收 · ${summary}` : "已預約攬收");
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setScheduling(false);
+    }
+  };
+
   const resetCurrent = () => {
     setScannedBox(null);
     setError(null);
@@ -187,9 +224,9 @@ export function DepartPageClient() {
           progress={{ done: doneCount, total }}
           lockedHint={
             !allDone && total > 0
-              ? `仲有 ${total - doneCount} 個箱未配對`
+              ? `尚有 ${total - doneCount} 箱未配對`
               : total === 0
-                ? "今日無箱要離站"
+                ? "今日沒有待離站的箱"
                 : undefined
           }
           back={{
@@ -200,7 +237,7 @@ export function DepartPageClient() {
             allDone && (
               <button
                 onClick={() => router.push("/zh-hk/wms")}
-                className="inline-flex items-center gap-1.5 rounded-[10px] border border-wms-ink bg-wms-ink px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+                className="inline-flex items-center gap-1.5 rounded-[3px] border border-wms-ink bg-wms-ink px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
               >
                 <Home size={14} /> 返工作台
               </button>
@@ -214,13 +251,18 @@ export function DepartPageClient() {
           <span className="text-[11px] font-semibold uppercase tracking-wider text-wms-faint">
             出貨流程
           </span>
-          <Stepper steps={STEPPER} />
+          <Stepper steps={outboundSteps(3)} />
         </div>
 
         <div className="mb-3.5 flex items-center gap-3">
-          <h1 className="text-[22px] font-semibold tracking-tight">離站掃描</h1>
+          <h1 className="font-wms-disp text-[24px] font-extrabold tracking-tight">
+            離站掃描
+          </h1>
           <Pill kind="muted">
-            {doneCount}/{total} 已離站
+            <span className="font-wms-mono">
+              {doneCount}/{total}
+            </span>{" "}
+            已離站
           </Pill>
           <span className="flex-1" />
           <button
@@ -231,74 +273,80 @@ export function DepartPageClient() {
           </button>
         </div>
 
-        {error && (
-          <div className="mb-3 rounded-lg border border-wms-danger-fg/30 bg-wms-danger-bg px-3 py-2 text-sm text-wms-danger-fg">
-            <AlertTriangle size={14} className="-mt-px mr-1 inline" />
+        {error && (allDone || total === 0) && (
+          <div className="mb-3 rounded-[3px] bg-wms-danger px-3 py-2 text-[13px] font-semibold text-white">
+            <AlertTriangle size={14} className="-mt-px mr-1.5 inline" />
             {error}
           </div>
         )}
 
         {!allDone && total > 0 && (
-          <div className="mb-3 rounded-xl border-[1.5px] border-wms-warn-fg/40 bg-[#FEFCE8] p-4">
+          <div className="mb-3 rounded-xl border border-wms-border bg-wms-surface p-4">
             <div className="mb-3 flex items-center gap-2">
               <Pill kind="warn">
                 <Zap size={11} strokeWidth={2.5} /> 配對中
               </Pill>
               <span className="text-sm font-semibold">
-                {scannedBox ? `當前箱 · ${scannedBox}` : "等掃下一箱"}
+                {scannedBox ? (
+                  <>
+                    當前箱 ·{" "}
+                    <span className="font-wms-mono">{scannedBox}</span>
+                  </>
+                ) : (
+                  "等待掃描下一箱"
+                )}
               </span>
               {currentBox && <ModeBadge mode={currentBox.mode} />}
               <span className="flex-1" />
               <span className="text-[11px] text-wms-faint">
-                掃完兩個 label 自動配對
+                掃描兩個標籤後自動配對
               </span>
             </div>
 
-            <div className="flex items-center gap-3.5">
-              {/* STEP 1 */}
+            <div className="flex items-stretch gap-3.5">
+              {/* STEP 1 — 箱標籤 */}
               <div
                 className={cn(
-                  "flex-1 rounded-xl border-2 p-4",
+                  "flex-1 rounded-[3px] border-2 p-4",
                   scannedBox
-                    ? "border-wms-ok-fg bg-[#F0FDF4]"
+                    ? "border-wms-ok-strong bg-wms-ok-bg"
                     : "border-wms-ink bg-white"
                 )}
               >
                 <div className="mb-1.5 flex items-center gap-2">
                   <span
                     className={cn(
-                      "font-wms-mono text-[10px] font-semibold tracking-widest",
-                      scannedBox ? "text-wms-ok-fg" : "text-wms-muted"
+                      "text-[11px] font-bold tracking-[0.1em]",
+                      scannedBox ? "text-wms-ok-strong" : "text-wms-faint"
                     )}
                   >
-                    STEP 1
+                    STEP 1 · 箱標籤
                   </span>
-                  <span className="text-[13px] font-semibold">箱 label</span>
                   {scannedBox && (
                     <Pill kind="ok">
-                      <Check size={11} strokeWidth={2.5} /> 已掃
+                      <Check size={11} strokeWidth={2.5} /> 已掃描
                     </Pill>
                   )}
                 </div>
-                <div className="mb-1 font-wms-mono text-[22px] font-semibold">
+                <div className="mb-2 font-wms-mono text-[17px] font-bold">
                   {scannedBox ?? "_ _ _ - _ _ _ _"}
                 </div>
                 <Scanner
-                  placeholder="掃箱外 ShipItAsia barcode"
+                  placeholder="掃描箱外 ShipItAsia 條碼"
                   onScan={handleScanBox}
                   autoFocus={!scannedBox}
                 />
               </div>
 
               {/* link */}
-              <div className="flex flex-col items-center gap-1">
+              <div className="flex flex-col items-center justify-center gap-1">
                 <span className="font-wms-mono text-[10px] uppercase tracking-wider text-wms-muted">
                   配 對
                 </span>
                 <svg width={60} height={30} viewBox="0 0 60 30">
                   <path
                     d="M 4 15 L 56 15"
-                    stroke={scannedBox ? "#15803D" : "#D4D4D8"}
+                    stroke={scannedBox ? "#157A42" : "#C9C5BD"}
                     strokeWidth={2}
                     strokeDasharray={scannedBox ? "0" : "6 4"}
                     strokeLinecap="round"
@@ -306,7 +354,7 @@ export function DepartPageClient() {
                   <path
                     d="M 50 9 L 56 15 L 50 21"
                     fill="none"
-                    stroke={scannedBox ? "#15803D" : "#D4D4D8"}
+                    stroke={scannedBox ? "#157A42" : "#C9C5BD"}
                     strokeWidth={2}
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -314,29 +362,26 @@ export function DepartPageClient() {
                 </svg>
               </div>
 
-              {/* STEP 2 */}
+              {/* STEP 2 — 3PL 運單標籤 (wait = dashed) */}
               <div
                 className={cn(
-                  "flex-1 rounded-xl border-2 p-4",
+                  "flex-1 rounded-[3px] border-2 border-dashed p-4",
                   scannedBox
                     ? "border-wms-ink bg-white"
                     : "border-wms-border-strong bg-wms-surface-alt opacity-60"
                 )}
               >
                 <div className="mb-1.5 flex items-center gap-2">
-                  <span className="font-wms-mono text-[10px] font-semibold uppercase tracking-widest text-wms-muted">
-                    STEP 2
+                  <span className="text-[11px] font-bold tracking-[0.1em] text-wms-faint">
+                    STEP 2 · 3PL 運單標籤
                   </span>
-                  <span className="text-[13px] font-semibold">3PL label</span>
                 </div>
-                <div className="mb-1 font-wms-mono text-lg font-semibold">
-                  {scannedBox ? "等掃…" : "等 step 1"}
+                <div className="mb-2 py-px text-[14px] text-wms-faint">
+                  {scannedBox ? "等待掃描運單…" : "等待 STEP 1"}
                 </div>
                 <Scanner
                   placeholder={
-                    scannedBox
-                      ? "掃 courier 嗰張運單條碼"
-                      : "上一步未完成"
+                    scannedBox ? "掃描 courier 運單條碼" : "上一步未完成"
                   }
                   onScan={handleScanLabel}
                   disabled={!scannedBox || busy}
@@ -345,11 +390,18 @@ export function DepartPageClient() {
               </div>
             </div>
 
-            <div className="mt-3.5 flex items-center gap-2.5 rounded-lg border border-dashed border-wms-border-strong bg-white px-3 py-2 text-xs text-wms-muted">
+            {error && (
+              <div className="mt-3.5 rounded-[3px] bg-wms-danger px-3 py-2 text-[13px] font-semibold text-white">
+                <AlertTriangle size={14} className="-mt-px mr-1.5 inline" />
+                {error}
+              </div>
+            )}
+
+            <div className="mt-3.5 flex items-center gap-2.5 rounded-[3px] border border-dashed border-wms-border-strong bg-white px-3 py-2 text-xs text-wms-muted">
               <AlertTriangle size={14} />
               <span className="flex-1">
-                <strong className="text-wms-ink">規則:</strong>{" "}
-                兩個 label 必須屬同一箱；掃錯 = 系統即時拒絕並要重掃。
+                <strong className="text-wms-ink">規則：</strong>
+                同一客戶的運單標籤可互換貼用；跨客戶配對會被即時拒絕。
               </span>
               <span className="font-wms-mono text-[11px]">
                 {doneCount} / {total}
@@ -359,25 +411,34 @@ export function DepartPageClient() {
         )}
 
         {allDone && (
-          <div
-            className="mb-3 rounded-xl border p-7 text-center"
-            style={{
-              background:
-                "linear-gradient(135deg, #DCFCE7 0%, #F0FDF4 100%)",
-              borderColor: "rgba(21, 128, 61, 0.4)",
-            }}
-          >
-            <div className="mx-auto mb-3 flex h-16 w-16 animate-wms-done-pop items-center justify-center rounded-full bg-wms-ok-fg text-white">
-              <Check size={36} strokeWidth={3} />
+          <div className="mb-3 flex flex-col items-center gap-3 rounded-xl bg-wms-ok-strong px-7 py-10 text-center text-white">
+            <div className="flex h-[92px] w-[92px] animate-wms-done-pop items-center justify-center rounded-full bg-white text-wms-ok-strong">
+              <Check size={48} strokeWidth={3} />
             </div>
-            <h2 className="mb-1.5 text-2xl font-semibold text-wms-ok-fg">
-              今日所有箱都已離站
+            <h2 className="font-wms-disp text-[34px] font-extrabold tracking-[0.02em]">
+              今日所有箱已離站
             </h2>
-            <div className="mb-2 text-[13.5px] text-wms-ok-fg/85">
-              {total} 個箱配對成功 · 出貨流程完成
+            <div className="text-[15px] opacity-90">
+              <span className="font-wms-mono font-bold">{total}</span>{" "}
+              箱配對成功 · 出貨流程完成
+              {lastDepartTime && (
+                <>
+                  {" "}
+                  · <span className="font-wms-mono font-bold">{lastDepartTime}</span>{" "}
+                  完成
+                </>
+              )}
             </div>
-            <div className="text-xs text-wms-ok-fg/75">
-              攬收已喺上一步 (印單頁) 安排妥 · 等 courier 到倉走貨即可
+            <button
+              onClick={schedulePickup}
+              disabled={scheduling}
+              className="mt-1 inline-flex items-center gap-2 rounded-[3px] bg-white px-6 py-3 font-wms-disp text-[15.5px] font-bold text-wms-ok-strong hover:brightness-95 disabled:opacity-60"
+            >
+              <Truck size={16} strokeWidth={2.5} />
+              {scheduling ? "預約攬收中…" : "安排攬收 · 預約今日攬收"}
+            </button>
+            <div className="text-[12px] opacity-75">
+              （攬收預約會按 carrier 自動分批呼叫 API）
             </div>
           </div>
         )}
@@ -385,12 +446,14 @@ export function DepartPageClient() {
         <div className="overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
           <div className="flex items-center gap-2 border-b border-wms-border px-3.5 py-2.5">
             <h3 className="text-sm font-semibold">今日箱清單</h3>
-            <Pill kind="muted">{total} 個</Pill>
+            <Pill kind="muted">
+              <span className="font-wms-mono">{total}</span> 個
+            </Pill>
             <span className="flex-1" />
             <span className="text-[11px] text-wms-muted">進度</span>
             <div className="h-1.5 w-24 overflow-hidden rounded bg-wms-surface-alt">
               <div
-                className="h-full bg-wms-ok-fg transition-all"
+                className="h-full bg-wms-ok transition-all"
                 style={{ width: `${total === 0 ? 0 : (doneCount / total) * 100}%` }}
               />
             </div>
@@ -413,7 +476,7 @@ export function DepartPageClient() {
               {flatBoxes.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-3 py-6 text-center text-wms-faint">
-                    無待離站箱
+                    暫無待離站的箱
                   </td>
                 </tr>
               )}
@@ -425,19 +488,19 @@ export function DepartPageClient() {
                     key={b.box_no}
                     className={cn(
                       done
-                        ? "bg-[#F0FDF4]"
+                        ? "bg-wms-ok-bg/50"
                         : isCur
-                          ? "bg-[#FEFCE8]"
+                          ? "bg-wms-warn-bg/60"
                           : ""
                     )}
                   >
                     <td className="px-3 py-2.5">
                       {done ? (
-                        <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-wms-ok-fg text-white">
+                        <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-wms-ok text-white">
                           <Check size={13} strokeWidth={2.5} />
                         </span>
                       ) : isCur ? (
-                        <span className="inline-flex h-[22px] w-[22px] animate-wms-blink items-center justify-center rounded-full bg-wms-warn-fg text-white">
+                        <span className="inline-flex h-[22px] w-[22px] animate-wms-blink items-center justify-center rounded-full bg-wms-warn text-white">
                           <Zap size={12} strokeWidth={2.5} />
                         </span>
                       ) : (
@@ -465,12 +528,14 @@ export function DepartPageClient() {
                       {done ? (
                         <Pill kind="ok">
                           <Check size={11} strokeWidth={2.5} /> 已離站{" "}
-                          {departedNow.get(b.box_no) ?? ""}
+                          <span className="font-wms-mono">
+                            {departedNow.get(b.box_no) ?? ""}
+                          </span>
                         </Pill>
                       ) : isCur ? (
                         <Pill kind="warn">配對中…</Pill>
                       ) : (
-                        <Pill kind="muted">等掃</Pill>
+                        <Pill kind="muted">等待掃描</Pill>
                       )}
                     </td>
                   </tr>
@@ -481,8 +546,8 @@ export function DepartPageClient() {
         </div>
 
         {toast && (
-          <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-wms-ink px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
-            <Check size={14} className="-mt-px mr-1 inline" strokeWidth={2.5} />
+          <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-wms-ink px-4 py-2.5 text-sm font-medium text-white shadow-[3px_3px_0_rgba(22,24,27,0.25)]">
+            <Check size={14} className="-mt-px mr-1 inline text-[#7CE0A6]" strokeWidth={2.5} />
             {toast}
           </div>
         )}

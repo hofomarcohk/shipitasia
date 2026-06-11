@@ -354,13 +354,14 @@ function CmsSidebar({
     return () => window.removeEventListener("focus", onFocus);
   }, [context]);
 
+  // W6 — Direction A dark signage sidebar (wms context): white logo,
+  // no search form, warehouse footer. PDA keeps the same treatment.
   return (
     <Sidebar {...props} collapsible="icon">
-      <SidebarHeader>
+      <SidebarHeader className="border-b border-wms-side-sep pb-3">
         <Link href="/">
-          <img className="w-[150px] pt-2" src="/img/logo/main.png" />
+          <img className="w-[140px] px-1 pt-2" src="/img/logo/logo-white.png" alt="ShipItAsia WMS" />
         </Link>
-        <SearchForm />
       </SidebarHeader>
       <SidebarContent className="pb-[30px] scrollbar">
         {menuData.navMain.map(
@@ -412,10 +413,10 @@ function CmsSidebar({
                               {count > 0 && (
                                 <span
                                   className={
-                                    "ml-auto inline-flex items-center justify-center text-[10px] leading-none min-w-[18px] h-[18px] px-1 rounded-full font-medium " +
+                                    "ml-auto inline-flex items-center justify-center font-wms-mono text-[11px] font-bold leading-none min-w-[20px] h-[18px] px-[5px] rounded-full " +
                                     (isUrgent
-                                      ? "bg-wms-danger-bg text-wms-danger-fg"
-                                      : "bg-wms-surface-alt text-wms-muted border border-wms-border")
+                                      ? "bg-wms-danger text-white"
+                                      : "bg-wms-side-sep text-wms-side-ink2")
                                   }
                                 >
                                   {count > 99 ? "99+" : count}
@@ -433,6 +434,9 @@ function CmsSidebar({
           )
         )}
       </SidebarContent>
+      <SidebarFooter className="border-t border-wms-side-sep px-4 py-3 text-[12px] text-wms-side-ink3 group-data-[collapsible=icon]:hidden">
+        <div>埼玉倉 · JP-SAITAMA-01</div>
+      </SidebarFooter>
     </Sidebar>
   );
 }

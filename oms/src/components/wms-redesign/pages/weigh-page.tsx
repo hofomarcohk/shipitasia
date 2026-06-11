@@ -24,7 +24,7 @@ import { ModeBadge } from "@/components/wms-redesign/mode-badge";
 import { NextCTA } from "@/components/wms-redesign/next-cta";
 import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
-import { Stepper } from "@/components/wms-redesign/stepper";
+import { Stepper, outboundSteps } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
 import {
   AlertDialog,
@@ -78,14 +78,6 @@ interface State {
   active_session: ActiveSession | null;
 }
 
-const STEPPER = [
-  { label: "揀貨", state: "done" as const },
-  { label: "裝箱", state: "done" as const },
-  { label: "秤重取單", state: "current" as const },
-  { label: "印單", state: "todo" as const },
-  { label: "離站", state: "todo" as const },
-];
-
 const SYSTEM_CLIENT_ID = "SYS-YT";
 
 function modeOf(g: { client_id: string; shipment_type: string }) {
@@ -94,6 +86,8 @@ function modeOf(g: { client_id: string; shipment_type: string }) {
   return "consolidated" as const;
 }
 
+// W6 — Direction A box chip: white face + 1.5px border + 17px status
+// circle (solid green ✓ once weighed) + mono id + weight readout.
 function BoxChip({
   box_no,
   weight,
@@ -103,31 +97,43 @@ function BoxChip({
   weight?: number | null;
   state: "weighed" | "current" | "queued" | "blocked";
 }) {
-  const map: Record<typeof state, string> = {
-    weighed: "bg-wms-ok-bg text-wms-ok-fg border-wms-ok-fg/40",
-    current: "bg-wms-warn-bg text-wms-warn-fg border-wms-warn-fg",
-    queued: "bg-wms-surface text-wms-ink border-wms-border",
-    blocked: "bg-wms-danger-bg text-wms-danger-fg border-wms-danger-fg",
-  } as const;
+  const done = state === "weighed";
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2",
-        map[state]
+        "flex min-w-0 items-center gap-2 rounded-[3px] border-[1.5px] px-2.5 py-1.5 text-[13px] font-semibold",
+        done
+          ? "border-wms-ok-strong bg-wms-ok-bg"
+          : state === "current"
+            ? "border-wms-warn-fg bg-wms-warn-bg"
+            : state === "blocked"
+              ? "border-wms-danger bg-wms-danger-bg"
+              : "border-wms-border-strong bg-[#FAF9F7]"
       )}
     >
-      <div className="min-w-[70px] font-wms-mono text-[12.5px] font-semibold">
-        {box_no}
-      </div>
-      {weight != null && (
-        <div className="font-wms-mono text-xs font-medium">
-          {weight.toFixed(2)}kg
-        </div>
+      <span
+        className={cn(
+          "inline-flex h-[17px] w-[17px] flex-none items-center justify-center rounded-full text-[11px] font-extrabold",
+          done
+            ? "bg-wms-ok-strong text-white"
+            : "bg-wms-surface-alt text-wms-faint"
+        )}
+      >
+        {done ? "✓" : "·"}
+      </span>
+      <span className="font-wms-mono text-[12.5px]">{box_no}</span>
+      {weight != null ? (
+        <span className="font-wms-mono text-xs font-medium text-wms-ink-2">
+          {weight.toFixed(2)} kg
+        </span>
+      ) : (
+        !done && (
+          <span className="text-xs font-normal text-wms-faint">待秤</span>
+        )
       )}
-      {state === "weighed" && <Check size={13} strokeWidth={2.5} />}
       {state === "current" && (
-        <span className="ml-auto rounded bg-wms-warn-fg px-1.5 font-wms-mono text-[10.5px] text-white">
-          秤緊
+        <span className="ml-auto rounded-[2px] bg-wms-warn-fg px-1.5 font-wms-mono text-[10.5px] text-white">
+          秤重中
         </span>
       )}
     </div>
@@ -153,10 +159,10 @@ function GroupCard({
       className={cn(
         "rounded-xl border p-3.5",
         highlighted
-          ? "border-2 border-wms-warn-fg bg-[#FFFBEB]"
+          ? "border-2 border-wms-warn-fg bg-wms-warn-bg/40"
           : groupable
-            ? "border-2 border-wms-ok-fg bg-wms-ok-bg/40"
-            : "border-wms-border bg-wms-surface",
+            ? "border-2 border-wms-ok-strong bg-wms-ok-bg/50"
+            : "border-wms-border-strong bg-wms-surface",
         complete && "opacity-60"
       )}
     >
@@ -228,7 +234,7 @@ export function WeighPageClient() {
   const [echo, setEcho] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
-  // 掃完箱還未 confirm weigh 嗰陣 hold 緊待 weigh 嘅 box；
+  // 掃描箱後尚未 confirm weigh 時暫存待秤的 box；
   // confirm 之後先 call save-box → scan-box → 入 session
   const [pendingBox, setPendingBox] = React.useState<string | null>(null);
   const [pendingWeight, setPendingWeight] = React.useState("");
@@ -281,7 +287,7 @@ export function WeighPageClient() {
       );
       const saveJson = await saveRes.json();
       if (saveJson?.status !== 200) {
-        // 過 tolerance 但唔 force → 彈確認 prompt
+        // 超出 tolerance 且未 force → 彈出確認 prompt
         if (
           /tolerance|over|公斤|差異/i.test(saveJson?.message ?? "") &&
           !force
@@ -382,9 +388,9 @@ export function WeighPageClient() {
     }
   };
 
-  // Auto-popup：當前組全部箱掃完 (complete_ready) 且 weigh queue 冇同組嘅其他箱
-  // 可加入時 → 自動彈 confirm dialog，倉庫員按 Enter 即取單，唔需要去揾 button。
-  // 仲有同組箱可加入時刻意唔彈 — 等倉庫員繼續掃落去，session 自動 expand。
+  // Auto-popup：當前組全部箱掃描完成 (complete_ready) 且 weigh queue 沒有同組的其他箱
+  // 可加入時 → 自動彈出 confirm dialog，倉庫員按 Enter 即取單，無需尋找按鈕。
+  // 尚有同組箱可加入時刻意不彈出 — 讓倉庫員繼續掃描，session 自動 expand。
   const [autoCompleteOpen, setAutoCompleteOpen] = React.useState(false);
   const [autoCompleteDismissed, setAutoCompleteDismissed] = React.useState<string | null>(null);
   React.useEffect(() => {
@@ -430,18 +436,18 @@ export function WeighPageClient() {
           }
           lockedHint={
             groupsRemaining > 0
-              ? `仲有 ${groupsRemaining} 組未取單 (同客同目的地)`
+              ? `尚有 ${groupsRemaining} 組未取單（同客戶同目的地）`
               : undefined
           }
           back={{
             url: "/zh-hk/wms/operations/pack",
-            label: "裝箱任務",
+            label: "桌面裝箱",
           }}
           extras={
             ctaState === "ready" && (
               <a
                 href="/zh-hk/wms/operations/label-print"
-                className="inline-flex items-center gap-1.5 rounded-[10px] border border-wms-danger-fg/40 bg-wms-danger-bg px-4 py-2.5 text-[13px] font-semibold text-wms-danger-fg hover:brightness-95"
+                className="inline-flex items-center gap-1.5 rounded-[3px] border-[1.5px] border-wms-danger bg-transparent px-4 py-2.5 text-[13px] font-bold text-[#ff9a8d] hover:bg-wms-danger/10"
               >
                 重試運單
               </a>
@@ -451,23 +457,18 @@ export function WeighPageClient() {
       }
     >
       <div className="px-[22px] py-3.5">
-        <div className="mb-3 flex items-center gap-3 rounded-xl border border-wms-border bg-wms-surface-alt px-4 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-wms-faint">
-            出貨流程
-          </span>
-          <Stepper steps={STEPPER} />
+        <div className="mb-3.5 flex items-end gap-3">
+          <div>
+            <h1 className="font-wms-disp text-[24px] font-extrabold tracking-[0.01em]">
+              秤重取單
+            </h1>
+            <div className="mt-0.5 text-[12.5px] text-wms-muted">
+              Session 鎖定 · 同客戶＋同目的地一組取單 · {state?.weigh_queue?.length ?? 0} 組待秤 · {session ? "1" : "0"} 組進行中
+            </div>
+          </div>
           <span className="flex-1" />
-          <Pill kind="info">集運流程</Pill>
-        </div>
-
-        <div className="mb-3.5 flex items-center gap-3">
-          <h1 className="text-[22px] font-semibold tracking-tight">秤重取單</h1>
-          <Pill kind="muted">
-            {state?.weigh_queue?.length ?? 0} 組待秤 ·{" "}
-            {session ? "1" : "0"} 組進行中
-          </Pill>
-          <span className="flex-1" />
-          <button className="inline-flex items-center gap-1.5 rounded-md border border-wms-border bg-wms-surface px-2.5 py-1 text-xs hover:bg-wms-row-hover">
+          <Stepper steps={outboundSteps(2)} />
+          <button className="inline-flex items-center gap-1.5 rounded-[3px] border border-wms-border-strong bg-wms-surface px-2.5 py-1.5 text-xs font-semibold hover:bg-wms-row-hover">
             <Settings size={13} /> 磅秤設定
           </button>
         </div>
@@ -476,7 +477,7 @@ export function WeighPageClient() {
           <AlertTriangle size={18} className="mt-px flex-none" />
           <div>
             <strong>連續掃描規則</strong> ·
-            同客戶同目的地嘅箱必須一齊掃描，唔可以中間插另一個客戶 / 另一個目的地嘅箱。掃到唔同組會即時停止 — 完成當前組「取單」之後先可以開下一組。
+            同客戶同目的地的箱必須連續掃描，不可中途插入其他客戶／目的地的箱。掃描到不同組會即時停止 — 完成當前組「取單」後方可開始下一組。
           </div>
         </div>
 
@@ -490,63 +491,63 @@ export function WeighPageClient() {
         {labelResult && (
           <div
             className={cn(
-              "mb-3 rounded-xl border-[1.5px] p-4",
+              "mb-3 rounded-[4px] p-4 text-white",
               labelResult.outcome === "failed"
-                ? "border-wms-danger-fg/40 bg-wms-danger-bg"
-                : "border-wms-ok-fg/40 bg-[#F0FDF4]"
+                ? "bg-wms-danger"
+                : "bg-wms-ok-strong"
             )}
           >
             {labelResult.outcome === "failed" ? (
               <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className="mt-0.5 flex-none text-wms-danger-fg" />
+                <AlertTriangle size={22} className="mt-0.5 flex-none" />
                 <div className="flex-1">
-                  <div className="text-[14px] font-semibold text-wms-danger-fg">
+                  <div className="font-wms-disp text-[17px] font-extrabold">
                     取單失敗
                   </div>
-                  <div className="mt-1 text-[13px] text-wms-danger-fg/80">
+                  <div className="mt-1 text-[12.5px] opacity-90">
                     {labelResult.error}
                   </div>
-                  <div className="mt-1 text-[12px] text-wms-danger-fg/60">
-                    出庫單已跌入「面單列印」頁面，請去嗰度重試取單。
+                  <div className="mt-0.5 text-[12px] opacity-75">
+                    出庫單已移入「重印面單」頁面，請前往重試取單。
                   </div>
-                  <a
-                    href="/zh-hk/wms/operations/label-print"
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-wms-danger-fg px-3 py-1.5 text-xs font-semibold text-white hover:brightness-110"
-                  >
-                    前往面單列印 →
-                  </a>
                 </div>
+                <a
+                  href="/zh-hk/wms/operations/label-print"
+                  className="flex-none rounded-[3px] bg-white px-4 py-2 text-[13px] font-bold text-wms-danger hover:brightness-95"
+                >
+                  前往重印面單 →
+                </a>
                 <button
                   onClick={() => setLabelResult(null)}
-                  className="text-wms-danger-fg/50 hover:text-wms-danger-fg"
+                  className="text-white/60 hover:text-white"
                 >
                   ✕
                 </button>
               </div>
             ) : (
               <div className="flex items-start gap-3">
-                <Check size={20} className="mt-0.5 flex-none text-wms-ok-fg" strokeWidth={2.5} />
+                <Check size={22} className="mt-0.5 flex-none" strokeWidth={2.5} />
                 <div className="flex-1">
-                  <div className="text-[14px] font-semibold text-wms-ok-fg">
+                  <div className="font-wms-disp text-[17px] font-extrabold">
                     取單成功 · 面單已彈出列印
                   </div>
-                  <div className="mt-1 text-[13px] text-wms-ok-fg/80">
-                    {labelResult.outbound_ids.length} 張出庫單已取得面單。如果冇彈出新視窗，請允許彈出式視窗後
+                  <div className="mt-1 text-[12.5px] opacity-90">
+                    {labelResult.outbound_ids.length} 張出庫單已取得面單 — 即印即貼。若未彈出新視窗，請允許彈出式視窗後
                     <button
                       onClick={() => {
                         const url = `/api/wms/outbound/labels-bundle?outbound_ids=${labelResult.outbound_ids.join(",")}`;
                         window.open(url, "_blank", "noopener,noreferrer");
                       }}
-                      className="ml-1 font-semibold underline"
+                      className="mx-1 font-bold underline"
                     >
                       再印一次
                     </button>
-                    。訂單已進入離站等候。
+                    。訂單已進入離站佇列。
                   </div>
                 </div>
                 <button
                   onClick={() => setLabelResult(null)}
-                  className="text-wms-ok-fg/50 hover:text-wms-ok-fg"
+                  className="text-white/60 hover:text-white"
                 >
                   ✕
                 </button>
@@ -560,8 +561,8 @@ export function WeighPageClient() {
             <Scanner
               placeholder={
                 session
-                  ? `掃下一箱 · 必須係 ${session.client_name}`
-                  : "掃箱 barcode 開始 session…"
+                  ? `掃描下一箱 · 必須屬於 ${session.client_name}`
+                  : "掃描箱上條碼開始／加入秤重組…"
               }
               echo={echo ?? undefined}
               onScan={handleScan}
@@ -575,8 +576,8 @@ export function WeighPageClient() {
                   {pendingBox
                     ? `輸入重量 · ${pendingBox}`
                     : session
-                      ? `正喺度秤 · ${session.outbound_id}`
-                      : "等候 box scan"}
+                      ? `秤重中 · ${session.outbound_id}`
+                      : "等待掃描箱"}
                 </span>
                 <span className="flex-1" />
                 <Pill kind="muted">手動輸入（磅秤未連接）</Pill>
@@ -658,7 +659,7 @@ export function WeighPageClient() {
                       className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-5 py-2.5 text-[14px] font-semibold text-white hover:brightness-110 disabled:opacity-50"
                     >
                       <Check size={15} strokeWidth={2.5} />
-                      {tolerancePrompt ? "確認重量（強制）· ↵" : "確認重量並入 session · ↵"}
+                      {tolerancePrompt ? "確認重量（強制）· ↵" : "確認重量並加入秤重組 · ↵"}
                     </button>
                     <button
                       onClick={cancelPending}
@@ -709,7 +710,7 @@ export function WeighPageClient() {
                       </>
                     ) : (
                       <div className="text-sm text-wms-faint">
-                        掃箱 barcode → 輸入重量 → 自動入 session
+                        掃描箱上條碼 → 輸入重量 → 自動加入秤重組
                       </div>
                     )}
                   </div>
@@ -719,7 +720,7 @@ export function WeighPageClient() {
 
             {/* Current group */}
             {session && (
-              <div className="rounded-xl border-2 border-wms-warn-fg/40 bg-[#FFFBEB] p-3.5">
+              <div className="rounded-xl border-2 border-wms-ink bg-wms-surface p-3.5">
                 <div className="mb-3 flex items-center gap-2.5">
                   <ModeBadge
                     mode={
@@ -735,9 +736,9 @@ export function WeighPageClient() {
                       </span>
                       <ArrowRight size={12} className="text-wms-faint" />
                       <span className="text-sm font-medium">
-                        {session.outbound_ids.length} 張 outbound
+                        {session.outbound_ids.length} 張出庫單
                       </span>
-                      <Pill kind="warn">當前組</Pill>
+                      <Pill kind="warn">當前秤重組</Pill>
                     </div>
                   </div>
                   <div className="text-right">
@@ -755,17 +756,17 @@ export function WeighPageClient() {
                     <BoxChip key={no} box_no={no} state="queued" />
                   ))}
                 </div>
-                <div className="flex items-center gap-2.5 border-t border-wms-warn-fg/30 pt-2.5">
+                <div className="flex items-center gap-2.5 border-t border-wms-border pt-2.5">
                   <span className="text-xs text-wms-muted">
                     {session.complete_ready
-                      ? "全部秤完，可取單"
-                      : `仲有 ${session.remaining_box_nos.length} 箱要秤`}
+                      ? "全部秤重完成，可取單"
+                      : `尚有 ${session.remaining_box_nos.length} 箱待秤`}
                   </span>
                   <span className="flex-1" />
                   <button
                     onClick={completeSession}
                     disabled={!session.complete_ready || busy}
-                    className="inline-flex items-center gap-2 rounded-lg bg-wms-ink px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-[3px] bg-wms-ok-strong px-4 py-2 font-wms-disp text-sm font-extrabold text-white hover:brightness-110 disabled:opacity-50"
                   >
                     完成點箱並取單
                   </button>
@@ -776,7 +777,7 @@ export function WeighPageClient() {
 
           <div className="flex flex-1 flex-col gap-2.5">
             <div className="flex items-center gap-2">
-              <h3 className="text-[13px] font-semibold">下一輪 · 等緊秤</h3>
+              <h3 className="font-wms-disp text-[12.5px] font-bold tracking-[0.08em] text-wms-ink-2">下一輪 · 等待秤重</h3>
               <span className="flex-1" />
               <Pill kind="muted">
                 {state?.weigh_queue?.length ?? 0} 組
@@ -784,7 +785,7 @@ export function WeighPageClient() {
             </div>
             {state?.weigh_queue?.length === 0 && (
               <div className="rounded-md bg-wms-surface-alt p-3 text-center text-xs text-wms-faint">
-                queue 已空
+                佇列已空
               </div>
             )}
             {(state?.weigh_queue ?? []).slice(0, 8).map((g) => (
@@ -792,7 +793,7 @@ export function WeighPageClient() {
             ))}
 
             <div className="mt-2 flex items-center gap-2">
-              <h3 className="text-[13px] font-semibold">已取單 · 待出貨</h3>
+              <h3 className="font-wms-disp text-[12.5px] font-bold tracking-[0.08em] text-wms-ink-2">已取單 · 待出貨</h3>
               <span className="flex-1" />
               <Pill kind="ok">
                 {state?.palletize_queue?.length ?? 0} 組
@@ -818,18 +819,18 @@ export function WeighPageClient() {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {session?.client_name} 已冇其他同組箱
+            {session?.client_name} 已沒有其他同組箱
           </AlertDialogTitle>
           <AlertDialogDescription>
-            當前組 {session?.outbound_ids?.length ?? 1} 張出庫單 · 共 {session?.total ?? 0} 箱已全部秤完並掃完置板。
-            倉庫已冇同客戶／同目的地嘅其他箱可以加入呢組。
+            當前組 {session?.outbound_ids?.length ?? 1} 張出庫單 · 共 {session?.total ?? 0} 箱已全部秤重及點箱完成。
+            倉庫已沒有同客戶／同目的地的其他箱可加入此組。
             <br />
             <br />
-            按 <strong>Enter</strong> 或下面確認即直接取單。系統會自動 call carrier API 攞面單，成功嘅話會即刻彈出 PDF 俾你印。
+            按 <strong>Enter</strong> 或點擊確認即直接取單。系統會自動呼叫 carrier API 取得面單，成功後會立即彈出 PDF 供列印。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>暫緩 · 我再睇睇</AlertDialogCancel>
+          <AlertDialogCancel disabled={busy}>暫緩 · 稍後處理</AlertDialogCancel>
           <AlertDialogAction
             autoFocus
             onClick={(e) => {

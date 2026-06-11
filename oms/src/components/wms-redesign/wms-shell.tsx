@@ -73,11 +73,14 @@ export function WmsShell({
   const remainingMs =
     cutoff && cutoffAtTs != null ? Math.max(0, cutoffAtTs - now) : null;
 
+  // W6 — Direction A: .wms-root scopes the dark sidebar vars + squared
+  // radii. The utility header sits on the concrete bg (no white card)
+  // with a strong bottom rule.
   return (
-    <SidebarProvider>
+    <SidebarProvider className="wms-root">
       <AppSidebar />
       <SidebarInset className="bg-wms-bg font-wms text-wms-ink">
-        <header className="flex h-14 shrink-0 items-center gap-4 border-b border-wms-border bg-wms-surface px-4">
+        <header className="flex h-12 shrink-0 items-center gap-4 border-b border-wms-border-strong bg-wms-bg px-4">
           <SidebarTrigger className="-ml-1" />
           {crumbs.length > 0 && (
             <nav className="flex items-center text-[13px] text-wms-muted">
@@ -88,7 +91,8 @@ export function WmsShell({
                   )}
                   <span
                     className={cn(
-                      i === crumbs.length - 1 && "font-semibold text-wms-ink"
+                      i === crumbs.length - 1 &&
+                        "font-wms-disp font-bold text-wms-ink"
                     )}
                   >
                     {c.label}
@@ -101,15 +105,15 @@ export function WmsShell({
           {cutoff && remainingMs != null && (
             <div
               className={cn(
-                "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12.5px]",
+                "flex items-center gap-2 rounded-[3px] px-2.5 py-1.5 text-[12.5px] font-semibold",
                 remainingMs > 0
                   ? "bg-wms-warn-bg text-wms-warn-fg"
-                  : "bg-wms-danger-bg text-wms-danger-fg"
+                  : "bg-wms-danger text-white"
               )}
             >
               <Clock size={14} />
               <span>
-                下個截單 <span className="font-wms-mono font-semibold">{cutoff.at}</span> · 剩
+                下個截單 <span className="font-wms-mono font-bold">{cutoff.at}</span> · 剩
               </span>
               <span className="font-wms-mono text-[13px] font-bold">
                 {formatCountdown(remainingMs)}
@@ -118,14 +122,14 @@ export function WmsShell({
           )}
           {topRight}
           <button
-            className="rounded-lg border border-wms-border bg-wms-surface p-1.5 hover:bg-wms-row-hover"
+            className="rounded-[3px] border border-wms-border-strong bg-wms-surface p-1.5 hover:bg-wms-row-hover"
             aria-label="通知"
           >
             <Bell size={15} />
           </button>
           <Link
             href="/zh-hk/logout"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-wms-border bg-wms-surface px-2.5 py-1.5 text-[12.5px] text-wms-ink-2 hover:bg-wms-row-hover"
+            className="inline-flex items-center gap-1.5 rounded-[3px] border border-wms-border-strong bg-wms-surface px-2.5 py-1.5 text-[12.5px] font-semibold text-wms-ink-2 hover:bg-wms-row-hover"
             aria-label="登出"
             title="登出"
           >

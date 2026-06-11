@@ -71,12 +71,16 @@ export function QueuePageClient() {
     <WmsShell crumbs={[{ label: "任務隊列" }]}>
       <div className="px-[22px] py-3.5">
         <div className="mb-3.5 flex items-center gap-3">
-          <h1 className="text-[22px] font-semibold tracking-tight">任務隊列</h1>
-          <Pill kind="muted">{counts.total} 件待辦</Pill>
+          <h1 className="font-wms-disp text-[24px] font-extrabold tracking-tight">
+            任務隊列
+          </h1>
+          <Pill kind="muted">
+            <span className="font-wms-mono">{counts.total}</span> 件待辦
+          </Pill>
         </div>
 
         {error && (
-          <div className="mb-3 rounded-lg border border-wms-danger-fg/30 bg-wms-danger-bg px-3 py-2 text-sm text-wms-danger-fg">
+          <div className="mb-3 rounded-[3px] bg-wms-danger px-3 py-2 text-[13px] font-semibold text-white">
             {error}
           </div>
         )}
@@ -94,7 +98,7 @@ export function QueuePageClient() {
         <div className="rounded-xl border border-wms-border bg-wms-surface p-2.5">
           {tasks.length === 0 ? (
             <div className="rounded-md bg-wms-surface-alt p-8 text-center text-sm text-wms-faint">
-              今日清單已完成 · 你可以歇一下
+              今日任務已全部完成 · 可稍作休息
             </div>
           ) : (
             tasks.map((t) => (

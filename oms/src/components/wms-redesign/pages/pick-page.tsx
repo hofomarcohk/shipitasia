@@ -13,6 +13,12 @@
 //   POST /api/wms/pick-batch                              → create batch
 //   POST /api/wms/pick-batch/{id}/start                   → status → picking
 // "Print pick list" uses the existing pick-batch/[id]/print route.
+//
+// W6 — Direction A visual conformance: outboundSteps(0) canonical
+// stepper, full-width YT signage bar above the tables (same
+// createYtBatch handler), w-check checkboxes + brand inset on selected
+// rows, brand-bordered draft panel with two-path explainer. Logic
+// untouched.
 
 "use client";
 
@@ -24,7 +30,7 @@ import { ModeBadge } from "@/components/wms-redesign/mode-badge";
 import { NextCTA } from "@/components/wms-redesign/next-cta";
 import { Pill } from "@/components/wms-redesign/pill";
 import { Scanner } from "@/components/wms-redesign/scanner";
-import { Stepper } from "@/components/wms-redesign/stepper";
+import { Stepper, outboundSteps } from "@/components/wms-redesign/stepper";
 import { WmsShell } from "@/components/wms-redesign/wms-shell";
 import { get_request, post_request } from "@/lib/httpRequest";
 import { cn } from "@/lib/utils";
@@ -50,18 +56,12 @@ interface BatchRow {
   created_by_staff_id?: string | null;
 }
 
-const SHIPPING_STEPPER = [
-  { label: "揀貨任務", state: "current" as const },
-  { label: "裝箱", state: "todo" as const },
-  { label: "秤重取單", state: "todo" as const },
-  { label: "印單", state: "todo" as const },
-  { label: "離站", state: "todo" as const },
-];
+const TH = "px-3 py-2.5 text-left text-[11px] font-bold tracking-[0.1em] text-wms-faint";
 
 function batchStatusPill(status: string) {
   if (status === "draft") return <Pill kind="muted">建構中</Pill>;
-  if (status === "picking") return <Pill kind="warn">PDA 揀貨中</Pill>;
-  if (status === "picked") return <Pill kind="ok">揀完</Pill>;
+  if (status === "picking") return <Pill kind="warn">揀貨中</Pill>;
+  if (status === "picked") return <Pill kind="ok">揀貨完成</Pill>;
   if (status === "cancelled") return <Pill kind="danger">已取消</Pill>;
   return <Pill kind="muted">{status}</Pill>;
 }
@@ -153,6 +153,7 @@ export function PickPageClient() {
 
   // W5: one-click YT batch — find all YT outbounds in ready pool and create batch
   const ytReadies = readies.filter((r) => r.is_yt);
+  const ytItems = ytReadies.reduce((s, r) => s + (r.inbound_count ?? 0), 0);
   const [ytBusy, setYtBusy] = React.useState(false);
   const createYtBatch = async () => {
     if (ytReadies.length === 0) return;
@@ -202,7 +203,7 @@ export function PickPageClient() {
               : undefined
           }
           lockedHint={
-            selected.size === 0 ? "勾選 OB 後生成揀貨任務（同時自動推送 PDA）" : undefined
+            selected.size === 0 ? "勾選出庫單後生成揀貨任務(同時自動推送 PDA)" : undefined
           }
           urgentHint={
             selected.size > 0
@@ -221,7 +222,7 @@ export function PickPageClient() {
                   className="inline-flex items-center gap-2 rounded-[10px] border border-wms-border bg-wms-surface px-4 py-2.5 text-[13.5px] font-semibold text-wms-ink hover:bg-wms-row-hover"
                 >
                   <Printer size={15} />
-                  實體單揀貨 · 去揀貨確認
+                  紙本揀貨 · 去揀貨確認
                   <ArrowRight size={14} />
                 </button>
                 <button
@@ -243,20 +244,27 @@ export function PickPageClient() {
           <span className="text-[11px] font-semibold uppercase tracking-wider text-wms-faint">
             出貨流程
           </span>
-          <Stepper steps={SHIPPING_STEPPER} />
+          <Stepper steps={outboundSteps(0)} />
         </div>
 
-        <div className="mb-3.5 flex items-center gap-3">
-          <h1 className="text-[22px] font-semibold tracking-tight">
-            揀貨任務
-          </h1>
-          <Pill kind="muted">
-            {readies.length} 單 ready · {batches.filter((b) => b.status === "picking").length} 批次揀貨中
-          </Pill>
+        <div className="mb-4 flex items-end gap-3">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="font-wms-disp text-[24px] font-extrabold tracking-[0.01em]">
+                揀貨任務
+              </h1>
+              <Pill kind="muted">
+                {readies.length} 單 ready · {batches.filter((b) => b.status === "picking").length} 批次揀貨中
+              </Pill>
+            </div>
+            <div className="mt-0.5 text-[12.5px] text-wms-muted">
+              Ready 池（status = ready_for_label）— 勾選開批，即時開始
+            </div>
+          </div>
           <span className="flex-1" />
           <div className="w-[320px]">
             <Scanner
-              placeholder="掃 outbound barcode 即加入批次…"
+              placeholder="掃描出庫單條碼即加入批次…"
               onScan={(v) => {
                 const m = readies.find((r) => r._id === v);
                 if (m) toggle(v);
@@ -266,16 +274,30 @@ export function PickPageClient() {
         </div>
 
         {error && (
-          <div className="mb-3 rounded-lg border border-wms-danger-fg/30 bg-wms-danger-bg px-4 py-3 text-sm text-wms-danger-fg">
+          <div className="mb-3 rounded-lg border border-wms-danger/30 bg-wms-danger-bg px-4 py-3 text-sm font-semibold text-wms-danger-fg">
             {error}
           </div>
         )}
 
+        {/* W5: YT one-click batch — full-width signage bar (Direction A) */}
+        {ytReadies.length > 0 && (
+          <button
+            onClick={createYtBatch}
+            disabled={ytBusy}
+            className="mb-3.5 flex w-full items-center gap-2.5 rounded-[4px] bg-wms-ok-strong px-[18px] py-[13px] text-left font-wms-disp text-[14.5px] font-extrabold text-white hover:brightness-110 disabled:opacity-50"
+          >
+            <Truck size={18} className="flex-none" />
+            {ytBusy
+              ? "建立中…"
+              : `生成 YT 揀貨任務 — 一鍵打包當日全部 YT 單（${ytReadies.length} 單 · ${ytItems} 件）`}
+          </button>
+        )}
+
         <div className="mb-3.5 overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
           <div className="flex items-center gap-2 border-b border-wms-border px-3.5 py-2.5">
-            <h3 className="text-sm font-semibold">今日批次</h3>
+            <h3 className="font-wms-disp text-[13px] font-bold">今日批次</h3>
             <Pill kind="muted">
-              {batches.filter((b) => b.status === "picking").length} 進行 · {batches.length} 共
+              {batches.filter((b) => b.status === "picking").length} 進行中 · 共 {batches.length}
             </Pill>
             <span className="flex-1" />
             <button className="inline-flex items-center gap-1.5 rounded-md border border-wms-border px-2.5 py-1 text-xs hover:bg-wms-row-hover">
@@ -284,20 +306,20 @@ export function PickPageClient() {
           </div>
           <table className="w-full text-[12.5px]">
             <thead>
-              <tr className="border-b border-wms-border bg-wms-surface-alt text-[11.5px] text-wms-muted">
-                <th className="px-3 py-2.5 text-left font-medium">批次 #</th>
-                <th className="px-3 py-2.5 text-left font-medium">內容</th>
-                <th className="px-3 py-2.5 text-left font-medium">OB</th>
-                <th className="px-3 py-2.5 text-left font-medium">建立</th>
-                <th className="px-3 py-2.5 text-left font-medium">狀態</th>
-                <th className="px-3 py-2.5 text-right font-medium" />
+              <tr className="border-b border-wms-border bg-wms-surface-alt">
+                <th className={TH}>批次 #</th>
+                <th className={TH}>內容</th>
+                <th className={TH}>出庫單</th>
+                <th className={TH}>建立</th>
+                <th className={TH}>狀態</th>
+                <th className="px-3 py-2.5 text-right" />
               </tr>
             </thead>
             <tbody>
               {batches.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-3 py-6 text-center text-wms-faint">
-                    今日仲未有批次
+                    今日尚無批次
                   </td>
                 </tr>
               )}
@@ -315,7 +337,7 @@ export function PickPageClient() {
                     {(b.outbound_ids ?? []).slice(0, 3).join(", ")}
                     {(b.outbound_ids?.length ?? 0) > 3 ? " …" : ""}
                   </td>
-                  <td className="px-3 py-2.5 text-wms-muted">
+                  <td className="px-3 py-2.5 font-wms-mono text-wms-muted">
                     {b.started_at
                       ? new Date(b.started_at).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit" })
                       : "—"}
@@ -333,8 +355,10 @@ export function PickPageClient() {
         <div className="mb-3.5 flex gap-3">
           <div className="flex-[1.6] overflow-hidden rounded-xl border border-wms-border bg-wms-surface">
             <div className="flex items-center gap-2 border-b border-wms-border px-3.5 py-2.5">
-              <h3 className="text-sm font-semibold">Ready 池</h3>
-              <Pill kind="muted">{readies.length} 單</Pill>
+              <h3 className="font-wms-disp text-[13px] font-bold">Ready 池</h3>
+              <Pill kind={selected.size > 0 ? "brand" : "muted"}>
+                已選 {selected.size} 單
+              </Pill>
               <span className="flex-1" />
               <button
                 className="rounded-md border border-wms-border px-2.5 py-1 text-xs hover:bg-wms-row-hover"
@@ -353,21 +377,21 @@ export function PickPageClient() {
             </div>
             <table className="w-full text-[12.5px]">
               <thead>
-                <tr className="border-b border-wms-border bg-wms-surface-alt text-[11.5px] text-wms-muted">
+                <tr className="border-b border-wms-border bg-wms-surface-alt">
                   <th className="w-8 px-3 py-2.5" />
-                  <th className="px-3 py-2.5 text-left font-medium">OB #</th>
-                  <th className="px-3 py-2.5 text-left font-medium">模式</th>
-                  <th className="px-3 py-2.5 text-left font-medium">客戶</th>
-                  <th className="px-3 py-2.5 text-left font-medium">件數</th>
-                  <th className="px-3 py-2.5 text-left font-medium">Carrier</th>
-                  <th className="px-3 py-2.5 text-left font-medium">目的地</th>
+                  <th className={TH}>出庫單</th>
+                  <th className={TH}>模式</th>
+                  <th className={TH}>客戶</th>
+                  <th className={TH}>件數</th>
+                  <th className={TH}>Carrier</th>
+                  <th className={TH}>目的地</th>
                 </tr>
               </thead>
               <tbody>
                 {readies.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-3 py-6 text-center text-wms-faint">
-                      無 ready 單
+                      暫無 ready 出庫單
                     </td>
                   </tr>
                 )}
@@ -381,13 +405,26 @@ export function PickPageClient() {
                         isOn && "bg-wms-row-select"
                       )}
                     >
-                      <td className="px-3 py-2.5">
-                        <input
-                          type="checkbox"
-                          checked={isOn}
-                          onChange={() => toggle(r._id)}
-                          className="h-4 w-4"
-                        />
+                      <td
+                        className={cn(
+                          "px-3 py-2.5",
+                          isOn && "[box-shadow:inset_3px_0_0_#3A6FB5]"
+                        )}
+                      >
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={isOn}
+                          onClick={() => toggle(r._id)}
+                          className={cn(
+                            "inline-grid h-[19px] w-[19px] flex-none place-items-center rounded-[4px] border-[1.5px] text-[12px] font-extrabold",
+                            isOn
+                              ? "border-wms-brand bg-wms-brand text-white"
+                              : "border-wms-border-strong bg-wms-surface"
+                          )}
+                        >
+                          {isOn ? "✓" : ""}
+                        </button>
                       </td>
                       <td className="px-3 py-2.5 font-wms-mono font-medium">
                         {r._id}
@@ -414,9 +451,9 @@ export function PickPageClient() {
             </table>
           </div>
 
-          <div className="sticky top-0 flex-1 self-start rounded-xl border border-wms-border bg-wms-surface p-4">
+          <div className="sticky top-0 flex-1 self-start rounded-xl border-2 border-wms-brand bg-wms-surface p-4">
             <div className="mb-2.5 flex items-center gap-2">
-              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-wms-faint">
+              <span className="font-wms-disp text-[12px] font-bold uppercase tracking-[0.12em] text-wms-ink-2">
                 批次草稿
               </span>
               <span className="flex-1" />
@@ -426,38 +463,18 @@ export function PickPageClient() {
             </div>
             <h2 className="mb-2 text-base font-semibold">
               {selected.size === 0
-                ? "勾選 OB 加入批次"
+                ? "勾選出庫單加入批次"
                 : `${selected.size} 單 · ${totalItems} 件`}
             </h2>
 
             {selected.size === 0 ? (
-              <div className="flex flex-col gap-2.5">
-                <div className="rounded-lg bg-wms-surface-alt p-5 text-center text-[13px] text-wms-faint">
-                  喺左邊勾選 OB 加入批次
-                </div>
-                {ytReadies.length > 0 && (
-                  <button
-                    onClick={createYtBatch}
-                    disabled={ytBusy}
-                    className="flex items-center gap-2.5 rounded-[10px] border-[1.5px] border-wms-ok-fg bg-wms-ok-bg px-3.5 py-3 text-left hover:brightness-95 disabled:opacity-50"
-                  >
-                    <Truck size={16} className="text-wms-ok-fg" />
-                    <div className="flex-1">
-                      <div className="text-[13px] font-semibold text-wms-ok-fg">
-                        {ytBusy ? "建立中…" : "生成 YT 揀貨任務"}
-                      </div>
-                      <div className="text-[11px] text-wms-ok-fg/70">
-                        {ytReadies.reduce((s, r) => s + (r.inbound_count ?? 0), 0)} 件 YT 小包 · 一鍵打包今日所有 YT 單
-                      </div>
-                    </div>
-                    <ArrowRight size={14} className="text-wms-ok-fg" />
-                  </button>
-                )}
+              <div className="rounded-lg bg-wms-surface-alt p-5 text-center text-[13px] text-wms-faint">
+                在左側勾選出庫單加入批次
               </div>
             ) : (
               <>
                 <div className="mb-3 rounded-lg bg-wms-surface-alt p-2.5">
-                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-wms-faint">
+                  <div className="mb-1.5 text-[11px] font-bold tracking-[0.08em] text-wms-faint">
                     已選
                   </div>
                   <div className="flex flex-col gap-1">
@@ -477,67 +494,43 @@ export function PickPageClient() {
                     ))}
                     {selectedList.length > 6 && (
                       <div className="text-[11px] text-wms-faint">
-                        +{selectedList.length - 6} more
+                        尚有 {selectedList.length - 6} 單
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="mb-2.5 text-xs text-wms-muted">
-                  生成揀貨任務 · PDA 與紙本並行
+                <div className="mb-2.5 text-xs font-semibold text-wms-ink-2">
+                  合共 <span className="font-wms-mono">{selected.size}</span> 單 ·{" "}
+                  <span className="font-wms-mono">{totalItems}</span> 件
                 </div>
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={() => createAndStart("pda")}
                     disabled={busy}
-                    className="flex items-center gap-2.5 rounded-[10px] border border-wms-ink bg-wms-ink px-3.5 py-3 text-left text-white hover:brightness-110 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2.5 rounded-[4px] bg-wms-brand px-5 py-3 text-[15px] font-bold text-white hover:brightness-110 disabled:opacity-50"
                   >
                     <Scan size={16} />
-                    <div className="flex-1">
-                      <div className="text-[13px] font-semibold">
-                        生成揀貨任務
-                      </div>
-                      <div className="text-[11px] opacity-80">
-                        建立批次 + 自動推送 PDA · 工人即時開始
-                      </div>
-                    </div>
-                    <ArrowRight size={14} />
+                    生成揀貨任務
                   </button>
                   <button
                     onClick={() => createAndStart("print")}
                     disabled={busy}
-                    className="flex items-center gap-2.5 rounded-[10px] border border-wms-border bg-wms-surface px-3.5 py-3 text-left hover:bg-wms-row-hover disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2.5 rounded-[4px] border border-wms-border bg-wms-surface px-5 py-2.5 text-[13px] font-bold hover:bg-wms-row-hover disabled:opacity-50"
                   >
-                    <Printer size={16} />
-                    <div className="flex-1">
-                      <div className="text-[13px] font-semibold">
-                        列印揀貨單
-                      </div>
-                      <div className="text-[11px] text-wms-muted">
-                        生成任務後同時列印紙本（仍會推 PDA）
-                      </div>
-                    </div>
-                    <ArrowRight size={14} />
+                    <Printer size={15} />
+                    列印揀貨單（紙本路徑）
                   </button>
-                  {/* W5: YT one-click batch */}
-                  {ytReadies.length > 0 && (
-                    <button
-                      onClick={createYtBatch}
-                      disabled={ytBusy}
-                      className="flex items-center gap-2.5 rounded-[10px] border-[1.5px] border-wms-ok-fg bg-wms-ok-bg px-3.5 py-3 text-left hover:brightness-95 disabled:opacity-50"
-                    >
-                      <Truck size={16} className="text-wms-ok-fg" />
-                      <div className="flex-1">
-                        <div className="text-[13px] font-semibold text-wms-ok-fg">
-                          {ytBusy ? "建立中…" : "生成 YT 揀貨任務"}
-                        </div>
-                        <div className="text-[11px] text-wms-ok-fg/70">
-                          {ytReadies.reduce((s, r) => s + (r.inbound_count ?? 0), 0)} 件 YT 小包 · 一鍵打包今日所有 YT 單
-                        </div>
-                      </div>
-                      <ArrowRight size={14} className="text-wms-ok-fg" />
-                    </button>
-                  )}
+                </div>
+                <div className="mt-3 flex flex-col gap-1.5 border-t border-wms-border pt-3">
+                  <div className="flex items-center gap-2 text-[12px] text-wms-faint">
+                    <Printer size={14} className="flex-none" />
+                    路徑 A · 列印揀貨單（紙本）→ 揀貨完成確認
+                  </div>
+                  <div className="flex items-center gap-2 text-[12px] text-wms-faint">
+                    <Scan size={14} className="flex-none" />
+                    路徑 B · 推送 PDA → 完成後直接到桌面裝箱
+                  </div>
                 </div>
               </>
             )}

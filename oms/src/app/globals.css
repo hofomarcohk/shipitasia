@@ -1,8 +1,7 @@
-/* P17 — Geist font for the WMS redesign. Must be the first directive
- * in this file (CSS spec: @import precedes all non-@charset/@layer
- * rules). Variables consumed by the NextCTA pulse animation are
- * declared further down. */
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
+/* W6 — Direction A「工場日勤」fonts: Archivo (display) + Noto Sans HK
+ * (UI) + IBM Plex Mono (IDs / numbers). Must be the first directive in
+ * this file (CSS spec: @import precedes all non-@charset/@layer rules). */
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+HK:wght@400;500;700;900&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -240,14 +239,42 @@ h2 {
 .lang-zh_cn {
   font-family: "Noto Sans SC", sans-serif;
 }
-/* P17 — WMS NextCTA accent vars. Animation reads --cta-accent-* at
- * runtime so the same component can adopt a different accent (e.g.
- * amber for urgent vs. brand for ready) without re-declaring the
- * keyframe. (Geist @import lives at the top of the file.) */
+/* W6 — WMS NextCTA accent vars. Animation reads --cta-accent-* at
+ * runtime. Direction A ready-state = solid green pulse. */
 :root {
-  --cta-accent: #5887c4;
-  --cta-accent-50: rgba(88, 135, 196, 0.45);
-  --cta-accent-40: rgba(88, 135, 196, 0.35);
-  --cta-accent-30: rgba(88, 135, 196, 0.25);
-  --cta-accent-00: rgba(88, 135, 196, 0);
+  --cta-accent: #1d8a4e;
+  --cta-accent-50: rgba(29, 138, 78, 0.55);
+  --cta-accent-40: rgba(29, 138, 78, 0.35);
+  --cta-accent-30: rgba(29, 138, 78, 0.25);
+  --cta-accent-00: rgba(29, 138, 78, 0);
+}
+
+/* ════ W6 — Direction A「工場日勤」WMS scope ════════════════════
+ * .wms-root wraps the whole WMS shell (sidebar + content). Overrides
+ * the shadcn sidebar vars to the dark signage palette and squares off
+ * every corner for the industrial look. */
+.wms-root {
+  --sidebar-background: 222 9% 13%; /* #1D1F23 */
+  --sidebar-foreground: 40 10% 88%; /* #E2E1DE */
+  --sidebar-primary: 45 91% 62%; /* safety yellow */
+  --sidebar-primary-foreground: 220 10% 9%;
+  --sidebar-accent: 220 7% 19%; /* hover — subtle dark */
+  --sidebar-accent-foreground: 40 10% 94%;
+  --sidebar-border: 218 7% 22%; /* #34373C */
+  --sidebar-ring: 45 91% 62%;
+}
+
+/* Active nav item = safety yellow on signage black (design .w-side-item.on) */
+.wms-root [data-sidebar="menu-button"][data-active="true"] {
+  background: #f6c945 !important;
+  color: #16181b !important;
+  font-weight: 700;
+}
+.wms-root [data-sidebar="menu-button"][data-active="true"] * {
+  color: #16181b !important;
+}
+
+/* Squared industrial radii — true circles (rounded-full) preserved */
+.wms-root [class*="rounded"]:not([class*="rounded-full"]) {
+  border-radius: 4px !important;
 }

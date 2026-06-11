@@ -109,7 +109,7 @@ export function OutboundListPageClient() {
           <div>
             <h1 className="text-[22px] font-semibold tracking-tight">所有出庫單</h1>
             <div className="mt-1 text-[13px] text-wms-muted">
-              當前 {rows.length} 單 · 包括 OMS 預報未到倉嘅件
+              當前 {rows.length} 單 · 包括 OMS 預報未到倉的件
             </div>
           </div>
           <span className="flex-1" />
@@ -170,7 +170,7 @@ export function OutboundListPageClient() {
               {visible.length === 0 && (
                 <tr>
                   <td colSpan={10} className="px-3 py-8 text-center text-wms-faint">
-                    無符合條件嘅出庫單
+                    無符合條件的出庫單
                   </td>
                 </tr>
               )}
