@@ -103,8 +103,9 @@ Sidebar 每項有 badge 數字 = 「呢個 stage 而家有幾多件貨等緊做�
    │   → AlertDialog（自動封晒開緊箱、空箱取消、出庫單推 packed）→ 自動跳【秤重取單】
    │
    ▼
-【秤重取單】掃第一箱開 session（session 鎖死「同客戶＋同目的地」一組）
-   │   逐箱：掃箱 barcode → 入重量（磅秤 live 或手動）→ 箱 chip 變已秤
+【秤重取單】逐箱：掃箱 barcode → 入重量（磅秤 live 或手動）+ 尺寸 → 撳「確認重量」
+   │   → 後端 save-box（推 packed → weighing → weight_verified）→ scan-box（鎖入 session）
+   │   → 箱 chip 變已秤。Session 鎖死「同客戶＋同目的地」一組（第一箱 confirm 嗰刻開）
    │   右側隊列：下一輪等緊秤嘅組；同組可加入嘅箱會綠色 highlight「可加入當前組」排最頂
    │   組內全部箱秤完 + 冇其他可加入 → ★ 自動彈 AlertDialog「確認取單 · ↵」
    │   → call carrier API 取運單：
