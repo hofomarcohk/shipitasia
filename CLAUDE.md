@@ -22,6 +22,7 @@ ShipItAsia v1 — 集運 B2B/B2C SaaS。客戶寄日本 → 埼玉倉暫存 → 
 2. **不寫死 if/else carrier_code**（A1）：一律 `carrierAdapterFactory.get(carrier_code)`
 3. **動作快照寫子集合**（B5）：主檔不放 weight/photo/location/staff，每次動作寫一筆 `*_scans` append-only
 4. **OMS↔WMS sync 走 WebhookDispatcher**（B2）：HMAC + retry 3 + 寫 `webhook_outward_logs`
+   - ⚠ **v1 重新詮釋**：見 [ADR-0002](docs/decisions/0002-single-process-sync-replaces-webhookdispatcher.md)。v1 OMS+WMS 寄住喺單一 Next.js process，sync 改 in-process function call，**唔需要寫 dispatcher**。audit 走紀律 #6 `audit_logs` + 紀律 #3 動作快照子集合。v2 拆 service 時重新引入
 5. **錢包異動只走 walletService**（A4）：mongoose pre-save hook 防呆
 6. **所有業務動作寫 audit_logs**（B1）：enum action + 結構化 details
 7. **schema 變更先停下問業主**：spec 是 source of truth
