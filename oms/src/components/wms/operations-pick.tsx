@@ -149,6 +149,7 @@ export const OperationsPick = () => {
       const r = await http_request("POST", "/api/wms/outbound/pick-by-tracking", {
         tracking_no: tracking,
         batch_id: batchId,
+        pick_method: "desktop_batch",
       });
       const d = await r.json();
       if (d.status === 200) {

@@ -437,6 +437,12 @@ export async function pickByTracking(
     tracking_no: string;
     locationCode?: string;
     batch_id?: string;
+    /** Channel that initiated the pick scan. PDA handheld → "pda_scan";
+     *  desktop pick-confirm rescan → "desktop_batch". Defaults to
+     *  pda_scan for back-compat with older callers. Stored on the
+     *  outbound_scans / outbound_action_logs row so ops can split
+     *  desktop-vs-PDA volume in dashboards. */
+    pick_method?: "pda_scan" | "desktop_batch";
   }
 ): Promise<{ outbound_id: string; inbound_id: string; outbound_picked: boolean }> {
   const db = await connectToDatabase();
@@ -477,7 +483,7 @@ export async function pickByTracking(
     outbound_id: link.outbound_id,
     inbound_id: String(inb._id),
     locationCode: params.locationCode,
-    method: "pda_scan",
+    method: params.pick_method ?? "pda_scan",
   });
   return {
     outbound_id: link.outbound_id,

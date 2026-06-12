@@ -13,6 +13,8 @@ export async function POST(request: NextRequest) {
       tracking_no: String(body.tracking_no ?? ""),
       locationCode: body.locationCode || undefined,
       batch_id: body.batch_id || undefined,
+      pick_method:
+        body.pick_method === "desktop_batch" ? "desktop_batch" : "pda_scan",
     });
     return { status: 200, message: "Picked", data };
   });

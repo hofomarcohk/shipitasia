@@ -294,6 +294,7 @@ function ConfirmScanView({
           tracking_no: tracking,
           locationCode: match.locationCode ?? undefined,
           batch_id: batchId,
+          pick_method: "desktop_batch",
         });
         const d = await r.json();
         if (d?.status !== 200) {
