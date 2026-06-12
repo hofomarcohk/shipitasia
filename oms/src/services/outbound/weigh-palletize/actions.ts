@@ -22,6 +22,7 @@ import {
   autoBatchFetchLabels,
   fetchLabelMultiBox,
 } from "@/services/outbound/wmsFlow";
+import { palletLabelService } from "@/services/pallet/palletLabelService";
 
 const PACK_BOXES = collections.PACK_BOX_V1;
 const OUTBOUNDS = collections.OUTBOUND;
@@ -542,6 +543,29 @@ export async function completeSession(
     box_count: totalBoxes,
   });
 
+  // P10 step 4 — mint pallet label per outbound (system actor). Staff
+  // prints + sticks on the physical pallet; downstream label-print page
+  // scans it back. printPallet is idempotent so re-completing a session
+  // no-ops on existing pallet labels. Errors are swallowed: a failed
+  // pallet print is recoverable via the manual reprint endpoint, no need
+  // to fail the whole completion.
+  const pallet_labels: any[] = [];
+  for (const oid of sessionIds) {
+    try {
+      const p = await palletLabelService.printPallet(
+        { staff_id: staff, warehouseCode },
+        oid,
+        "system"
+      );
+      pallet_labels.push(p);
+    } catch (err) {
+      console.error(
+        `[palletize.complete] pallet print failed for ${oid}:`,
+        (err as any)?.message ?? err
+      );
+    }
+  }
+
   // P19 — single batch label fetch for the entire session. With the
   // session-wide complete we have an explicit list, so we call
   // autoBatchFetchLabels directly (no need for the implicit sibling sweep
@@ -634,6 +658,7 @@ export async function completeSession(
     outbounds: outboundsPayload,
     label_fetch_outcome,
     label_fetch_error,
+    pallet_labels,
     same_client_hint,
   } as any;
 }
